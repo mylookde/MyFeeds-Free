@@ -4322,10 +4322,12 @@ class MyFeeds_Batch_Importer {
         }
         // =================================================================
         
-        // Bug 1 fix: Real DB product count for the header kachel (never rows, always products)
+        // Bug 1 fix: Real DB product count for the header kachel (never rows, always products).
+        // Matches the per-feed product_count (both are status='active'); unavailable rows are
+        // soft-deletes retained for placeholder rendering and should not inflate the header.
         $header_total = 0;
         if (MyFeeds_DB_Manager::is_db_mode()) {
-            $header_total = MyFeeds_DB_Manager::get_product_count();
+            $header_total = MyFeeds_DB_Manager::get_active_product_count();
         }
         
         return array(

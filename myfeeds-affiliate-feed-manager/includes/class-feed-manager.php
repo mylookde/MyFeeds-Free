@@ -148,14 +148,14 @@ class MyFeeds_Feed_Manager {
                         <span class="myfeeds-stat-label">Active Feeds</span>
                     </div>
                     <div class="myfeeds-stat-item">
-                        <span class="myfeeds-stat-number" data-testid="total-products" id="myfeeds-total-products"><?php 
+                        <span class="myfeeds-stat-number" data-testid="total-products" id="myfeeds-total-products"><?php
                             $total_products = 0;
                             if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::table_exists()) {
-                                $total_products = MyFeeds_DB_Manager::get_product_count();
+                                $total_products = MyFeeds_DB_Manager::get_active_product_count();
                             }
                             echo esc_html(number_format_i18n($total_products));
                         ?></span>
-                        <span class="myfeeds-stat-label">Total Products</span>
+                        <span class="myfeeds-stat-label">Active Products</span>
                     </div>
                     <div class="myfeeds-stat-item">
                         <span class="myfeeds-stat-number" data-testid="avg-mapping-quality" id="myfeeds-avg-quality"><?php 
@@ -1143,11 +1143,11 @@ class MyFeeds_Feed_Manager {
         // Get updated stats
         $total_products = 0;
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::table_exists()) {
-            $total_products = MyFeeds_DB_Manager::get_product_count();
+            $total_products = MyFeeds_DB_Manager::get_active_product_count();
         }
         $active_feeds = count($feeds);
         $avg_quality = $active_feeds > 0 ? round(array_sum(array_column($feeds, 'mapping_confidence')) / $active_feeds) : 0;
-        
+
         MyFeeds_Logger::info("Feed '{$feed_name}' deleted. Removed {$deleted_products} products from DB.");
         
         wp_send_json_success(array(
@@ -1172,11 +1172,11 @@ class MyFeeds_Feed_Manager {
         $feeds = get_option(self::OPTION_KEY, array());
         $total_products = 0;
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::table_exists()) {
-            $total_products = MyFeeds_DB_Manager::get_product_count();
+            $total_products = MyFeeds_DB_Manager::get_active_product_count();
         }
         $active_feeds = count($feeds);
         $avg_quality = $active_feeds > 0 ? round(array_sum(array_column($feeds, 'mapping_confidence')) / $active_feeds) : 0;
-        
+
         // Also return last sync info for Fix 3
         $last_sync = get_option('myfeeds_last_auto_sync', null);
         $last_sync_text = '';
