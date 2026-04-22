@@ -1,0 +1,544 @@
+/* MyFeeds Product Picker - Editor Styles */
+
+.myfeeds-editor-wrapper {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 20px;
+    background: #f9f9f9;
+    margin: 10px 0;
+}
+
+.myfeeds-editor-header {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #ddd;
+}
+
+.myfeeds-editor-header h3 {
+    margin: 0 0 5px 0;
+    color: #333;
+    font-size: 18px;
+}
+
+.myfeeds-editor-header p {
+    margin: 0;
+    color: #666;
+    font-size: 14px;
+}
+
+.myfeeds-search-section {
+    background: #fff;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    border: 1px solid #e0e0e0;
+}
+
+.myfeeds-search-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.myfeeds-error {
+    background: #fff2f2;
+    border-left: 4px solid #dc3545;
+    padding: 10px 15px;
+    border-radius: 4px;
+    color: #721c24;
+}
+
+.myfeeds-loading {
+    background: #fff;
+    border-radius: 4px;
+    border: 1px solid #e0e0e0;
+}
+
+.myfeeds-selected-preview {
+    background: #fff;
+    padding: 15px;
+    border-radius: 4px;
+    border: 1px solid #e0e0e0;
+    margin-top: 15px;
+}
+
+.myfeeds-selected-preview h4 {
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 16px;
+}
+
+.myfeeds-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 10px;
+}
+
+.myfeeds-preview-item {
+    text-align: center;
+    padding: 8px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background: #f8f9fa;
+}
+
+.myfeeds-preview-item img {
+    width: 100%;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 2px;
+    margin-bottom: 5px;
+}
+
+.myfeeds-preview-item span {
+    display: block;
+    font-size: 11px;
+    color: #666;
+    line-height: 1.2;
+}
+
+/* Modal Styles - Fixed for proper display */
+.myfeeds-spacious-modal .components-modal__content {
+    max-width: 95vw !important;
+    max-height: 95vh !important;
+    width: 95vw !important;
+    height: 95vh !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}
+
+.myfeeds-spacious-modal .components-modal__header {
+    padding: 15px 20px !important;
+    border-bottom: 1px solid #ddd !important;
+    flex-shrink: 0 !important;
+}
+
+/* Detail Modal Styles - FIXED: Higher z-index to appear on top */
+.myfeeds-detail-modal .components-modal__screen-overlay {
+    z-index: 100002 !important; /* Higher than search modal */
+    background: rgba(0,0,0,0.7) !important; /* Darker overlay for detail modal */
+}
+
+.myfeeds-detail-modal .components-modal__frame {
+    z-index: 100003 !important; /* Higher than search modal */
+}
+
+.myfeeds-detail-modal .components-modal__content {
+    max-width: 95vw !important;
+    max-height: 95vh !important;
+    width: 95vw !important;
+    height: 95vh !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.myfeeds-detail-modal .components-modal__header {
+    padding: 15px 20px !important;
+    border-bottom: 1px solid #ddd !important;
+    flex-shrink: 0 !important;
+    background: #fff !important;
+    position: relative !important;
+    z-index: auto !important;
+}
+
+/* Detail Modal Content - FIXED: Complete scrolling access with proper spacing for sticky footer */
+.myfeeds-detail-content {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    padding: 24px !important;
+    padding-bottom: 80px !important;
+    background: #fafafa !important;
+    height: 100% !important;
+    scroll-behavior: smooth !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+}
+
+/* Ensure the product detail starts with proper top padding */
+.myfeeds-product-detail {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 40px !important;
+    max-width: 1200px !important;
+    margin: 0px auto 20px auto !important;
+    background: white !important;
+    border-radius: 12px !important;
+    padding: 30px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
+    min-height: 600px !important;
+}
+
+/* Ensure scrolling works on all browsers */
+.myfeeds-detail-content::-webkit-scrollbar {
+    width: 8px !important;
+}
+
+.myfeeds-detail-content::-webkit-scrollbar-track {
+    background: #f1f1f1 !important;
+}
+
+.myfeeds-detail-content::-webkit-scrollbar-thumb {
+    background: #888 !important;
+    border-radius: 4px !important;
+}
+
+.myfeeds-detail-content::-webkit-scrollbar-thumb:hover {
+    background: #555 !important;
+}
+
+/* Product Detail Layout - handled above, centered in content */
+
+/* Product Images Section */
+.myfeeds-product-images {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 15px !important;
+}
+
+.myfeeds-main-image {
+    width: 100% !important;
+    height: 500px !important;
+    background: #fff !important;
+    border: 2px solid #f0f0f0 !important;
+    border-radius: 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+}
+
+.myfeeds-main-image img {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    height: auto !important;
+    object-fit: contain !important;
+    border-radius: 8px !important;
+    image-rendering: -webkit-optimize-contrast !important;
+    image-rendering: high-quality !important;
+}
+
+.myfeeds-additional-images {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)) !important;
+    gap: 10px !important;
+}
+
+.myfeeds-thumb-image {
+    border: 2px solid #e0e0e0 !important;
+    border-radius: 8px !important;
+    height: 80px !important;
+    background: #fff !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+.myfeeds-thumb-image:hover {
+    border-color: #007cba !important;
+    transform: scale(1.05) !important;
+}
+
+.myfeeds-thumb-image img {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    object-fit: contain !important;
+    border-radius: 4px !important;
+}
+
+/* Product Info Section */
+.myfeeds-product-info {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    padding-top: 0 !important;
+    padding-right: 24px !important;
+}
+
+.myfeeds-product-brand {
+    font-size: 14px !important;
+    color: #666 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    font-weight: 600 !important;
+    margin: 0 !important;
+}
+
+.myfeeds-product-title {
+    font-size: 28px !important;
+    font-weight: 700 !important;
+    color: #222 !important;
+    margin: 0 !important;
+    line-height: 1.3 !important;
+}
+
+.myfeeds-product-price {
+    display: flex !important;
+    align-items: center !important;
+    gap: 15px !important;
+    margin: 6px 0 !important;
+}
+
+.myfeeds-current-price {
+    font-size: 32px !important;
+    font-weight: 700 !important;
+    color: #e74c3c !important;
+}
+
+.myfeeds-old-price {
+    font-size: 20px !important;
+    color: #999 !important;
+    text-decoration: line-through !important;
+}
+
+.myfeeds-discount-badge {
+    background: #e74c3c !important;
+    color: white !important;
+    padding: 4px 12px !important;
+    border-radius: 20px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+}
+
+.myfeeds-product-description {
+    background: #f8f9fa !important;
+    border-radius: 12px !important;
+    padding: 20px 24px !important;
+    border: 1px solid #e9ecef !important;
+    margin-bottom: 0 !important;
+}
+
+.myfeeds-product-description h4 {
+    margin: 0 0 10px 0 !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    color: #333 !important;
+}
+
+.myfeeds-description-text {
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    color: #555 !important;
+    margin: 0 !important;
+}
+
+/* Product Attributes - tight gap to description */
+.myfeeds-product-attributes {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    margin-top: 0 !important;
+}
+
+.myfeeds-attribute-section {
+    background: #fff !important;
+    border: 1px solid #e9ecef !important;
+    border-radius: 8px !important;
+    padding: 15px !important;
+}
+
+.myfeeds-attribute-title {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #333 !important;
+    margin: 0 0 10px 0 !important;
+}
+
+.myfeeds-attribute-values {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+}
+
+.myfeeds-attribute-value {
+    display: inline-block !important;
+    padding: 8px 16px !important;
+    background: #f8f9fa !important;
+    border: 2px solid #e9ecef !important;
+    border-radius: 25px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: #333 !important;
+    transition: all 0.2s ease !important;
+    cursor: pointer !important;
+}
+
+.myfeeds-attribute-value:hover {
+    background: #007cba !important;
+    color: white !important;
+    border-color: #007cba !important;
+}
+
+/* Product Actions - CRITICAL: Sticky at bottom, always visible */
+.myfeeds-product-actions {
+    position: sticky !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    background: rgba(255,255,255,0.98) !important;
+    backdrop-filter: blur(10px) !important;
+    padding: 15px 30px !important;
+    border-top: 2px solid #e9ecef !important;
+    display: flex !important;
+    gap: 15px !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    z-index: 1000 !important;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.15) !important;
+    margin-top: 20px !important;
+}
+
+.myfeeds-back-button {
+    background: #6c757d !important;
+    color: white !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+.myfeeds-back-button:hover {
+    background: #5a6268 !important;
+    transform: translateY(-1px) !important;
+}
+
+.myfeeds-add-button {
+    background: #007cba !important;
+    color: white !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+.myfeeds-add-button:hover {
+    background: #005177 !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .myfeeds-product-detail {
+        grid-template-columns: 1fr !important;
+        gap: 20px !important;
+        padding: 20px !important;
+    }
+    
+    .myfeeds-main-image {
+        height: 300px !important;
+    }
+    
+    .myfeeds-product-title {
+        font-size: 22px !important;
+    }
+    
+    .myfeeds-current-price {
+        font-size: 24px !important;
+    }
+}
+
+/* Modal content wrapper for proper scrolling */
+.myfeeds-modal-content {
+    height: calc(100vh - 120px) !important;
+    overflow-y: auto !important;
+    padding: 20px !important;
+}
+
+.myfeeds-search-controls {
+    position: sticky !important;
+    top: 0 !important;
+    background: white !important;
+    z-index: 10 !important;
+    padding: 15px !important;
+    border-bottom: 1px solid #ddd !important;
+    margin: -20px -20px 20px -20px !important;
+}
+
+.myfeeds-results-grid {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.myfeeds-result-item {
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.myfeeds-result-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.myfeeds-result-item.is-selected {
+    box-shadow: 0 0 0 2px #007cba;
+}
+
+.myfeeds-result-item.is-invalid {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.myfeeds-result-item img {
+    border-radius: 2px;
+}
+
+/* WordPress Block Editor Adjustments */
+.wp-block[data-type="myfeeds/product-picker"] {
+    margin: 20px auto;
+    max-width: var(--wp--style--global--content-size, 840px);
+}
+
+.wp-block[data-type="myfeeds/product-picker"] .myfeeds-editor-wrapper {
+    margin: 0;
+}
+
+/* Component overrides */
+.myfeeds-search-section .components-base-control {
+    margin-bottom: 0;
+}
+
+.myfeeds-search-section .components-base-control__help {
+    margin-top: 5px;
+    font-size: 12px;
+}
+
+.components-button.is-primary.is-pressed,
+.components-button.is-primary:hover {
+    background: #005a87;
+    border-color: #005a87;
+}
+
+.myfeeds-search-actions .components-button {
+    height: 36px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .myfeeds-editor-wrapper {
+        padding: 15px;
+    }
+    
+    .myfeeds-preview-grid {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 8px;
+    }
+    
+    .myfeeds-search-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+}

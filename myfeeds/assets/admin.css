@@ -1,0 +1,866 @@
+/* MyFeeds Plugin Admin Styles — Unified Branding */
+
+/* ============================================
+   DESIGN SYSTEM
+   Primary Gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%)
+   Primary Solid: #667eea
+   Primary Dark: #4c1d95
+   Light Background: #f5f3ff
+   ============================================ */
+
+.myfeeds-form-section,
+.myfeeds-feeds-table,
+.myfeeds-network-section {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin: 20px 0;
+}
+
+.myfeeds-form-section {
+    padding: 20px;
+}
+
+.myfeeds-network-section {
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-left: 10px;
+}
+
+.status-badge.status-active {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status-badge.status-inactive {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.myfeeds-action-buttons {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.myfeeds-action-buttons form {
+    display: inline-block;
+    margin: 0;
+}
+
+.myfeeds-feeds-table table {
+    width: 100%;
+}
+
+.myfeeds-feeds-table th,
+.myfeeds-feeds-table td {
+    padding: 12px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.myfeeds-feeds-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.myfeeds-feeds-table td {
+    border-bottom: 1px solid #e9ecef;
+}
+
+.myfeeds-feeds-table .status-active {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.myfeeds-feeds-table .status-inactive {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+/* Form improvements */
+.form-table th {
+    width: 150px;
+    vertical-align: top;
+    padding-top: 15px;
+}
+
+.form-table td {
+    vertical-align: top;
+}
+
+.form-table input[type="text"],
+.form-table input[type="url"],
+.form-table input[type="password"],
+.form-table select {
+    width: 100%;
+    max-width: 400px;
+}
+
+.form-table textarea {
+    width: 100%;
+    max-width: 600px;
+    height: 120px;
+    font-family: monospace;
+}
+
+.form-table .description {
+    font-style: italic;
+    color: #666;
+    margin-top: 5px;
+}
+
+/* Network configuration specific */
+.myfeeds-network-section h2 {
+    display: flex;
+    align-items: center;
+    margin: 0 0 20px 0;
+    font-size: 18px;
+    color: #333;
+}
+
+.myfeeds-network-section .form-table {
+    margin-top: 0;
+}
+
+.myfeeds-network-section .submit {
+    margin: 20px 0 0 0;
+    padding: 0;
+}
+
+/* Button improvements */
+.button-group {
+    display: flex;
+    gap: 10px;
+}
+
+.button.button-small {
+    padding: 4px 8px;
+    height: auto;
+    line-height: 1.4;
+}
+
+/* Error and success messages */
+.notice.myfeeds-notice {
+    border-left-width: 4px;
+    margin: 5px 0 15px;
+    padding: 8px 12px;
+}
+
+/* Loading states */
+.myfeeds-loading {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+}
+
+.myfeeds-loading .spinner {
+    float: none;
+    margin: 0 auto 10px;
+    display: block;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 782px) {
+    .myfeeds-action-buttons {
+        flex-direction: column;
+        gap: 8px;
+        align-items: stretch;
+    }
+    
+    .myfeeds-action-buttons .button {
+        width: 100%;
+        text-align: center;
+        margin: 0;
+    }
+    
+    .form-table th,
+    .form-table td {
+        display: block;
+        width: 100%;
+        padding: 10px 0;
+    }
+    
+    .form-table th {
+        border-bottom: none;
+        padding-bottom: 5px;
+    }
+    
+    .myfeeds-network-section h2 {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .status-badge {
+        margin-left: 0;
+    }
+}
+
+/* WordPress admin color scheme integration */
+.wp-admin.folded .myfeeds-form-section,
+.wp-admin.folded .myfeeds-feeds-table {
+    margin-left: 0;
+}
+
+/* Help text styling — Plugin Branding */
+.myfeeds-help-text {
+    background: #f5f3ff;
+    border: 1px solid #c4b5fd;
+    border-left: 4px solid #667eea;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.myfeeds-help-text h4 {
+    margin: 0 0 10px 0;
+    color: #4c1d95;
+}
+
+.myfeeds-help-text p {
+    margin: 0 0 10px 0;
+}
+
+.myfeeds-help-text p:last-child {
+    margin: 0;
+}
+
+/* Feed URL display */
+.myfeeds-feed-url {
+    font-family: monospace;
+    background: #f8f9fa;
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-size: 12px;
+    word-break: break-all;
+}
+
+/* Statistics and counters */
+.myfeeds-stats {
+    display: flex;
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.myfeeds-stat-item {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    text-align: center;
+    border: 1px solid #e9ecef;
+}
+
+.myfeeds-stat-number {
+    display: block;
+    font-size: 24px;
+    font-weight: bold;
+    color: #667eea;
+    margin-bottom: 5px;
+}
+
+.myfeeds-stat-label {
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ============================================
+   PLUGIN BRANDING — BUTTON OVERRIDES
+   Only targets MyFeeds plugin elements
+   ============================================ */
+
+/* Primary Action Buttons */
+#myfeeds-unified-rebuild,
+#myfeeds-add-feed-btn,
+#myfeeds-feed-submit,
+.myfeeds-upgrade-banner .button.button-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2) !important;
+    text-shadow: none !important;
+    transition: transform 0.15s, box-shadow 0.15s !important;
+}
+
+#myfeeds-unified-rebuild:hover,
+#myfeeds-add-feed-btn:hover,
+#myfeeds-feed-submit:hover,
+.myfeeds-upgrade-banner .button.button-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35) !important;
+}
+
+#myfeeds-add-feed-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* Secondary Action Buttons */
+#myfeeds-quick-sync,
+#myfeeds-cancel-import,
+.myfeeds-edit-feed-btn,
+.myfeeds-reimport-btn {
+    background: #fff !important;
+    color: #667eea !important;
+    border: 1px solid #667eea !important;
+    border-radius: 6px !important;
+    text-shadow: none !important;
+    transition: background 0.15s !important;
+}
+
+#myfeeds-quick-sync:hover,
+#myfeeds-cancel-import:hover,
+.myfeeds-edit-feed-btn:hover,
+.myfeeds-reimport-btn:hover {
+    background: #f5f3ff !important;
+}
+
+/* Danger Buttons (Delete) */
+.myfeeds-delete-feed-btn {
+    background: #fff !important;
+    color: #dc2626 !important;
+    border: 1px solid #dc2626 !important;
+    border-radius: 6px !important;
+    text-shadow: none !important;
+    transition: background 0.15s !important;
+}
+
+.myfeeds-delete-feed-btn:hover {
+    background: #fef2f2 !important;
+}
+
+/* Primary Action Card Background */
+.myfeeds-primary-action {
+    background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%) !important;
+    border-color: #c4b5fd !important;
+}
+
+/* Upgrade Banner — Plugin Branding */
+.myfeeds-upgrade-banner {
+    background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 50%, #e8f4fd 100%) !important;
+    border: 1px solid #c4b5fd !important;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-top: 20px;
+}
+
+/* Upgrade link color */
+.myfeeds-upgrade-link {
+    color: #667eea !important;
+    font-weight: 500;
+}
+
+/* Feed Modal Help Text — Plugin Branding */
+.myfeeds-feed-modal-content .myfeeds-help-text {
+    background: #f5f3ff !important;
+    border-left: 4px solid #667eea !important;
+    border: 1px solid #c4b5fd;
+    border-left: 4px solid #667eea !important;
+}
+
+/* Feed Saving Notice — Plugin Branding */
+.myfeeds-feed-saving-notice {
+    border-left: 4px solid #667eea !important;
+}
+
+/* Test Summary Box — Plugin Branding */
+.myfeeds-test-summary {
+    background: #f5f3ff;
+    border-left: 4px solid #667eea;
+}
+
+
+/* ============================================
+   FREEMIUS ACCOUNT PAGE — MyFeeds Branding
+   Pure CSS overrides — no HTML changes.
+   All Freemius JS handlers remain functional.
+   ============================================ */
+
+/* Account container — subtle card styling */
+#fs_account .postbox {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+}
+
+/* Header bar — light brand accent */
+#fs_account .postbox h3 {
+    background: #f8f9fa;
+    border-bottom: 2px solid #667eea;
+    padding: 16px 20px;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e1e1e;
+    line-height: 1.4;
+}
+
+#fs_account .postbox h3 .dashicons {
+    color: #667eea;
+    margin-right: 6px;
+}
+
+/* Header action links (Deactivate, Change Plan, Sync) */
+#fs_account .fs-header-actions {
+    padding: 0 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+#fs_account .fs-header-actions ul {
+    margin: 0;
+    padding: 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-wrap: wrap;
+}
+
+#fs_account .fs-header-actions li {
+    margin: 0;
+}
+
+#fs_account .fs-header-actions a {
+    color: #667eea;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: color 0.15s;
+}
+
+#fs_account .fs-header-actions a:hover {
+    color: #764ba2;
+}
+
+#fs_account .fs-header-actions .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    vertical-align: middle;
+    color: #667eea;
+}
+
+/* Table body — clean spacing */
+#fs_account .postbox .inside {
+    padding: 0;
+}
+
+#fs_account #fs_account_details {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#fs_account #fs_account_details tr {
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.1s;
+}
+
+#fs_account #fs_account_details tr:last-child {
+    border-bottom: none;
+}
+
+#fs_account #fs_account_details tr:hover {
+    background-color: #fafafa;
+}
+
+#fs_account #fs_account_details tr.alternate {
+    background-color: #fcfcfc;
+}
+
+#fs_account #fs_account_details tr.alternate:hover {
+    background-color: #f8f8f8;
+}
+
+/* Label cells (left column) */
+#fs_account #fs_account_details td:first-child {
+    padding: 14px 16px 14px 20px;
+    font-weight: 600;
+    color: #555;
+    font-size: 13px;
+    white-space: nowrap;
+    width: 120px;
+}
+
+/* Value cells (middle column) */
+#fs_account #fs_account_details td:nth-child(2) {
+    padding: 14px 16px;
+}
+
+/* Code values — clean dark instead of teal */
+#fs_account #fs_account_details code {
+    background: #f5f3ff;
+    color: #1e1e1e;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    border: 1px solid #e9e5f5;
+    display: inline-block;
+    line-height: 1.4;
+}
+
+/* Action cells (right column) */
+#fs_account #fs_account_details .fs-right {
+    padding: 14px 20px 14px 16px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* All small buttons in the account table */
+#fs_account #fs_account_details .button.button-small {
+    background: #fff;
+    color: #667eea;
+    border: 1px solid #667eea;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 12px;
+    text-shadow: none;
+    box-shadow: none;
+    transition: all 0.15s;
+    cursor: pointer;
+}
+
+#fs_account #fs_account_details .button.button-small:hover {
+    background: #f5f3ff;
+    color: #764ba2;
+    border-color: #764ba2;
+}
+
+/* Primary button (Download Premium Version) — Purple Gradient */
+#fs_account #fs_account_details .button.button-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 6px !important;
+    padding: 8px 18px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    text-shadow: none !important;
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2) !important;
+    transition: transform 0.15s, box-shadow 0.15s !important;
+    text-decoration: none !important;
+}
+
+#fs_account #fs_account_details .button.button-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35) !important;
+}
+
+/* Change Plan button (with cart icon) */
+#fs_account .fs-change-plan,
+#fs_account a.button.fs-change-plan {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 6px !important;
+    padding: 6px 14px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    text-shadow: none !important;
+    text-decoration: none !important;
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2) !important;
+    transition: transform 0.15s, box-shadow 0.15s !important;
+}
+
+#fs_account .fs-change-plan:hover,
+#fs_account a.button.fs-change-plan:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35) !important;
+    color: #fff !important;
+}
+
+#fs_account .fs-change-plan .dashicons {
+    color: #fff;
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    vertical-align: middle;
+}
+
+/* Sync License button — secondary style */
+#fs_account #fs_account_details .button-group .button:not(.button-primary):not(.fs-change-plan) {
+    background: #fff;
+    color: #667eea;
+    border: 1px solid #667eea;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    text-shadow: none;
+    box-shadow: none;
+    transition: all 0.15s;
+}
+
+#fs_account #fs_account_details .button-group .button:not(.button-primary):not(.fs-change-plan):hover {
+    background: #f5f3ff;
+    color: #764ba2;
+    border-color: #764ba2;
+}
+
+/* Tag badges — brand-colored */
+#fs_account .fs-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    vertical-align: middle;
+    margin-left: 8px;
+}
+
+#fs_account .fs-tag.fs-warn {
+    background: #f5f3ff;
+    color: #667eea;
+    border: 1px solid #c4b5fd;
+}
+
+/* Plan row — brand-colored highlight */
+#fs_account #fs_account_details .fs-field-plan td {
+    background: #f5f3ff;
+}
+
+#fs_account #fs_account_details .fs-field-plan:hover td {
+    background: #ede9fe;
+}
+
+/* Plan row — buttons right-aligned using text-align (simple, robust) */
+#fs_account #fs_account_details .fs-field-plan td[colspan] {
+    text-align: right;
+    padding-right: 20px;
+}
+
+/* Keep the code + tag left-aligned within the right-aligned cell */
+#fs_account #fs_account_details .fs-field-plan td[colspan] code,
+#fs_account #fs_account_details .fs-field-plan td[colspan] .fs-tag {
+    float: left;
+}
+
+/* Version row — "Free version" badge */
+#fs_account #fs_account_details .fs-field-version .fs-tag.fs-warn {
+    background: #f5f3ff;
+    color: #667eea;
+    border: 1px solid #c4b5fd;
+}
+
+/* License key row — Change License button */
+#fs_account .activate-license-trigger {
+    background: #fff;
+    color: #667eea;
+    border: 1px solid #667eea;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    text-shadow: none;
+    box-shadow: none;
+    transition: all 0.15s;
+}
+
+#fs_account .activate-license-trigger:hover {
+    background: #f5f3ff;
+    color: #764ba2;
+    border-color: #764ba2;
+}
+
+/* Deactivate License link — subtle danger style */
+#fs_account .fs-deactivate-license {
+    color: #9ca3af !important;
+    font-size: 12px;
+}
+
+#fs_account .fs-deactivate-license:hover {
+    color: #dc2626 !important;
+}
+
+#fs_account .fs-deactivate-license .dashicons {
+    color: inherit;
+    font-size: 13px;
+    width: 13px;
+    height: 13px;
+}
+
+/* Button group — proper spacing */
+#fs_account .button-group {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* Hidden input fields (Show/Hide secret key) — consistent styling */
+#fs_account #fs_account_details input[type="text"][readonly] {
+    background: #f5f3ff;
+    border: 1px solid #e9e5f5;
+    border-radius: 4px;
+    color: #1e1e1e;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 4px 8px;
+}
+
+/* ============================================
+   FREEMIUS MODAL — Brand styling
+   .fs-modal is a fullscreen overlay (position: fixed, 100% width/height).
+   We must NOT change its position/size — only its background.
+   The inner dialog gets centered + styled separately.
+   ============================================ */
+
+/* Fullscreen overlay — transparent (no dark backdrop) */
+div.fs-modal,
+div.fs-modal.active,
+.has-fs-modal div.fs-modal,
+body div.fs-modal {
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+div.fs-modal::before,
+div.fs-modal.active::before,
+.has-fs-modal div.fs-modal::before,
+body div.fs-modal::before {
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+/* Inner modal dialog — centered, white, with shadow */
+div.fs-modal .fs-modal-dialog {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    margin: 0 !important;
+    max-width: 480px !important;
+    width: 90% !important;
+    border-radius: 10px !important;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2) !important;
+    border: none !important;
+    overflow: hidden !important;
+    background: #fff !important;
+    z-index: 1 !important;
+}
+
+/* Modal header */
+div.fs-modal .fs-modal-header {
+    background: #f8f9fa !important;
+    border-bottom: 2px solid #667eea !important;
+    padding: 16px 20px !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #1e1e1e !important;
+}
+
+div.fs-modal .fs-modal-header h4,
+div.fs-modal .fs-modal-header .fs-modal-title {
+    color: #1e1e1e !important;
+    font-weight: 600 !important;
+    font-size: 15px !important;
+    margin: 0 !important;
+}
+
+/* Modal body */
+div.fs-modal .fs-modal-body {
+    padding: 24px 20px !important;
+    background: #fff !important;
+}
+
+div.fs-modal .fs-modal-body input[type="text"],
+div.fs-modal .fs-modal-body input[type="email"] {
+    width: 100% !important;
+    padding: 10px 12px !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    transition: border-color 0.15s !important;
+    box-sizing: border-box !important;
+}
+
+div.fs-modal .fs-modal-body input[type="text"]:focus,
+div.fs-modal .fs-modal-body input[type="email"]:focus {
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15) !important;
+    outline: none !important;
+}
+
+/* Modal footer */
+div.fs-modal .fs-modal-footer {
+    padding: 16px 20px !important;
+    background: #f8f9fa !important;
+    border-top: 1px solid #e5e7eb !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+}
+
+/* Modal primary button (Update/Save) */
+div.fs-modal .fs-modal-footer .button-primary,
+div.fs-modal .fs-modal-footer .button.button-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 6px !important;
+    padding: 8px 20px !important;
+    font-weight: 600 !important;
+    text-shadow: none !important;
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2) !important;
+}
+
+/* Modal secondary button (Cancel) */
+div.fs-modal .fs-modal-footer .button:not(.button-primary) {
+    background: #fff !important;
+    color: #667eea !important;
+    border: 1px solid #667eea !important;
+    border-radius: 6px !important;
+    padding: 8px 20px !important;
+    font-weight: 500 !important;
+    text-shadow: none !important;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 782px) {
+    #fs_account #fs_account_details td:first-child {
+        padding: 12px 12px 4px 12px;
+        display: block;
+        width: 100%;
+    }
+
+    #fs_account #fs_account_details td:nth-child(2) {
+        padding: 4px 12px 8px 12px;
+        display: block;
+    }
+
+    #fs_account #fs_account_details .fs-right {
+        padding: 4px 12px 12px 12px;
+        display: block;
+        text-align: left;
+    }
+
+    #fs_account .fs-header-actions ul {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    #fs_account .fs-header-actions li {
+        display: block;
+    }
+
+    div.fs-modal .fs-modal-dialog {
+        width: 95% !important;
+        max-width: none !important;
+    }
+}

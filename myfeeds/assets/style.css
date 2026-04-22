@@ -1,0 +1,725 @@
+/* 
+ * MyFeeds Product Picker - Frontend Styles
+ * Professional CSS with MAXIMUM SPECIFICITY to override theme CSS
+ * Version: 4.0 - Grid + Carousel support, theme override, text containment
+ */
+
+/* ==========================================================================
+   GRID LAYOUT - Equal-width cards, centered, responsive
+   Uses auto-fit + minmax for flexible column count
+   max-width + margin auto for centering in content area
+   ========================================================================== */
+
+html body .myfeeds-product-grid {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 16px !important;
+    padding: 24px 0 !important;
+    max-width: 1200px !important;
+    margin: 0 auto !important;
+    box-sizing: border-box !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-product-card,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
+    width: calc(25% - 12px) !important;
+    min-width: var(--myfeeds-card-min-w, 200px) !important;
+    max-width: var(--myfeeds-card-max-w, 280px) !important;
+}
+
+@media (max-width: 768px) {
+    html body .myfeeds-product-grid {
+        justify-content: flex-start !important;
+    }
+    html body .myfeeds-product-grid .myfeeds-product-card,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
+        width: calc(50% - 8px) !important;
+    }
+}
+
+@media (max-width: 380px) {
+    html body .myfeeds-product-grid .myfeeds-product-card,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+}
+
+/* ==========================================================================
+   PRODUCT CARD - Clean design, equal width, text containment
+   min-width:0 prevents grid blowout from long content
+   ========================================================================== */
+
+html body .myfeeds-product-grid .myfeeds-product-card,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
+    display: flex !important;
+    flex-direction: column !important;
+    text-decoration: none !important;
+    color: inherit !important;
+    background: var(--myfeeds-card-bg, #fff) !important;
+    border-radius: var(--myfeeds-card-radius, 0) !important;
+    overflow: hidden !important;
+    transition: all 0.25s ease !important;
+    box-shadow: var(--myfeeds-card-shadow, 0 1px 3px rgba(0,0,0,0.06)) !important;
+    border: var(--myfeeds-card-border-width, 0) solid var(--myfeeds-card-border-color, transparent) !important;
+    min-width: 0 !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-product-card:hover,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card:hover {
+    transform: scale(var(--myfeeds-card-hover-scale, 1.02)) !important;
+    box-shadow: var(--myfeeds-card-hover-shadow, 0 4px 16px rgba(0,0,0,0.12)) !important;
+    border-radius: var(--myfeeds-card-hover-radius, 4px) !important;
+    z-index: 10 !important;
+}
+
+/* Mobile Touch-Effekt */
+@media (max-width: 768px) {
+    html body .myfeeds-product-grid .myfeeds-product-card:hover,
+    html body .myfeeds-product-grid .myfeeds-product-card:active,
+    html body .myfeeds-product-grid .myfeeds-product-card:focus,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card:hover,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card:active,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card:focus {
+        transform: scale(var(--myfeeds-card-hover-scale, 1.02)) !important;
+        box-shadow: var(--myfeeds-card-hover-shadow, 0 4px 16px rgba(0,0,0,0.12)) !important;
+        border-radius: var(--myfeeds-card-hover-radius, 4px) !important;
+        z-index: 10 !important;
+    }
+}
+
+/* ==========================================================================
+   DISCOUNT BADGE - White pill, red text, on image
+   ========================================================================== */
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image .myfeeds-discount-badge,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image .myfeeds-discount-badge {
+    position: absolute !important;
+    top: var(--myfeeds-badge-top, 3%) !important;
+    left: var(--myfeeds-badge-left, 3%) !important;
+    background: var(--myfeeds-badge-bg, #fff) !important;
+    color: var(--myfeeds-badge-color, #e74c3c) !important;
+    padding: 6px 16px !important;
+    border-radius: var(--myfeeds-badge-radius, 20px) !important;
+    font-size: var(--myfeeds-badge-size, 13px) !important;
+    font-weight: var(--myfeeds-badge-weight, 700) !important;
+    z-index: 100 !important;
+    letter-spacing: -0.3px !important;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2) !important;
+    display: var(--myfeeds-badge-display, block) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: none !important;
+    line-height: 1 !important;
+    text-decoration: none !important;
+    border: none !important;
+    margin: 0 !important;
+    text-transform: none !important;
+    font-family: var(--myfeeds-badge-font, inherit) !important;
+    text-transform: var(--myfeeds-badge-transform, none) !important;
+}
+
+/* ==========================================================================
+   PRODUCT IMAGE - Portrait ratio, contained
+   ========================================================================== */
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image {
+    position: relative !important;
+    width: 100% !important;
+    padding-bottom: var(--myfeeds-img-ratio, 125%) !important;
+    overflow: hidden !important;
+    background: var(--myfeeds-img-bg, #f8f8f8) !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image img,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image img {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: var(--myfeeds-img-fit, contain) !important;
+    object-position: center !important;
+    display: block !important;
+    image-rendering: -webkit-optimize-contrast !important;
+    image-rendering: crisp-edges !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+@media (max-width: 767px) {
+    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image {
+        padding-bottom: 120% !important;
+    }
+}
+
+/* ==========================================================================
+   PRODUCT DETAILS - Text containment with ellipsis
+   ========================================================================== */
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details {
+    padding: var(--myfeeds-details-py, 12px) var(--myfeeds-details-px, 10px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+}
+
+/* Element order via CSS custom properties */
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand {
+    order: var(--myfeeds-order-brand, 0) !important;
+}
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title {
+    order: var(--myfeeds-order-title, 1) !important;
+}
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price {
+    order: var(--myfeeds-order-price, 2) !important;
+}
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info {
+    order: var(--myfeeds-order-shipping, 3) !important;
+}
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant {
+    order: var(--myfeeds-order-merchant, 4) !important;
+}
+
+/* Brand */
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand {
+    display: var(--myfeeds-brand-display, block) !important;
+    font-weight: var(--myfeeds-brand-weight, 600) !important;
+    font-size: var(--myfeeds-brand-size, 11px) !important;
+    line-height: 1.3 !important;
+    margin-bottom: 4px !important;
+    color: var(--myfeeds-brand-color, #222) !important;
+    text-transform: var(--myfeeds-brand-transform, none) !important;
+    letter-spacing: 0 !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    font-family: var(--myfeeds-brand-font, inherit) !important;
+}
+
+/* Title - single line with ellipsis */
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title {
+    display: var(--myfeeds-title-display, block) !important;
+    font-size: var(--myfeeds-title-size, 12px) !important;
+    font-weight: var(--myfeeds-title-weight, 400) !important;
+    color: var(--myfeeds-title-color, #666) !important;
+    line-height: 1.3 !important;
+    margin-bottom: 8px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    text-decoration: none !important;
+    font-family: var(--myfeeds-title-font, inherit) !important;
+    text-transform: var(--myfeeds-title-transform, none) !important;
+}
+
+@media (max-width: 767px) {
+    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details {
+        padding: 10px 8px !important;
+    }
+    
+    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand {
+        font-size: 10px !important;
+        margin-bottom: 3px !important;
+    }
+    
+    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title {
+        font-size: 11px !important;
+        margin-bottom: 6px !important;
+    }
+}
+
+/* ==========================================================================
+   PRICE SECTION - Text containment, no column stretch
+   ========================================================================== */
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price {
+    display: var(--myfeeds-price-display, flex) !important;
+    align-items: baseline !important;
+    gap: 8px !important;
+    margin-bottom: 6px !important;
+    flex-wrap: nowrap !important;
+    overflow: hidden !important;
+    min-width: 0 !important;
+}
+
+/* OLD PRICE (strikethrough) */
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price {
+    text-decoration: line-through !important;
+    color: var(--myfeeds-old-price-color, #222) !important;
+    font-size: var(--myfeeds-old-price-size, 15px) !important;
+    margin-right: 4px !important;
+    font-weight: var(--myfeeds-old-price-weight, 700) !important;
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    font-family: var(--myfeeds-old-price-font, inherit) !important;
+}
+
+/* Current price */
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price {
+    font-weight: var(--myfeeds-price-weight, 600) !important;
+    color: var(--myfeeds-price-color, #333) !important;
+    font-size: var(--myfeeds-price-size, 15px) !important;
+    text-decoration: none !important;
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    font-family: var(--myfeeds-price-font, inherit) !important;
+}
+
+/* Current price WITH DISCOUNT */
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount {
+    color: var(--myfeeds-price-discount-color, #e74c3c) !important;
+    font-size: var(--myfeeds-price-size, 15px) !important;
+    font-family: var(--myfeeds-price-font, inherit) !important;
+}
+
+/* Price unavailable */
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-price-unavailable,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-price-unavailable {
+    font-size: 13px !important;
+    color: #999 !important;
+    font-style: italic !important;
+}
+
+@media (max-width: 767px) {
+    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price {
+        gap: 6px !important;
+        margin-bottom: 5px !important;
+    }
+    
+    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price {
+        font-size: 13px !important;
+    }
+    
+    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price {
+        font-size: 14px !important;
+    }
+    
+    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount {
+        font-size: 14px !important;
+    }
+}
+
+/* ==========================================================================
+   SHIPPING INFO
+   ========================================================================== */
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info {
+    display: var(--myfeeds-shipping-display, block) !important;
+    font-size: var(--myfeeds-shipping-size, 10px) !important;
+    color: var(--myfeeds-shipping-color, #999) !important;
+    margin-bottom: 6px !important;
+    font-weight: 400 !important;
+    text-decoration: none !important;
+    text-transform: var(--myfeeds-shipping-transform, uppercase) !important;
+    letter-spacing: 0.3px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    font-family: var(--myfeeds-shipping-font, inherit) !important;
+}
+
+/* ==========================================================================
+   MERCHANT NAME
+   ========================================================================== */
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant {
+    display: var(--myfeeds-merchant-display, block) !important;
+    font-size: var(--myfeeds-merchant-size, 10px) !important;
+    color: var(--myfeeds-merchant-color, #666) !important;
+    font-weight: 400 !important;
+    text-align: right !important;
+    margin-top: auto !important;
+    padding-top: 4px !important;
+    text-decoration: none !important;
+    text-transform: var(--myfeeds-merchant-transform, uppercase) !important;
+    letter-spacing: 0.3px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    font-family: var(--myfeeds-merchant-font, inherit) !important;
+}
+
+@media (max-width: 767px) {
+    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info {
+        font-size: 9px !important;
+        margin-bottom: 4px !important;
+    }
+    
+    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant {
+        font-size: 9px !important;
+        margin-top: auto !important;
+        padding-top: 3px !important;
+    }
+}
+
+/* ==========================================================================
+   EMPTY STATE
+   ========================================================================== */
+
+html body .myfeeds-no-products {
+    text-align: center !important;
+    padding: 40px 20px !important;
+    color: #666 !important;
+    font-style: italic !important;
+    border: 2px dashed #ddd !important;
+    border-radius: 8px !important;
+    background: #f9f9f9 !important;
+    max-width: 1200px !important;
+    margin: 0 auto !important;
+}
+
+/* ==========================================================================
+   IMAGE FALLBACK — CSS-only placeholder when product image fails to load
+   Triggered by onerror handler adding .myfeeds-img-error class
+   ========================================================================== */
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image.myfeeds-img-error,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image.myfeeds-img-error {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%) !important;
+    padding-bottom: var(--myfeeds-img-ratio, 125%) !important;
+    position: relative !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image.myfeeds-img-error::after,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image.myfeeds-img-error::after {
+    content: '' !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 48px !important;
+    height: 48px !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23bbb' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpath d='M21 15l-5-5L5 21'/%3E%3C/svg%3E") !important;
+    background-size: contain !important;
+    background-repeat: no-repeat !important;
+    opacity: 0.5 !important;
+}
+
+/* ==========================================================================
+   ELEMENTOR / PAGE BUILDER CONFLICT OVERRIDE
+   html body prefix for maximum specificity
+   ========================================================================== */
+
+html body .myfeeds-product-grid .myfeeds-product-card,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card,
+html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card,
+html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
+    border-left: var(--myfeeds-card-border-width, 0) solid var(--myfeeds-card-border-color, transparent) !important;
+    border-bottom: var(--myfeeds-card-border-width, 0) solid var(--myfeeds-card-border-color, transparent) !important;
+    border-right: var(--myfeeds-card-border-width, 0) solid var(--myfeeds-card-border-color, transparent) !important;
+    border-top: var(--myfeeds-card-border-width, 0) solid var(--myfeeds-card-border-color, transparent) !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-product-card:hover,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card:hover,
+html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card:hover,
+html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card:hover {
+    margin-bottom: 0 !important;
+}
+
+/* Override inherited link colors */
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand {
+    color: var(--myfeeds-brand-color, #222) !important;
+    font-family: var(--myfeeds-brand-font, inherit) !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title {
+    color: var(--myfeeds-title-color, #666) !important;
+    font-family: var(--myfeeds-title-font, inherit) !important;
+    text-transform: var(--myfeeds-title-transform, none) !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-old-price,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-old-price {
+    color: var(--myfeeds-old-price-color, #222) !important;
+    font-family: var(--myfeeds-old-price-font, inherit) !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-current-price,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-current-price {
+    color: var(--myfeeds-price-color, #333) !important;
+    font-family: var(--myfeeds-price-font, inherit) !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-current-price.has-discount,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-current-price.has-discount {
+    color: var(--myfeeds-price-discount-color, #e74c3c) !important;
+    font-family: var(--myfeeds-price-font, inherit) !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info {
+    color: var(--myfeeds-shipping-color, #999) !important;
+    font-family: var(--myfeeds-shipping-font, inherit) !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant {
+    color: var(--myfeeds-merchant-color, #666) !important;
+    font-family: var(--myfeeds-merchant-font, inherit) !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-discount-badge,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-discount-badge {
+    color: var(--myfeeds-badge-color, #e74c3c) !important;
+    background: var(--myfeeds-badge-bg, #fff) !important;
+    font-family: var(--myfeeds-badge-font, inherit) !important;
+    text-transform: var(--myfeeds-badge-transform, none) !important;
+}
+
+/* Elementor container specificity boost */
+html body .elementor-widget-container .myfeeds-product-grid {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 16px !important;
+    max-width: 1200px !important;
+    margin: 0 auto !important;
+}
+
+html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details,
+html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details {
+    padding: var(--myfeeds-details-py, 12px) var(--myfeeds-details-px, 10px) !important;
+}
+
+html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price,
+html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price {
+    font-size: var(--myfeeds-old-price-size, 15px) !important;
+}
+
+html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price,
+html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price {
+    font-size: var(--myfeeds-price-size, 15px) !important;
+}
+
+html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount,
+html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount {
+    font-size: var(--myfeeds-price-size, 15px) !important;
+}
+
+@media (max-width: 767px) {
+    html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details,
+    html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details {
+        padding: 10px 8px !important;
+    }
+    
+    html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price,
+    html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price {
+        font-size: 13px !important;
+    }
+    
+    html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price,
+    html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price {
+        font-size: 14px !important;
+    }
+    
+    html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount,
+    html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount {
+        font-size: 14px !important;
+    }
+}
+
+/* ==========================================================================
+   MISSING PRODUCT PLACEHOLDER
+   ========================================================================== */
+
+html body .myfeeds-product-grid .myfeeds-product-card.myfeeds-missing-product,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card.myfeeds-missing-product {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+    border: 2px dashed #dee2e6 !important;
+    border-radius: 8px !important;
+    min-height: 280px !important;
+    padding: 24px !important;
+    text-decoration: none !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-missing-product .myfeeds-missing-icon,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-missing-product .myfeeds-missing-icon {
+    font-size: 48px !important;
+    margin-bottom: 12px !important;
+    opacity: 0.6 !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-missing-product .myfeeds-missing-text,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-missing-product .myfeeds-missing-text {
+    font-size: 14px !important;
+    color: #6c757d !important;
+    text-align: center !important;
+    font-weight: 500 !important;
+}
+
+@media (max-width: 767px) {
+    html body .myfeeds-product-grid .myfeeds-product-card.myfeeds-missing-product,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card.myfeeds-missing-product {
+        min-height: 220px !important;
+        padding: 16px !important;
+    }
+    
+    html body .myfeeds-product-grid .myfeeds-missing-product .myfeeds-missing-icon,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-missing-product .myfeeds-missing-icon {
+        font-size: 36px !important;
+    }
+    
+    html body .myfeeds-product-grid .myfeeds-missing-product .myfeeds-missing-text,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-missing-product .myfeeds-missing-text {
+        font-size: 12px !important;
+    }
+}
+
+/* ==========================================================================
+   UNAVAILABLE PRODUCT PLACEHOLDER
+   ========================================================================== */
+
+html body .myfeeds-product-grid .myfeeds-product-card.myfeeds-unavailable-product,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card.myfeeds-unavailable-product {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #f5f5f5 !important;
+    border: 1px solid #e0e0e0 !important;
+    border-radius: 4px !important;
+    min-height: 280px !important;
+    padding: 24px !important;
+    text-decoration: none !important;
+    cursor: default !important;
+    pointer-events: none !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-product-card.myfeeds-unavailable-product:hover,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card.myfeeds-unavailable-product:hover {
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-unavailable-product .myfeeds-unavailable-image,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-unavailable-product .myfeeds-unavailable-image {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 80px !important;
+    height: 80px !important;
+    background: #e8e8e8 !important;
+    border-radius: 50% !important;
+    margin-bottom: 16px !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-unavailable-product .myfeeds-unavailable-icon,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-unavailable-product .myfeeds-unavailable-icon {
+    font-size: 32px !important;
+    color: #aaa !important;
+    line-height: 1 !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-unavailable-product .myfeeds-product-details,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-unavailable-product .myfeeds-product-details {
+    padding: 0 !important;
+    text-align: center !important;
+}
+
+html body .myfeeds-product-grid .myfeeds-unavailable-product .myfeeds-unavailable-text,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-unavailable-product .myfeeds-unavailable-text {
+    font-size: 13px !important;
+    color: #888 !important;
+    text-align: center !important;
+    font-weight: 400 !important;
+    line-height: 1.4 !important;
+}
+
+@media (max-width: 767px) {
+    html body .myfeeds-product-grid .myfeeds-product-card.myfeeds-unavailable-product,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card.myfeeds-unavailable-product {
+        min-height: 220px !important;
+        padding: 16px !important;
+    }
+    
+    html body .myfeeds-product-grid .myfeeds-unavailable-product .myfeeds-unavailable-image,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-unavailable-product .myfeeds-unavailable-image {
+        width: 60px !important;
+        height: 60px !important;
+        margin-bottom: 12px !important;
+    }
+    
+    html body .myfeeds-product-grid .myfeeds-unavailable-product .myfeeds-unavailable-icon,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-unavailable-product .myfeeds-unavailable-icon {
+        font-size: 24px !important;
+    }
+    
+    html body .myfeeds-product-grid .myfeeds-unavailable-product .myfeeds-unavailable-text,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-unavailable-product .myfeeds-unavailable-text {
+        font-size: 11px !important;
+    }
+}
+
+/* ==========================================================================
+   CAROUSEL MODE — Override grid-specific widths
+   Splide manages slide widths automatically via perPage setting.
+   Cards inside slides must be 100% width without min/max constraints.
+   ========================================================================== */
+
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+}
+
+@media (max-width: 768px) {
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
+        width: 100% !important;
+    }
+}
+
+@media (max-width: 380px) {
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
+        width: 100% !important;
+        max-width: none !important;
+    }
+}
