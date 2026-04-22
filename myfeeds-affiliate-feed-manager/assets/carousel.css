@@ -180,3 +180,76 @@ html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeed
 html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image.myfeeds-img-error {
     padding-bottom: 100% !important;
 }
+
+/* =========================================================================
+ * Splide arrow styling (formerly emitted as inline <style> per render).
+ * Color is driven by a per-instance CSS variable so the only inline data
+ * the render callback has to emit is one custom-property assignment.
+ * ========================================================================= */
+
+html body .myfeeds-product-carousel {
+    --myfeeds-arrow-color: #555;
+}
+
+/* Color-driven rules */
+html body .myfeeds-product-carousel .splide__arrow svg {
+    fill: var(--myfeeds-arrow-color) !important;
+}
+html body .myfeeds-product-carousel .splide__arrow {
+    border-color: var(--myfeeds-arrow-color) !important;
+}
+html body .myfeeds-product-carousel .splide__arrow:hover {
+    background: var(--myfeeds-arrow-color) !important;
+    border-color: var(--myfeeds-arrow-color) !important;
+}
+html body .myfeeds-product-carousel .splide__arrow:hover svg {
+    fill: #fff !important;
+}
+
+/* Visibility / position forcing — overrides Splide defaults at every breakpoint */
+html body .myfeeds-product-carousel .splide__arrow {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: absolute !important;
+    pointer-events: all !important;
+}
+html body .myfeeds-product-carousel .splide__arrow--prev {
+    transform: translateY(-50%) scaleX(-1) !important;
+}
+
+@media (max-width: 480px) {
+    html body .myfeeds-product-carousel .splide__arrow {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        width: 32px !important;
+        height: 32px !important;
+        z-index: 20 !important;
+        background: transparent !important;
+        border: 2px solid var(--myfeeds-arrow-color) !important;
+        border-radius: 50% !important;
+        box-shadow: none !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 0 !important;
+    }
+    html body .myfeeds-product-carousel .splide__arrow svg {
+        fill: var(--myfeeds-arrow-color) !important;
+        width: 14px !important;
+        height: 14px !important;
+    }
+    html body .myfeeds-product-carousel .splide__arrow--prev {
+        left: -2px !important;
+        top: 45% !important;
+        transform: scaleX(-1) !important;
+    }
+    html body .myfeeds-product-carousel .splide__arrow--next {
+        right: -2px !important;
+        top: 45% !important;
+        transform: none !important;
+    }
+    html body .myfeeds-product-carousel .splide__track {
+        padding: 0 !important;
+    }
+}

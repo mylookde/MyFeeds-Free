@@ -185,8 +185,12 @@ class MyFeeds_Product_Picker {
                     true
                 );
                 
-                // Our carousel styles
+                // Our carousel styles + shared init script. Per-block render_callback
+                // pushes a one-line init call via wp_add_inline_script() and a CSS
+                // custom-property assignment via wp_add_inline_style() — instead of
+                // emitting a fresh inline <style>/<script> per instance.
                 wp_enqueue_style('myfeeds-carousel', MYFEEDS_PLUGIN_URL . 'assets/carousel.css', array('splide-core'), MYFEEDS_VERSION);
+                wp_enqueue_script('myfeeds-carousel', MYFEEDS_PLUGIN_URL . 'assets/carousel.js', array('splide'), MYFEEDS_VERSION, true);
             }
         }
     }
@@ -330,65 +334,17 @@ class MyFeeds_Product_Picker {
             $output .= '</div>'; // Close splide__list
             $output .= '</div>'; // Close splide__track
             $output .= '</div>'; // Close splide container
-            
-            // Dynamic arrow color via inline CSS (overrides carousel.css defaults)
-            $output .= '<style>
-                #' . esc_attr($unique_id) . ' .splide__arrow svg { fill: ' . esc_attr($arrow_color) . ' !important; }
-                #' . esc_attr($unique_id) . ' .splide__arrow { border-color: ' . esc_attr($arrow_color) . ' !important; }
-                #' . esc_attr($unique_id) . ' .splide__arrow:hover { background: ' . esc_attr($arrow_color) . ' !important; border-color: ' . esc_attr($arrow_color) . ' !important; }
-                #' . esc_attr($unique_id) . ' .splide__arrow:hover svg { fill: #fff !important; }
-            </style>';
-            
-            // Force arrow visibility on all screen sizes via ID selector (highest specificity)
-            $output .= '<style>
-                #' . esc_attr($unique_id) . ' .splide__arrow {
-                    display: flex !important;
-                    visibility: visible !important;
-                    opacity: 1 !important;
-                    position: absolute !important;
-                    pointer-events: all !important;
-                }
-                #' . esc_attr($unique_id) . ' .splide__arrow--prev {
-                    transform: translateY(-50%) scaleX(-1) !important;
-                }
-                @media (max-width: 480px) {
-                    #' . esc_attr($unique_id) . ' .splide__arrow {
-                        display: flex !important;
-                        visibility: visible !important;
-                        opacity: 1 !important;
-                        width: 32px !important;
-                        height: 32px !important;
-                        z-index: 20 !important;
-                        background: transparent !important;
-                        border: 2px solid ' . esc_attr($arrow_color) . ' !important;
-                        border-radius: 50% !important;
-                        box-shadow: none !important;
-                        align-items: center !important;
-                        justify-content: center !important;
-                        padding: 0 !important;
-                    }
-                    #' . esc_attr($unique_id) . ' .splide__arrow svg {
-                        fill: ' . esc_attr($arrow_color) . ' !important;
-                        width: 14px !important;
-                        height: 14px !important;
-                    }
-                    #' . esc_attr($unique_id) . ' .splide__arrow--prev {
-                        left: -2px !important;
-                        top: 45% !important;
-                        transform: scaleX(-1) !important;
-                    }
-                    #' . esc_attr($unique_id) . ' .splide__arrow--next {
-                        right: -2px !important;
-                        top: 45% !important;
-                        transform: none !important;
-                    }
-                    #' . esc_attr($unique_id) . ' .splide__track {
-                        padding: 0 !important;
-                    }
-                }
-            </style>';
-            
-            // Inline JS to initialize this carousel instance
+
+            // Per-instance arrow color is the only dynamic CSS — push a single
+            // CSS custom-property assignment scoped to this carousel's id.
+            // The static rules in assets/carousel.css read it via var().
+            $safe_color = preg_match('/^[a-zA-Z0-9#(),.\s%-]{1,64}$/', $arrow_color) ? $arrow_color : '#555';
+            wp_add_inline_style(
+                'myfeeds-carousel',
+                sprintf('#%s{--myfeeds-arrow-color:%s;}', esc_attr($unique_id), $safe_color)
+            );
+
+            // Splide options for this instance
             $splide_options = array(
                 'type' => 'loop',
                 'perPage' => 3,
@@ -402,56 +358,26 @@ class MyFeeds_Product_Picker {
                     480 => array('perPage' => 2),
                 ),
             );
-            
+
             if ($autoplay) {
                 $splide_options['autoplay'] = true;
                 $splide_options['interval'] = $autoplay_interval * 1000;
                 $splide_options['pauseOnHover'] = true;
                 $splide_options['pauseOnFocus'] = true;
             }
-            
-            $options_json = wp_json_encode($splide_options);
-            
-            $output .= '<script>
-                document.addEventListener("DOMContentLoaded", function() {
-                    if (typeof Splide === "undefined") return;
-                    
-                    var el = document.getElementById("' . esc_js($unique_id) . '");
-                    if (!el) return;
-                    
-                    var splide = new Splide("#' . esc_js($unique_id) . '", ' . $options_json . ');
-                    splide.mount();
-                    ' . ($autoplay ? '
-                    // Smart autoplay resume: after any user interaction, pause briefly
-                    // then resume. Uses interval + 3 seconds bonus time.
-                    var baseMs = ' . ($autoplay_interval * 1000) . ';
-                    var bonusMs = baseMs + 3000;
-                    var timer = null;
-                    var autoplayComp = splide.Components.Autoplay;
-                    
-                    function onUserInteraction() {
-                        if (timer) clearTimeout(timer);
-                        autoplayComp.pause();
-                        timer = setTimeout(function() {
-                            autoplayComp.play();
-                        }, bonusMs);
-                    }
-                    
-                    // Direct DOM listeners on arrow buttons (most reliable)
-                    var arrows = el.querySelectorAll(".splide__arrow");
-                    for (var i = 0; i < arrows.length; i++) {
-                        arrows[i].addEventListener("click", onUserInteraction);
-                    }
-                    
-                    // Touch/drag interaction on the track
-                    var track = el.querySelector(".splide__track");
-                    if (track) {
-                        track.addEventListener("pointerdown", onUserInteraction);
-                        track.addEventListener("touchstart", onUserInteraction, { passive: true });
-                    }
-                    ' : '') . '
-                });
-            </script>';
+
+            // One-line init call against the shared MyFeedsCarousel.init() in
+            // assets/carousel.js. autoplayMs > 0 enables the smart resume handler.
+            $autoplay_ms = $autoplay ? intval($autoplay_interval) * 1000 : 0;
+            wp_add_inline_script(
+                'myfeeds-carousel',
+                sprintf(
+                    'MyFeedsCarousel.init(%s,%s,%d);',
+                    wp_json_encode($unique_id),
+                    wp_json_encode($splide_options),
+                    $autoplay_ms
+                )
+            );
         } else {
             $output .= '</div>'; // Close myfeeds-product-grid
         }
