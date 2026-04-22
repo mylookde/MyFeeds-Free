@@ -222,7 +222,6 @@ function myfeeds_load_includes() {
         'class-smart-mapper.php' => 'Smart Mapper Class',
         'class-network-handlers.php' => 'Network Handlers Class', 
         'class-feed-manager.php' => 'Feed Manager Class',
-        'class-card-design-editor.php' => 'Card Design Editor (Visual Customizer)',
         'class-pricing-page.php' => 'Custom Pricing Page',
         'class-contact-page.php' => 'Custom Contact Page',
         'class-product-picker.php' => 'Product Picker Class',
@@ -326,20 +325,13 @@ class MyFeeds_Affiliate_Product_Picker {
                 myfeeds_log("ERROR: MyFeeds_Batch_Importer class not found");
             }
             
-            // Initialize Card Design Editor
-            if (class_exists('MyFeeds_Card_Design_Editor')) {
-                $card_design_editor = new MyFeeds_Card_Design_Editor();
-                $card_design_editor->init();
-                myfeeds_log("Card Design Editor initialized");
-            }
-            
             // Initialize Custom Pricing Page
             if (class_exists('MyFeeds_Pricing_Page')) {
                 $pricing_page = new MyFeeds_Pricing_Page();
                 $pricing_page->init();
                 myfeeds_log("Custom Pricing Page initialized");
             }
-            
+
             // Initialize Custom Contact Page
             if (class_exists('MyFeeds_Contact_Page')) {
                 $contact_page = new MyFeeds_Contact_Page();
