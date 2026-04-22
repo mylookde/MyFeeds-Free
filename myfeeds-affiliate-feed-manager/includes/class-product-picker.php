@@ -214,7 +214,7 @@ class MyFeeds_Product_Picker {
         $products = isset($attrs['selectedProducts']) ? $attrs['selectedProducts'] : array();
         
         if (empty($products)) {
-            return '<div class="myfeeds-no-products">' . __('No products selected.', 'myfeeds') . '</div>';
+            return '<div class="myfeeds-no-products">' . __('No products selected.', 'myfeeds-affiliate-feed-manager') . '</div>';
         }
         
         // Enqueue Google Fonts properly (only once per page)
@@ -466,7 +466,7 @@ class MyFeeds_Product_Picker {
      * NEVER duplicate another product!
      */
     private function render_missing_product_placeholder($index, $reason, $product_id = '') {
-        $message = __('Product temporarily unavailable', 'myfeeds');
+        $message = __('Product temporarily unavailable', 'myfeeds-affiliate-feed-manager');
         
         return sprintf(
             '<div class="myfeeds-product-card myfeeds-missing-product" data-index="%d" data-reason="%s" data-id="%s">
@@ -486,7 +486,7 @@ class MyFeeds_Product_Picker {
      * Layout remains intact to prevent shifting of other product cards.
      */
     private function render_unavailable_product_placeholder($index, $product_id = '') {
-        $message = __('This product is no longer available', 'myfeeds');
+        $message = __('This product is no longer available', 'myfeeds-affiliate-feed-manager');
         
         return sprintf(
             '<div class="myfeeds-product-card myfeeds-unavailable-product" data-index="%d" data-status="unavailable" data-id="%s">
@@ -721,7 +721,7 @@ class MyFeeds_Product_Picker {
                     } elseif ($price > 0) {
                         $card_html .= '<span class="myfeeds-current-price">' . $this->format_price($price, $currency_symbol) . '</span>';
                     } else {
-                        $card_html .= '<span class="myfeeds-price-unavailable">' . __('Price on request', 'myfeeds') . '</span>';
+                        $card_html .= '<span class="myfeeds-price-unavailable">' . __('Price on request', 'myfeeds-affiliate-feed-manager') . '</span>';
                     }
                     $card_html .= '</div>';
                     break;
@@ -776,7 +776,7 @@ class MyFeeds_Product_Picker {
     private function format_shipping_info($shipping_raw, $currency_symbol) {
         // If shipping data is empty or null, return fallback text
         if (empty($shipping_raw)) { 
-            return __('Shipping costs may apply', 'myfeeds'); 
+            return __('Shipping costs may apply', 'myfeeds-affiliate-feed-manager'); 
         }
         
         // Handle numeric shipping costs
@@ -784,15 +784,15 @@ class MyFeeds_Product_Picker {
             $shipping_val = floatval($shipping_raw);
             return $shipping_val > 0 
                 /* translators: %s: formatted shipping cost with currency */
-                ? sprintf(__('Shipping: %s', 'myfeeds'), $this->format_price($shipping_val, $currency_symbol))
-                : __('Free Shipping', 'myfeeds');
+                ? sprintf(__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), $this->format_price($shipping_val, $currency_symbol))
+                : __('Free Shipping', 'myfeeds-affiliate-feed-manager');
         }
         
         // Handle complex shipping formats like "DE::Ground:3.49" or "0.00"
         if (is_string($shipping_raw)) {
             // Check if string contains "free" (case insensitive)
             if (stripos($shipping_raw, 'free') !== false) {
-                return __('Free Shipping', 'myfeeds');
+                return __('Free Shipping', 'myfeeds-affiliate-feed-manager');
             }
             
             // Try to extract numeric value from string
@@ -800,13 +800,13 @@ class MyFeeds_Product_Picker {
                 $val = floatval($matches[1]);
                 return $val > 0 
                     /* translators: %s: formatted shipping cost with currency */
-                    ? sprintf(__('Shipping: %s', 'myfeeds'), $this->format_price($val, $currency_symbol))
-                    : __('Free Shipping', 'myfeeds');
+                    ? sprintf(__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), $this->format_price($val, $currency_symbol))
+                    : __('Free Shipping', 'myfeeds-affiliate-feed-manager');
             }
         }
         
         // Default fallback
-        return __('Shipping costs may apply', 'myfeeds');
+        return __('Shipping costs may apply', 'myfeeds-affiliate-feed-manager');
     }
 }
 

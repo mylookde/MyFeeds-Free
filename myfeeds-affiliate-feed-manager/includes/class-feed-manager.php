@@ -51,7 +51,7 @@ class MyFeeds_Feed_Manager {
     }
     
     public function enqueue_admin_scripts($hook) {
-        if (strpos($hook, 'myfeeds') === false) {
+        if (strpos($hook, 'myfeeds-affiliate-feed-manager') === false) {
             return;
         }
 
@@ -86,15 +86,15 @@ class MyFeeds_Feed_Manager {
                 'feedsPageUrl' => admin_url('admin.php?page=myfeeds-feeds'),
                 'thousandsSep' => $thousands_sep,
                 'i18n'         => array(
-                    'addNewFeed'          => __('Add New Feed', 'myfeeds'),
-                    'createFeed'          => __('Create Feed', 'myfeeds'),
-                    'editFeed'            => __('Edit Feed:', 'myfeeds'),
-                    'saveChanges'         => __('Save Changes', 'myfeeds'),
-                    'feedNameUrlRequired' => __('Feed name and URL are required.', 'myfeeds'),
-                    'savingChanges'       => __('Saving changes...', 'myfeeds'),
-                    'addingFeed'          => __('Adding feed...', 'myfeeds'),
-                    'unknownError'        => __('An unknown error occurred.', 'myfeeds'),
-                    'serverError'         => __('Server error. Please try again.', 'myfeeds'),
+                    'addNewFeed'          => __('Add New Feed', 'myfeeds-affiliate-feed-manager'),
+                    'createFeed'          => __('Create Feed', 'myfeeds-affiliate-feed-manager'),
+                    'editFeed'            => __('Edit Feed:', 'myfeeds-affiliate-feed-manager'),
+                    'saveChanges'         => __('Save Changes', 'myfeeds-affiliate-feed-manager'),
+                    'feedNameUrlRequired' => __('Feed name and URL are required.', 'myfeeds-affiliate-feed-manager'),
+                    'savingChanges'       => __('Saving changes...', 'myfeeds-affiliate-feed-manager'),
+                    'addingFeed'          => __('Adding feed...', 'myfeeds-affiliate-feed-manager'),
+                    'unknownError'        => __('An unknown error occurred.', 'myfeeds-affiliate-feed-manager'),
+                    'serverError'         => __('Server error. Please try again.', 'myfeeds-affiliate-feed-manager'),
                 ),
             ));
         }
@@ -136,11 +136,11 @@ class MyFeeds_Feed_Manager {
 
         ?>
         <div class="wrap">
-            <h1><?php esc_html_e('MyFeeds – Affiliate Feed Manager', 'myfeeds'); ?></h1>
+            <h1><?php esc_html_e('MyFeeds – Affiliate Feed Manager', 'myfeeds-affiliate-feed-manager'); ?></h1>
             
             <div class="myfeeds-intro-banner">
-                <h2><?php esc_html_e('Affiliate Feed Manager', 'myfeeds'); ?></h2>
-                <p><?php esc_html_e('Import and manage affiliate product feeds from any network. Our smart mapping system automatically detects and maps all product fields.', 'myfeeds'); ?></p>
+                <h2><?php esc_html_e('Affiliate Feed Manager', 'myfeeds-affiliate-feed-manager'); ?></h2>
+                <p><?php esc_html_e('Import and manage affiliate product feeds from any network. Our smart mapping system automatically detects and maps all product fields.', 'myfeeds-affiliate-feed-manager'); ?></p>
                 
                 <div class="myfeeds-stats-row">
                     <div class="myfeeds-stat-item">
@@ -166,7 +166,7 @@ class MyFeeds_Feed_Manager {
                     </div>
                     <div class="myfeeds-stat-item">
                         <span class="myfeeds-stat-number" id="myfeeds-plan-badge" data-testid="plan-badge">
-                            <?php esc_html_e('Free', 'myfeeds'); ?>
+                            <?php esc_html_e('Free', 'myfeeds-affiliate-feed-manager'); ?>
                         </span>
                         <span class="myfeeds-stat-label">Plan</span>
                     </div>
@@ -176,12 +176,12 @@ class MyFeeds_Feed_Manager {
             <?php $this->render_feeds_table($feeds); ?>
             
             <div class="myfeeds-actions-section">
-                <h3><?php esc_html_e('Feed Management', 'myfeeds'); ?></h3>
+                <h3><?php esc_html_e('Feed Management', 'myfeeds-affiliate-feed-manager'); ?></h3>
                 
                 <!-- Import Status Panel - Enhanced -->
                 <div id="myfeeds-import-status" style="display: none; margin-bottom: 20px;">
                     <div class="myfeeds-import-panel" id="myfeeds-import-panel">
-                        <h4 id="myfeeds-status-title"><?php esc_html_e('Processing...', 'myfeeds'); ?></h4>
+                        <h4 id="myfeeds-status-title"><?php esc_html_e('Processing...', 'myfeeds-affiliate-feed-manager'); ?></h4>
                         <div class="myfeeds-progress-bar">
                             <div class="myfeeds-progress-fill" id="myfeeds-progress-fill" style="width: 0%"></div>
                         </div>
@@ -191,18 +191,18 @@ class MyFeeds_Feed_Manager {
                         </p>
                         <p class="myfeeds-import-stats">
                             <span id="myfeeds-import-percent">0%</span> • 
-                            <span id="myfeeds-import-products">0</span> <?php esc_html_e('products', 'myfeeds'); ?> • 
-                            <span id="myfeeds-import-feeds">0/0</span> <?php esc_html_e('feeds', 'myfeeds'); ?>
+                            <span id="myfeeds-import-products">0</span> <?php esc_html_e('products', 'myfeeds-affiliate-feed-manager'); ?> • 
+                            <span id="myfeeds-import-feeds">0/0</span> <?php esc_html_e('feeds', 'myfeeds-affiliate-feed-manager'); ?>
                         </p>
                         <div id="myfeeds-buttons-row">
                             <button type="button" id="myfeeds-cancel-import" class="button">
-                                <?php esc_html_e('Cancel', 'myfeeds'); ?>
+                                <?php esc_html_e('Cancel', 'myfeeds-affiliate-feed-manager'); ?>
                             </button>
                         </div>
                         <!-- Success message (hidden) -->
                         <div id="myfeeds-success-message" class="myfeeds-success-message" style="display: none;">
-                            <span>✅ <?php esc_html_e('Update completed successfully!', 'myfeeds'); ?></span>
-                            <button type="button" class="close-btn" id="myfeeds-close-success"><?php esc_html_e('Close', 'myfeeds'); ?></button>
+                            <span>✅ <?php esc_html_e('Update completed successfully!', 'myfeeds-affiliate-feed-manager'); ?></span>
+                            <button type="button" class="close-btn" id="myfeeds-close-success"><?php esc_html_e('Close', 'myfeeds-affiliate-feed-manager'); ?></button>
                         </div>
                     </div>
                 </div>
@@ -212,26 +212,26 @@ class MyFeeds_Feed_Manager {
                     <!-- UNIFIED REBUILD BUTTON - Primary Action -->
                     <div class="myfeeds-action-card myfeeds-primary-action">
                         <button type="button" id="myfeeds-unified-rebuild" class="button button-primary myfeeds-action-btn">
-                            🔄 <?php esc_html_e('Update All Feeds', 'myfeeds'); ?>
+                            🔄 <?php esc_html_e('Update All Feeds', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
                         <p class="description">
-                            <?php esc_html_e('Loads all products (active first)', 'myfeeds'); ?>
+                            <?php esc_html_e('Loads all products (active first)', 'myfeeds-affiliate-feed-manager'); ?>
                         </p>
                     </div>
                     
                     <!-- QUICK SYNC BUTTON - Active Products Only -->
                     <div class="myfeeds-action-card myfeeds-secondary-action">
                         <button type="button" id="myfeeds-quick-sync" class="button button-secondary myfeeds-action-btn">
-                            ⚡ <?php esc_html_e('Quick Sync (Active Only)', 'myfeeds'); ?>
+                            ⚡ <?php esc_html_e('Quick Sync (Active Only)', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
                         <p class="description">
-                            <?php esc_html_e('Only products in posts/pages', 'myfeeds'); ?>
+                            <?php esc_html_e('Only products in posts/pages', 'myfeeds-affiliate-feed-manager'); ?>
                         </p>
                     </div>
                 </div>
                 
                 <p class="myfeeds-info-note" style="margin-top: 15px; color: #666; font-size: 12px;">
-                    <?php esc_html_e('Updates run in the background. You can navigate away and return later.', 'myfeeds'); ?>
+                    <?php esc_html_e('Updates run in the background. You can navigate away and return later.', 'myfeeds-affiliate-feed-manager'); ?>
                 </p>
                 
                 <!-- Auto-Sync Schedule Info -->
@@ -250,14 +250,14 @@ class MyFeeds_Feed_Manager {
         <div id="myfeeds-feed-modal" class="myfeeds-modal-overlay" style="display:none;" data-testid="feed-modal">
             <div class="myfeeds-modal-content myfeeds-feed-modal-content">
                 <div class="myfeeds-modal-header">
-                    <h3 id="myfeeds-feed-modal-title" data-testid="feed-modal-title"><?php esc_html_e('Add New Feed', 'myfeeds'); ?></h3>
+                    <h3 id="myfeeds-feed-modal-title" data-testid="feed-modal-title"><?php esc_html_e('Add New Feed', 'myfeeds-affiliate-feed-manager'); ?></h3>
                     <button type="button" class="myfeeds-modal-close" id="myfeeds-feed-modal-close" data-testid="feed-modal-close">&times;</button>
                 </div>
                 <div class="myfeeds-modal-body">
                     <div class="myfeeds-help-text">
-                        <p><?php esc_html_e('This plugin supports product feeds from all major affiliate networks. Simply provide your feed name and URL – the smart mapping system will automatically detect and map all product fields!', 'myfeeds'); ?></p>
-                        <p class="description"><?php esc_html_e('Supported networks: AWIN, Webgains, Admitad, TradeDoubler, Impact.com, Partnerize, Rakuten, CJ, ShareASale, and more.', 'myfeeds'); ?></p>
-                        <p><strong><?php esc_html_e('Supported formats:', 'myfeeds'); ?></strong> CSV, TSV, CSV (semicolon), CSV (gzip), XML, JSON, JSON-Lines</p>
+                        <p><?php esc_html_e('This plugin supports product feeds from all major affiliate networks. Simply provide your feed name and URL – the smart mapping system will automatically detect and map all product fields!', 'myfeeds-affiliate-feed-manager'); ?></p>
+                        <p class="description"><?php esc_html_e('Supported networks: AWIN, Webgains, Admitad, TradeDoubler, Impact.com, Partnerize, Rakuten, CJ, ShareASale, and more.', 'myfeeds-affiliate-feed-manager'); ?></p>
+                        <p><strong><?php esc_html_e('Supported formats:', 'myfeeds-affiliate-feed-manager'); ?></strong> CSV, TSV, CSV (semicolon), CSV (gzip), XML, JSON, JSON-Lines</p>
                     </div>
                     
                     <form id="myfeeds-feed-form" method="post">
@@ -267,69 +267,69 @@ class MyFeeds_Feed_Manager {
                         <table class="form-table">
                             <tr>
                                 <th scope="row">
-                                    <label for="feed_name"><?php esc_html_e('Feed Name', 'myfeeds'); ?> *</label>
+                                    <label for="feed_name"><?php esc_html_e('Feed Name', 'myfeeds-affiliate-feed-manager'); ?> *</label>
                                 </th>
                                 <td>
                                     <input name="feed_name" type="text" id="feed_name" class="regular-text" 
                                            value="" required data-testid="feed-name-input">
-                                    <p class="description"><?php esc_html_e('A descriptive name for this feed (e.g., "Fashion Products", "Electronics")', 'myfeeds'); ?></p>
+                                    <p class="description"><?php esc_html_e('A descriptive name for this feed (e.g., "Fashion Products", "Electronics")', 'myfeeds-affiliate-feed-manager'); ?></p>
                                 </td>
                             </tr>
                             
                             <tr>
                                 <th scope="row">
-                                    <label for="feed_url"><?php esc_html_e('Feed URL', 'myfeeds'); ?> *</label>
+                                    <label for="feed_url"><?php esc_html_e('Feed URL', 'myfeeds-affiliate-feed-manager'); ?> *</label>
                                 </th>
                                 <td>
                                     <input name="feed_url" type="url" id="feed_url" class="large-text" 
                                            value="" required data-testid="feed-url-input">
                                     <p class="description">
-                                        <?php esc_html_e('The direct URL to your affiliate product feed.', 'myfeeds'); ?>
+                                        <?php esc_html_e('The direct URL to your affiliate product feed.', 'myfeeds-affiliate-feed-manager'); ?>
                                     </p>
                                 </td>
                             </tr>
                         </table>
                         
                         <div class="myfeeds-advanced-options" style="margin-top: 20px;">
-                            <h3><?php esc_html_e('Advanced Options', 'myfeeds'); ?></h3>
+                            <h3><?php esc_html_e('Advanced Options', 'myfeeds-affiliate-feed-manager'); ?></h3>
                             <table class="form-table">
                                 <tr>
                                     <th scope="row">
-                                        <label for="feed_format_hint"><?php esc_html_e('Feed Format Hint', 'myfeeds'); ?></label>
+                                        <label for="feed_format_hint"><?php esc_html_e('Feed Format Hint', 'myfeeds-affiliate-feed-manager'); ?></label>
                                     </th>
                                     <td>
                                         <select name="feed_format_hint" id="feed_format_hint" data-testid="feed-format-hint">
-                                            <option value=""><?php esc_html_e('Auto-detect', 'myfeeds'); ?></option>
-                                            <option value="csv"><?php esc_html_e('CSV (Comma-separated)', 'myfeeds'); ?></option>
-                                            <option value="tsv"><?php esc_html_e('TSV (Tab-separated)', 'myfeeds'); ?></option>
-                                            <option value="ssv"><?php esc_html_e('CSV (Semicolon-separated)', 'myfeeds'); ?></option>
-                                            <option value="csv_gz"><?php esc_html_e('CSV (gzip compressed)', 'myfeeds'); ?></option>
-                                            <option value="xml"><?php esc_html_e('XML', 'myfeeds'); ?></option>
-                                            <option value="json"><?php esc_html_e('JSON', 'myfeeds'); ?></option>
-                                            <option value="json_lines"><?php esc_html_e('JSON-Lines', 'myfeeds'); ?></option>
+                                            <option value=""><?php esc_html_e('Auto-detect', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="csv"><?php esc_html_e('CSV (Comma-separated)', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="tsv"><?php esc_html_e('TSV (Tab-separated)', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="ssv"><?php esc_html_e('CSV (Semicolon-separated)', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="csv_gz"><?php esc_html_e('CSV (gzip compressed)', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="xml"><?php esc_html_e('XML', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="json"><?php esc_html_e('JSON', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="json_lines"><?php esc_html_e('JSON-Lines', 'myfeeds-affiliate-feed-manager'); ?></option>
                                         </select>
-                                        <p class="description"><?php esc_html_e('Leave as auto-detect unless you experience issues', 'myfeeds'); ?></p>
+                                        <p class="description"><?php esc_html_e('Leave as auto-detect unless you experience issues', 'myfeeds-affiliate-feed-manager'); ?></p>
                                     </td>
                                 </tr>
                                 
                                 <tr>
                                     <th scope="row">
-                                        <label for="feed_network_hint"><?php esc_html_e('Network Hint', 'myfeeds'); ?></label>
+                                        <label for="feed_network_hint"><?php esc_html_e('Network Hint', 'myfeeds-affiliate-feed-manager'); ?></label>
                                     </th>
                                     <td>
                                         <select name="feed_network_hint" id="feed_network_hint" data-testid="feed-network-hint">
-                                            <option value=""><?php esc_html_e('Auto-detect', 'myfeeds'); ?></option>
-                                            <option value="awin"><?php esc_html_e('AWIN', 'myfeeds'); ?></option>
-                                            <option value="webgains"><?php esc_html_e('Webgains', 'myfeeds'); ?></option>
-                                            <option value="admitad"><?php esc_html_e('Admitad', 'myfeeds'); ?></option>
-                                            <option value="tradedoubler"><?php esc_html_e('TradeDoubler', 'myfeeds'); ?></option>
-                                            <option value="commissionjunction"><?php esc_html_e('Commission Junction', 'myfeeds'); ?></option>
-                                            <option value="shareasale"><?php esc_html_e('ShareASale', 'myfeeds'); ?></option>
-                                            <option value="impact"><?php esc_html_e('Impact.com', 'myfeeds'); ?></option>
-                                            <option value="partnerize"><?php esc_html_e('Partnerize', 'myfeeds'); ?></option>
-                                            <option value="rakuten"><?php esc_html_e('Rakuten Advertising', 'myfeeds'); ?></option>
-                                            <option value="ebay"><?php esc_html_e('eBay Partner Network', 'myfeeds'); ?></option>
-                                            <option value="amazon"><?php esc_html_e('Amazon Associates', 'myfeeds'); ?></option>
+                                            <option value=""><?php esc_html_e('Auto-detect', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="awin"><?php esc_html_e('AWIN', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="webgains"><?php esc_html_e('Webgains', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="admitad"><?php esc_html_e('Admitad', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="tradedoubler"><?php esc_html_e('TradeDoubler', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="commissionjunction"><?php esc_html_e('Commission Junction', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="shareasale"><?php esc_html_e('ShareASale', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="impact"><?php esc_html_e('Impact.com', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="partnerize"><?php esc_html_e('Partnerize', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="rakuten"><?php esc_html_e('Rakuten Advertising', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="ebay"><?php esc_html_e('eBay Partner Network', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="amazon"><?php esc_html_e('Amazon Associates', 'myfeeds-affiliate-feed-manager'); ?></option>
                                         </select>
                                     </td>
                                 </tr>
@@ -338,7 +338,7 @@ class MyFeeds_Feed_Manager {
                         
                         <p class="submit">
                             <input type="submit" id="myfeeds-feed-submit" class="button button-primary" 
-                                   value="<?php esc_attr_e('Create Feed', 'myfeeds'); ?>" data-testid="feed-submit-btn">
+                                   value="<?php esc_attr_e('Create Feed', 'myfeeds-affiliate-feed-manager'); ?>" data-testid="feed-submit-btn">
                         </p>
                     </form>
                 </div>
@@ -358,34 +358,34 @@ class MyFeeds_Feed_Manager {
         
         ?>
         <div class="myfeeds-auto-sync-compact" id="myfeeds-auto-sync-info" style="font-size: 12px; color: #666; line-height: 1.8; white-space: nowrap;">
-            <div><strong><?php esc_html_e('Last sync:', 'myfeeds'); ?></strong> 
+            <div><strong><?php esc_html_e('Last sync:', 'myfeeds-affiliate-feed-manager'); ?></strong> 
                 <span id="myfeeds-last-sync-text"><?php
                 if ($last_sync && !empty($last_sync['time'])) {
                     echo esc_html($last_sync['time'] . ' (' . self::get_sync_type_label($last_sync) . ')');
                 } else {
-                    echo '<span style="color: #999;">' . esc_html__('None yet', 'myfeeds') . '</span>';
+                    echo '<span style="color: #999;">' . esc_html__('None yet', 'myfeeds-affiliate-feed-manager') . '</span>';
                 }
                 ?></span>
             </div>
-            <div><strong><?php esc_html_e('Next Quick Sync:', 'myfeeds'); ?></strong> 
+            <div><strong><?php esc_html_e('Next Quick Sync:', 'myfeeds-affiliate-feed-manager'); ?></strong> 
                 <?php
                 if ($next_daily) {
                     $dt = new \DateTime('@' . $next_daily);
                     $dt->setTimezone($timezone);
                     echo esc_html($dt->format('d.m.Y H:i'));
                 } else {
-                    echo '<span style="color: #cc0000;">' . esc_html__('Not scheduled', 'myfeeds') . '</span>';
+                    echo '<span style="color: #cc0000;">' . esc_html__('Not scheduled', 'myfeeds-affiliate-feed-manager') . '</span>';
                 }
                 ?>
             </div>
-            <div><strong><?php esc_html_e('Next Full Import:', 'myfeeds'); ?></strong> 
+            <div><strong><?php esc_html_e('Next Full Import:', 'myfeeds-affiliate-feed-manager'); ?></strong> 
                 <?php
                 if ($next_weekly) {
                     $dt = new \DateTime('@' . $next_weekly);
                     $dt->setTimezone($timezone);
                     echo esc_html($dt->format('d.m.Y H:i'));
                 } else {
-                    echo '<span style="color: #cc0000;">' . esc_html__('Not scheduled', 'myfeeds') . '</span>';
+                    echo '<span style="color: #cc0000;">' . esc_html__('Not scheduled', 'myfeeds-affiliate-feed-manager') . '</span>';
                 }
                 ?>
             </div>
@@ -402,21 +402,21 @@ class MyFeeds_Feed_Manager {
         
         switch ($type) {
             case 'daily_quick_sync':
-                return __('Quick Sync', 'myfeeds');
+                return __('Quick Sync', 'myfeeds-affiliate-feed-manager');
             case 'weekly_full_import':
-                return __('Full Import', 'myfeeds');
+                return __('Full Import', 'myfeeds-affiliate-feed-manager');
             case 'reimport':
                 return $feed_name 
                     /* translators: %s: feed name */
-                    ? sprintf(__('Reimport: %s', 'myfeeds'), $feed_name) 
-                    : __('Reimport', 'myfeeds');
+                    ? sprintf(__('Reimport: %s', 'myfeeds-affiliate-feed-manager'), $feed_name) 
+                    : __('Reimport', 'myfeeds-affiliate-feed-manager');
             case 'new_feed':
                 return $feed_name 
                     /* translators: %s: feed name */
-                    ? sprintf(__('New Feed: %s', 'myfeeds'), $feed_name) 
-                    : __('New Feed', 'myfeeds');
+                    ? sprintf(__('New Feed: %s', 'myfeeds-affiliate-feed-manager'), $feed_name) 
+                    : __('New Feed', 'myfeeds-affiliate-feed-manager');
             default:
-                return __('Sync', 'myfeeds');
+                return __('Sync', 'myfeeds-affiliate-feed-manager');
         }
     }
     
@@ -436,45 +436,45 @@ class MyFeeds_Feed_Manager {
         
         ?>
         <div class="myfeeds-auto-sync-info" style="margin-top: 20px; padding: 12px 16px; background: #f8f9fa; border: 1px solid #e2e4e7; border-radius: 4px; font-size: 13px;">
-            <strong style="display: block; margin-bottom: 8px;"><?php esc_html_e('Automatic Sync Schedule', 'myfeeds'); ?></strong>
+            <strong style="display: block; margin-bottom: 8px;"><?php esc_html_e('Automatic Sync Schedule', 'myfeeds-affiliate-feed-manager'); ?></strong>
             <table style="border-collapse: collapse; width: 100%;">
                 <tr>
-                    <td style="padding: 3px 12px 3px 0; color: #666; white-space: nowrap;"><?php esc_html_e('Last auto-sync:', 'myfeeds'); ?></td>
+                    <td style="padding: 3px 12px 3px 0; color: #666; white-space: nowrap;"><?php esc_html_e('Last auto-sync:', 'myfeeds-affiliate-feed-manager'); ?></td>
                     <td style="padding: 3px 0;">
                         <?php
                         if ($last_sync && !empty($last_sync['time'])) {
                             $type_label = self::get_sync_type_label($last_sync);
                             echo esc_html($last_sync['time'] . ' (' . $type_label . ')');
                         } else {
-                            echo '<span style="color: #999;">' . esc_html__('No auto-sync yet', 'myfeeds') . '</span>';
+                            echo '<span style="color: #999;">' . esc_html__('No auto-sync yet', 'myfeeds-affiliate-feed-manager') . '</span>';
                         }
                         ?>
                     </td>
                 </tr>
                 <tr>
-                    <td style="padding: 3px 12px 3px 0; color: #666; white-space: nowrap;"><?php esc_html_e('Next Quick Sync:', 'myfeeds'); ?></td>
+                    <td style="padding: 3px 12px 3px 0; color: #666; white-space: nowrap;"><?php esc_html_e('Next Quick Sync:', 'myfeeds-affiliate-feed-manager'); ?></td>
                     <td style="padding: 3px 0;">
                         <?php
                         if ($next_daily) {
                             $dt = new DateTime('@' . $next_daily);
                             $dt->setTimezone($timezone);
-                            echo esc_html($dt->format('d.m.Y H:i') . ' (' . __('daily at 02:00', 'myfeeds') . ')');
+                            echo esc_html($dt->format('d.m.Y H:i') . ' (' . __('daily at 02:00', 'myfeeds-affiliate-feed-manager') . ')');
                         } else {
-                            echo '<span style="color: #cc0000;">' . esc_html__('Not scheduled', 'myfeeds') . '</span>';
+                            echo '<span style="color: #cc0000;">' . esc_html__('Not scheduled', 'myfeeds-affiliate-feed-manager') . '</span>';
                         }
                         ?>
                     </td>
                 </tr>
                 <tr>
-                    <td style="padding: 3px 12px 3px 0; color: #666; white-space: nowrap;"><?php esc_html_e('Next Full Import:', 'myfeeds'); ?></td>
+                    <td style="padding: 3px 12px 3px 0; color: #666; white-space: nowrap;"><?php esc_html_e('Next Full Import:', 'myfeeds-affiliate-feed-manager'); ?></td>
                     <td style="padding: 3px 0;">
                         <?php
                         if ($next_weekly) {
                             $dt = new DateTime('@' . $next_weekly);
                             $dt->setTimezone($timezone);
-                            echo esc_html($dt->format('d.m.Y H:i') . ' (' . __('weekly, Sunday 03:00', 'myfeeds') . ')');
+                            echo esc_html($dt->format('d.m.Y H:i') . ' (' . __('weekly, Sunday 03:00', 'myfeeds-affiliate-feed-manager') . ')');
                         } else {
-                            echo '<span style="color: #cc0000;">' . esc_html__('Not scheduled', 'myfeeds') . '</span>';
+                            echo '<span style="color: #cc0000;">' . esc_html__('Not scheduled', 'myfeeds-affiliate-feed-manager') . '</span>';
                         }
                         ?>
                     </td>
@@ -492,35 +492,35 @@ class MyFeeds_Feed_Manager {
         ?>
         <div class="myfeeds-feeds-table">
             <div class="myfeeds-feeds-table-header">
-                <h2><?php esc_html_e('Configured Feed', 'myfeeds'); ?></h2>
+                <h2><?php esc_html_e('Configured Feed', 'myfeeds-affiliate-feed-manager'); ?></h2>
             </div>
             <?php if (!$has_feed): ?>
                 <div class="myfeeds-empty-state" style="text-align:center; padding:48px 24px; border:1px dashed #c3c4c7; border-radius:8px; background:#fff;">
-                    <h3 style="margin-top:0;"><?php esc_html_e('Add your first feed', 'myfeeds'); ?></h3>
+                    <h3 style="margin-top:0;"><?php esc_html_e('Add your first feed', 'myfeeds-affiliate-feed-manager'); ?></h3>
                     <p style="max-width:480px; margin:8px auto 20px; color:#50575e;">
-                        <?php esc_html_e('Paste the product feed URL from your affiliate network. MyFeeds auto-detects the format and maps every product field for you.', 'myfeeds'); ?>
+                        <?php esc_html_e('Paste the product feed URL from your affiliate network. MyFeeds auto-detects the format and maps every product field for you.', 'myfeeds-affiliate-feed-manager'); ?>
                     </p>
                     <button type="button" id="myfeeds-add-feed-btn" class="button button-primary button-hero" data-testid="add-feed-btn">
-                        + <?php esc_html_e('Add your first feed', 'myfeeds'); ?>
+                        + <?php esc_html_e('Add your first feed', 'myfeeds-affiliate-feed-manager'); ?>
                     </button>
                 </div>
             <?php else: ?>
             <table class="wp-list-table widefat striped">
                 <thead>
                     <tr>
-                        <th><?php esc_html_e('Feed Name', 'myfeeds'); ?></th>
-                        <th><?php esc_html_e('Feed URL', 'myfeeds'); ?></th>
-                        <th><?php esc_html_e('Detected Network', 'myfeeds'); ?></th>
-                        <th><?php esc_html_e('Status', 'myfeeds'); ?></th>
-                        <th><?php esc_html_e('Products', 'myfeeds'); ?></th>
-                        <th><?php esc_html_e('Mapping Quality', 'myfeeds'); ?></th>
-                        <th><?php esc_html_e('Actions', 'myfeeds'); ?></th>
+                        <th><?php esc_html_e('Feed Name', 'myfeeds-affiliate-feed-manager'); ?></th>
+                        <th><?php esc_html_e('Feed URL', 'myfeeds-affiliate-feed-manager'); ?></th>
+                        <th><?php esc_html_e('Detected Network', 'myfeeds-affiliate-feed-manager'); ?></th>
+                        <th><?php esc_html_e('Status', 'myfeeds-affiliate-feed-manager'); ?></th>
+                        <th><?php esc_html_e('Products', 'myfeeds-affiliate-feed-manager'); ?></th>
+                        <th><?php esc_html_e('Mapping Quality', 'myfeeds-affiliate-feed-manager'); ?></th>
+                        <th><?php esc_html_e('Actions', 'myfeeds-affiliate-feed-manager'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($feeds as $key => $feed): ?>
                         <?php
-                        $detected_network = isset($feed['detected_network']) ? $feed['detected_network'] : __('Auto-detected', 'myfeeds');
+                        $detected_network = isset($feed['detected_network']) ? $feed['detected_network'] : __('Auto-detected', 'myfeeds-affiliate-feed-manager');
                         $mapping_confidence = isset($feed['mapping_confidence']) ? $feed['mapping_confidence'] : 0;
                         ?>
                         <tr data-feed-name="<?php echo esc_attr($feed['name']); ?>"
@@ -633,15 +633,15 @@ class MyFeeds_Feed_Manager {
                                     data-feed-format="<?php echo esc_attr($feed['format_hint'] ?? ''); ?>"
                                     data-feed-network="<?php echo esc_attr($feed['network_hint'] ?? 'awin'); ?>"
                                     data-testid="edit-feed-<?php echo esc_attr($key); ?>">
-                                    <?php esc_html_e('Edit', 'myfeeds'); ?>
+                                    <?php esc_html_e('Edit', 'myfeeds-affiliate-feed-manager'); ?>
                                 </button>
 
                                 <button type="button" class="button button-small myfeeds-reimport-btn"
                                     data-feed-key="<?php echo esc_attr($key); ?>"
                                     data-feed-name="<?php echo esc_attr($feed['name']); ?>"
                                     data-testid="reimport-feed-<?php echo esc_attr($key); ?>"
-                                    <?php if ($is_importing): ?>disabled title="<?php esc_attr_e('Import already running', 'myfeeds'); ?>"<?php endif; ?>>
-                                    <?php esc_html_e('Reimport', 'myfeeds'); ?>
+                                    <?php if ($is_importing): ?>disabled title="<?php esc_attr_e('Import already running', 'myfeeds-affiliate-feed-manager'); ?>"<?php endif; ?>>
+                                    <?php esc_html_e('Reimport', 'myfeeds-affiliate-feed-manager'); ?>
                                 </button>
                                 
                                 <button type="button" class="button button-small button-link-delete myfeeds-delete-feed-btn"
@@ -650,7 +650,7 @@ class MyFeeds_Feed_Manager {
                                     data-product-count="<?php echo esc_attr($feed['product_count'] ?? 0); ?>"
                                     data-testid="delete-feed-<?php echo esc_attr($key); ?>"
                                     <?php if ($is_importing): ?>disabled<?php endif; ?>>
-                                    <?php esc_html_e('Delete', 'myfeeds'); ?>
+                                    <?php esc_html_e('Delete', 'myfeeds-affiliate-feed-manager'); ?>
                                 </button>
                             </td>
                         </tr>
@@ -692,7 +692,7 @@ class MyFeeds_Feed_Manager {
     public function handle_save_feed() {
         try {
             if (!current_user_can('manage_options') || !check_admin_referer('myfeeds_save_feed')) {
-                wp_die(esc_html__('Security check failed', 'myfeeds'));
+                wp_die(esc_html__('Security check failed', 'myfeeds-affiliate-feed-manager'));
             }
             
             $feeds = get_option(self::OPTION_KEY, array());
@@ -704,7 +704,7 @@ class MyFeeds_Feed_Manager {
             $network_hint = isset($_POST['feed_network_hint']) ? sanitize_text_field(wp_unslash($_POST['feed_network_hint'])) : '';
             
             if (empty($name) || empty($url)) {
-                $this->redirect_with_error(__('Feed name and URL are required.', 'myfeeds'));
+                $this->redirect_with_error(__('Feed name and URL are required.', 'myfeeds-affiliate-feed-manager'));
                 return;
             }
             
@@ -764,13 +764,13 @@ class MyFeeds_Feed_Manager {
                 $confidence = $feeds[$key]['mapping_confidence'] ?? 0;
                 $status_msg = sprintf(
                     /* translators: %1$s: feed name, %2$s: detected network, %3$d: mapping confidence percentage */
-                    __('Feed "%1$s" saved! Network: %2$s, Confidence: %3$d%%.', 'myfeeds'),
+                    __('Feed "%1$s" saved! Network: %2$s, Confidence: %3$d%%.', 'myfeeds-affiliate-feed-manager'),
                     $name, ucfirst($detected_network), round($confidence)
                 );
             } else {
                 $status_msg = sprintf(
                     /* translators: %1$s: feed name, %2$s: error message */
-                    __('Feed "%1$s" saved, but test failed: %2$s. Will be tested during import.', 'myfeeds'),
+                    __('Feed "%1$s" saved, but test failed: %2$s. Will be tested during import.', 'myfeeds-affiliate-feed-manager'),
                     $name, $test_result->get_error_message()
                 );
             }
@@ -780,7 +780,7 @@ class MyFeeds_Feed_Manager {
         } catch (\Throwable $e) {
             MyFeeds_Affiliate_Product_Picker::log("FATAL ERROR in handle_save_feed: " . $e->getMessage());
             MyFeeds_Affiliate_Product_Picker::log("Stack trace: " . $e->getTraceAsString());
-            $this->redirect_with_error(__('A system error occurred: ', 'myfeeds') . $e->getMessage());
+            $this->redirect_with_error(__('A system error occurred: ', 'myfeeds-affiliate-feed-manager') . $e->getMessage());
         }
     }
     
@@ -792,7 +792,7 @@ class MyFeeds_Feed_Manager {
         try {
             check_ajax_referer('myfeeds_nonce', 'nonce');
             if (!current_user_can('manage_options')) {
-                wp_send_json_error(array('message' => __('Permission denied', 'myfeeds')));
+                wp_send_json_error(array('message' => __('Permission denied', 'myfeeds-affiliate-feed-manager')));
                 return;
             }
             
@@ -805,7 +805,7 @@ class MyFeeds_Feed_Manager {
             $network_hint = sanitize_text_field(wp_unslash($_POST['feed_network_hint'] ?? ''));
             
             if (empty($name) || empty($url)) {
-                wp_send_json_error(array('message' => __('Feed name and URL are required.', 'myfeeds')));
+                wp_send_json_error(array('message' => __('Feed name and URL are required.', 'myfeeds-affiliate-feed-manager')));
                 return;
             }
             
@@ -866,13 +866,13 @@ class MyFeeds_Feed_Manager {
                 }
                 
                 $import_hint = $import_scheduled 
-                    ? __(' Importing products in the background...', 'myfeeds')
-                    : __(' The feed will be imported during the next "Update All Feeds".', 'myfeeds');
+                    ? __(' Importing products in the background...', 'myfeeds-affiliate-feed-manager')
+                    : __(' The feed will be imported during the next "Update All Feeds".', 'myfeeds-affiliate-feed-manager');
                 
                 wp_send_json_success(array(
                     'message' => sprintf(
                         /* translators: %1$s: feed name, %2$s: action label, %3$s: error message, %4$s: import hint */
-                        __('Feed "%1$s" %2$s, but the connectivity test failed: %3$s.%4$s', 'myfeeds'),
+                        __('Feed "%1$s" %2$s, but the connectivity test failed: %3$s.%4$s', 'myfeeds-affiliate-feed-manager'),
                         $name, $action_label, $test_result->get_error_message(), $import_hint
                     ),
                     'action' => $action_label,
@@ -906,7 +906,7 @@ class MyFeeds_Feed_Manager {
                     $feeds[$key]['detected_network'] = $detected_network;
                 }
             } else {
-                $warning = __(' Sample parsing incomplete (large feed) — full mapping will run during import.', 'myfeeds');
+                $warning = __(' Sample parsing incomplete (large feed) — full mapping will run during import.', 'myfeeds-affiliate-feed-manager');
             }
             
             update_option(self::OPTION_KEY, $feeds);
@@ -916,7 +916,7 @@ class MyFeeds_Feed_Manager {
                 $this->rebuild_feed_index();
             } catch (\Throwable $e) {
                 myfeeds_log("Warning: rebuild_feed_index failed after save: " . $e->getMessage(), 'error');
-                $warning .= __(' Index rebuild failed, products will sync during background import.', 'myfeeds');
+                $warning .= __(' Index rebuild failed, products will sync during background import.', 'myfeeds-affiliate-feed-manager');
             }
             
             // Trigger background import for newly created feeds
@@ -933,21 +933,21 @@ class MyFeeds_Feed_Manager {
             $confidence = $feeds[$key]['mapping_confidence'] ?? 0;
             $confidence_message = '';
             if ($confidence >= 80) {
-                $confidence_message = __(' Excellent field mapping detected!', 'myfeeds');
+                $confidence_message = __(' Excellent field mapping detected!', 'myfeeds-affiliate-feed-manager');
             } elseif ($confidence >= 60) {
-                $confidence_message = __(' Good field mapping detected.', 'myfeeds');
+                $confidence_message = __(' Good field mapping detected.', 'myfeeds-affiliate-feed-manager');
             } elseif ($confidence > 0) {
-                $confidence_message = __(' Basic field mapping detected.', 'myfeeds');
+                $confidence_message = __(' Basic field mapping detected.', 'myfeeds-affiliate-feed-manager');
             }
             
             $import_hint = $import_scheduled 
-                ? __(' Importing products in the background...', 'myfeeds')
+                ? __(' Importing products in the background...', 'myfeeds-affiliate-feed-manager')
                 : '';
             
             wp_send_json_success(array(
                 'message' => sprintf(
                     /* translators: %1$s: feed name, %2$s: action label, %3$s: detected network, %4$s: format, %5$s: confidence message, %6$s: warning, %7$s: import hint */
-                    __('Feed "%1$s" %2$s successfully! Network: %3$s, Format: %4$s.%5$s%6$s%7$s', 'myfeeds'),
+                    __('Feed "%1$s" %2$s successfully! Network: %3$s, Format: %4$s.%5$s%6$s%7$s', 'myfeeds-affiliate-feed-manager'),
                     $name, $action_label, ucfirst($detected_network),
                     strtoupper($test_result['format']),
                     $confidence_message, $warning, $import_hint
@@ -961,7 +961,7 @@ class MyFeeds_Feed_Manager {
             
         } catch (\Throwable $e) {
             MyFeeds_Affiliate_Product_Picker::log("FATAL ERROR in handle_save_feed_ajax: " . $e->getMessage());
-            wp_send_json_error(array('message' => __('A system error occurred: ', 'myfeeds') . $e->getMessage()));
+            wp_send_json_error(array('message' => __('A system error occurred: ', 'myfeeds-affiliate-feed-manager') . $e->getMessage()));
         }
     }
     
@@ -2868,7 +2868,7 @@ class MyFeeds_Feed_Manager {
      */
     public function handle_delete_feed() {
         if (!current_user_can('manage_options') || !check_admin_referer('myfeeds_delete_feed')) {
-            wp_die(esc_html__('Security check failed', 'myfeeds'));
+            wp_die(esc_html__('Security check failed', 'myfeeds-affiliate-feed-manager'));
         }
         
         $key = intval($_POST['feed_key']);
@@ -2879,7 +2879,7 @@ class MyFeeds_Feed_Manager {
             update_option(self::OPTION_KEY, $feeds);
         }
         
-        $this->redirect_with_success(esc_html__('Feed deleted successfully!', 'myfeeds'));
+        $this->redirect_with_success(esc_html__('Feed deleted successfully!', 'myfeeds-affiliate-feed-manager'));
     }
     
     /**
@@ -2887,10 +2887,10 @@ class MyFeeds_Feed_Manager {
      */
     public function handle_rebuild_index() {
         if (!current_user_can('manage_options') || !check_admin_referer('myfeeds_rebuild_index')) {
-            wp_die(esc_html__('Security check failed', 'myfeeds'));
+            wp_die(esc_html__('Security check failed', 'myfeeds-affiliate-feed-manager'));
         }
         $this->rebuild_feed_index();
-        $this->redirect_with_success(esc_html__('Product index rebuilt successfully!', 'myfeeds'));
+        $this->redirect_with_success(esc_html__('Product index rebuilt successfully!', 'myfeeds-affiliate-feed-manager'));
     }
     
     /**
@@ -2899,7 +2899,7 @@ class MyFeeds_Feed_Manager {
      */
     public function handle_regenerate_mappings() {
         if (!current_user_can('manage_options') || !check_admin_referer('myfeeds_regenerate_mappings')) {
-            wp_die(esc_html__('Security check failed', 'myfeeds'));
+            wp_die(esc_html__('Security check failed', 'myfeeds-affiliate-feed-manager'));
         }
         
         $feeds = get_option(self::OPTION_KEY, array());
@@ -2942,13 +2942,13 @@ class MyFeeds_Feed_Manager {
         if ($error_count > 0) {
             $this->redirect_with_success(
                 /* translators: %1$d: number of feeds updated, %2$d: number of errors */
-                sprintf(__('Mappings regenerated: %1$d feeds updated, %2$d errors. Product index rebuilt.', 'myfeeds'), 
+                sprintf(__('Mappings regenerated: %1$d feeds updated, %2$d errors. Product index rebuilt.', 'myfeeds-affiliate-feed-manager'), 
                     $updated_count, $error_count)
             );
         } else {
             $this->redirect_with_success(
                 /* translators: %d: number of feeds updated */
-                sprintf(__('All %d feed mappings regenerated successfully! Product index rebuilt.', 'myfeeds'), 
+                sprintf(__('All %d feed mappings regenerated successfully! Product index rebuilt.', 'myfeeds-affiliate-feed-manager'), 
                     $updated_count)
             );
         }
@@ -2960,11 +2960,11 @@ class MyFeeds_Feed_Manager {
     public function ajax_rebuild_index() {
         check_ajax_referer('myfeeds_nonce', 'nonce');
         if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => __('Unauthorized', 'myfeeds')), 403);
+            wp_send_json_error(array('message' => __('Unauthorized', 'myfeeds-affiliate-feed-manager')), 403);
         }
         try {
             $this->rebuild_feed_index();
-            wp_send_json_success(array('message' => __('Product index rebuilt successfully!', 'myfeeds')));
+            wp_send_json_success(array('message' => __('Product index rebuilt successfully!', 'myfeeds-affiliate-feed-manager')));
         } catch (\Throwable $e) {
             myfeeds_log('ajax_rebuild_index error: ' . $e->getMessage(), 'error');
             wp_send_json_error(array('message' => 'Rebuild failed: ' . $e->getMessage()), 500);
@@ -3025,14 +3025,14 @@ class MyFeeds_Feed_Manager {
      */
     public function handle_test_feed() {
         if (!current_user_can('manage_options') || !check_admin_referer('myfeeds_test_feed')) {
-            wp_die(esc_html__('Security check failed', 'myfeeds'));
+            wp_die(esc_html__('Security check failed', 'myfeeds-affiliate-feed-manager'));
         }
         
         $key = intval($_POST['feed_key']);
         $feeds = get_option(self::OPTION_KEY, array());
         
         if (!isset($feeds[$key])) {
-            $this->redirect_with_error(esc_html__('Feed not found', 'myfeeds'));
+            $this->redirect_with_error(esc_html__('Feed not found', 'myfeeds-affiliate-feed-manager'));
             return;
         }
         
@@ -3041,7 +3041,7 @@ class MyFeeds_Feed_Manager {
         $test_result = $this->test_feed_url($feed['url'], $format_hint);
         
         if (is_wp_error($test_result)) {
-            wp_die(esc_html__('Feed Test Error: ', 'myfeeds') . esc_html($test_result->get_error_message()));
+            wp_die(esc_html__('Feed Test Error: ', 'myfeeds-affiliate-feed-manager') . esc_html($test_result->get_error_message()));
         }
         
         $mapped = $this->smart_mapper->map_product($test_result['sample_data'], $feed['mapping']);
@@ -3053,32 +3053,32 @@ class MyFeeds_Feed_Manager {
         
         ?>
         <div class="wrap">
-            <h1><?php esc_html_e('Feed Test Results', 'myfeeds'); ?>: <?php echo esc_html($feed['name']); ?></h1>
+            <h1><?php esc_html_e('Feed Test Results', 'myfeeds-affiliate-feed-manager'); ?>: <?php echo esc_html($feed['name']); ?></h1>
             
             <div style="background: #f5f3ff; border-left: 4px solid #667eea; padding: 20px; margin: 20px 0;">
-                <h3><?php esc_html_e('Test Summary', 'myfeeds'); ?></h3>
+                <h3><?php esc_html_e('Test Summary', 'myfeeds-affiliate-feed-manager'); ?></h3>
                 <ul>
-                    <li><strong><?php esc_html_e('Feed URL:', 'myfeeds'); ?></strong> <?php echo esc_html($feed['url']); ?></li>
-                    <li><strong><?php esc_html_e('Detected Format:', 'myfeeds'); ?></strong> <?php echo esc_html($test_result['format']); ?></li>
-                    <li><strong><?php esc_html_e('Mapping Confidence:', 'myfeeds'); ?></strong> <?php echo esc_html(round($confidence)); ?>%</li>
+                    <li><strong><?php esc_html_e('Feed URL:', 'myfeeds-affiliate-feed-manager'); ?></strong> <?php echo esc_html($feed['url']); ?></li>
+                    <li><strong><?php esc_html_e('Detected Format:', 'myfeeds-affiliate-feed-manager'); ?></strong> <?php echo esc_html($test_result['format']); ?></li>
+                    <li><strong><?php esc_html_e('Mapping Confidence:', 'myfeeds-affiliate-feed-manager'); ?></strong> <?php echo esc_html(round($confidence)); ?>%</li>
                 </ul>
             </div>
             
             <div style="background: #fff; border: 1px solid #ddd; padding: 20px; margin: 20px 0;">
-                <h3><?php esc_html_e('Raw Feed Sample (First Product)', 'myfeeds'); ?></h3>
+                <h3><?php esc_html_e('Raw Feed Sample (First Product)', 'myfeeds-affiliate-feed-manager'); ?></h3>
                 <div style="background: #f8f9fa; padding: 15px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto;">
                     <?php echo '<pre>' . esc_html(print_r($test_result['sample_data'], true)) . '</pre>'; ?>
                 </div>
             </div>
             
             <div style="background: #fff; border: 1px solid #ddd; padding: 20px; margin: 20px 0;">
-                <h3><?php esc_html_e('Mapped + Enriched Product Data', 'myfeeds'); ?></h3>
+                <h3><?php esc_html_e('Mapped + Enriched Product Data', 'myfeeds-affiliate-feed-manager'); ?></h3>
                 <div style="background: #e8f5e8; padding: 15px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto;">
                     <?php echo '<pre>' . esc_html(print_r($mapped, true)) . '</pre>'; ?>
                 </div>
             </div>
             
-            <p><a href="<?php echo esc_url(admin_url('admin.php?page=myfeeds-feeds')); ?>" class="button button-primary"><?php esc_html_e('Back to Feeds', 'myfeeds'); ?></a></p>
+            <p><a href="<?php echo esc_url(admin_url('admin.php?page=myfeeds-feeds')); ?>" class="button button-primary"><?php esc_html_e('Back to Feeds', 'myfeeds-affiliate-feed-manager'); ?></a></p>
         </div>
         <?php
     }

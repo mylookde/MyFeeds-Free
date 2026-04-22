@@ -324,24 +324,24 @@ class MyFeeds_Settings_Manager {
     public static function get_field_groups() {
         return array(
             'essential' => array(
-                'label' => __('Essential Fields', 'myfeeds'),
-                'description' => __('Required for basic product display', 'myfeeds'),
+                'label' => __('Essential Fields', 'myfeeds-affiliate-feed-manager'),
+                'description' => __('Required for basic product display', 'myfeeds-affiliate-feed-manager'),
             ),
             'important' => array(
-                'label' => __('Important Fields', 'myfeeds'),
-                'description' => __('Recommended for better product presentation', 'myfeeds'),
+                'label' => __('Important Fields', 'myfeeds-affiliate-feed-manager'),
+                'description' => __('Recommended for better product presentation', 'myfeeds-affiliate-feed-manager'),
             ),
             'images' => array(
-                'label' => __('Images', 'myfeeds'),
-                'description' => __('Additional product images', 'myfeeds'),
+                'label' => __('Images', 'myfeeds-affiliate-feed-manager'),
+                'description' => __('Additional product images', 'myfeeds-affiliate-feed-manager'),
             ),
             'attributes' => array(
-                'label' => __('Product Attributes', 'myfeeds'),
-                'description' => __('Product variations and characteristics', 'myfeeds'),
+                'label' => __('Product Attributes', 'myfeeds-affiliate-feed-manager'),
+                'description' => __('Product variations and characteristics', 'myfeeds-affiliate-feed-manager'),
             ),
             'additional' => array(
-                'label' => __('Additional Info', 'myfeeds'),
-                'description' => __('Extra product information', 'myfeeds'),
+                'label' => __('Additional Info', 'myfeeds-affiliate-feed-manager'),
+                'description' => __('Extra product information', 'myfeeds-affiliate-feed-manager'),
             ),
         );
     }

@@ -489,11 +489,11 @@ class MyFeeds_Batch_Importer {
     public static function register_cron_intervals($schedules) {
         $schedules['every_minute'] = array(
             'interval' => 60,
-            'display' => __('Every Minute', 'myfeeds')
+            'display' => __('Every Minute', 'myfeeds-affiliate-feed-manager')
         );
         $schedules['every_30_seconds'] = array(
             'interval' => 30,
-            'display' => __('Every 30 Seconds', 'myfeeds')
+            'display' => __('Every 30 Seconds', 'myfeeds-affiliate-feed-manager')
         );
         return $schedules;
     }
@@ -790,7 +790,7 @@ class MyFeeds_Batch_Importer {
             $block_name = $block['blockName'] ?? '';
             
             // Check block name for MyFeeds blocks
-            if (strpos($block_name, 'myfeeds') !== false) {
+            if (strpos($block_name, 'myfeeds-affiliate-feed-manager') !== false) {
                 MyFeeds_Logger::debug("=== BLOCK ATTR DIAGNOSIS (Post #{$post_id}) ===");
                 MyFeeds_Logger::info("BLOCK_DIAG Post #{$post_id}: blockName='{$block_name}', attrs_keys=[" . (!empty($block['attrs']) ? implode(', ', array_keys($block['attrs'])) : 'EMPTY') . "], selectedProducts_count=" . (isset($block['attrs']['selectedProducts']) ? count($block['attrs']['selectedProducts']) : 'N/A'));
                 MyFeeds_Logger::debug("Block: name='{$block_name}'");
@@ -906,7 +906,7 @@ class MyFeeds_Batch_Importer {
             // Recursively check inner blocks
             if (!empty($block['innerBlocks'])) {
                 // DIAGNOSTIC: Log inner blocks count
-                if (strpos($block_name, 'myfeeds') !== false) {
+                if (strpos($block_name, 'myfeeds-affiliate-feed-manager') !== false) {
                     MyFeeds_Logger::debug("Block '{$block_name}' has " . count($block['innerBlocks']) . " innerBlocks");
                 }
                 $this->extract_ids_from_blocks($block['innerBlocks'], $product_ids, $post_id);
@@ -3990,7 +3990,7 @@ class MyFeeds_Batch_Importer {
             return array(
                 'status' => 'idle',
                 'mode' => self::MODE_FULL,
-                'message' => __('No import in progress', 'myfeeds'),
+                'message' => __('No import in progress', 'myfeeds-affiliate-feed-manager'),
                 'progress_percent' => 0,
             );
         }
@@ -4508,7 +4508,7 @@ class MyFeeds_Batch_Importer {
         check_ajax_referer('myfeeds_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => __('Unauthorized', 'myfeeds')));
+            wp_send_json_error(array('message' => __('Unauthorized', 'myfeeds-affiliate-feed-manager')));
         }
         
         $feed_key = isset($_POST['feed_key']) ? sanitize_text_field($_POST['feed_key']) : null;
@@ -4526,7 +4526,7 @@ class MyFeeds_Batch_Importer {
         }
         
         wp_send_json_success(array(
-            'message' => __('Import started', 'myfeeds'),
+            'message' => __('Import started', 'myfeeds-affiliate-feed-manager'),
             'status' => $this->get_import_status(),
         ));
     }
@@ -4535,7 +4535,7 @@ class MyFeeds_Batch_Importer {
         check_ajax_referer('myfeeds_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => __('Unauthorized', 'myfeeds')));
+            wp_send_json_error(array('message' => __('Unauthorized', 'myfeeds-affiliate-feed-manager')));
         }
         
         try {
@@ -4553,7 +4553,7 @@ class MyFeeds_Batch_Importer {
         check_ajax_referer('myfeeds_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => __('Unauthorized', 'myfeeds')));
+            wp_send_json_error(array('message' => __('Unauthorized', 'myfeeds-affiliate-feed-manager')));
         }
         
         try {
@@ -4572,7 +4572,7 @@ class MyFeeds_Batch_Importer {
             }
             
             wp_send_json_success(array(
-                'message' => __('Import cancelled', 'myfeeds'),
+                'message' => __('Import cancelled', 'myfeeds-affiliate-feed-manager'),
                 'import_type' => $import_type,
                 'feed_key' => $feed_key,
                 'feed_statuses' => $feed_statuses,

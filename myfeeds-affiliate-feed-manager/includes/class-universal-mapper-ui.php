@@ -61,13 +61,13 @@ class MyFeeds_Universal_Mapper_UI {
             'autoDetectUrl'  => admin_url('admin.php?page=myfeeds-mapping-editor'),
             'initialFeedKey' => $feed_key,
             'i18n'           => array(
-                'mappingSaved'     => __('Mapping saved successfully!', 'myfeeds'),
-                'enterTemplateName'=> __('Please enter a template name', 'myfeeds'),
-                'templateSaved'    => __('Template saved!', 'myfeeds'),
-                'selectTemplate'   => __('Please select a template', 'myfeeds'),
-                'selectFeedFirst'  => __('Please select a feed first', 'myfeeds'),
-                'templateApplied'  => __('Template applied! Reloading...', 'myfeeds'),
-                'detecting'        => __('Detecting...', 'myfeeds'),
+                'mappingSaved'     => __('Mapping saved successfully!', 'myfeeds-affiliate-feed-manager'),
+                'enterTemplateName'=> __('Please enter a template name', 'myfeeds-affiliate-feed-manager'),
+                'templateSaved'    => __('Template saved!', 'myfeeds-affiliate-feed-manager'),
+                'selectTemplate'   => __('Please select a template', 'myfeeds-affiliate-feed-manager'),
+                'selectFeedFirst'  => __('Please select a feed first', 'myfeeds-affiliate-feed-manager'),
+                'templateApplied'  => __('Template applied! Reloading...', 'myfeeds-affiliate-feed-manager'),
+                'detecting'        => __('Detecting...', 'myfeeds-affiliate-feed-manager'),
             ),
         ));
     }
@@ -78,8 +78,8 @@ class MyFeeds_Universal_Mapper_UI {
     public function register_mapping_page() {
         add_submenu_page(
             'myfeeds-feeds',
-            __('Mapping Editor', 'myfeeds'),
-            __('Mapping Editor', 'myfeeds'),
+            __('Mapping Editor', 'myfeeds-affiliate-feed-manager'),
+            __('Mapping Editor', 'myfeeds-affiliate-feed-manager'),
             'manage_options',
             'myfeeds-mapping-editor',
             array($this, 'render_mapping_editor_page')
@@ -108,14 +108,14 @@ class MyFeeds_Universal_Mapper_UI {
         
         ?>
         <div class="wrap myfeeds-mapping-editor">
-            <h1><?php esc_html_e('Universal Mapping Editor', 'myfeeds'); ?></h1>
+            <h1><?php esc_html_e('Universal Mapping Editor', 'myfeeds-affiliate-feed-manager'); ?></h1>
             
             <h2 class="nav-tab-wrapper">
                 <a href="<?php echo esc_url(admin_url('admin.php?page=myfeeds-mapping-editor')); ?>" class="nav-tab <?php echo $active_tab === 'editor' ? 'nav-tab-active' : ''; ?>">
-                    <?php esc_html_e('Mapping Editor', 'myfeeds'); ?>
+                    <?php esc_html_e('Mapping Editor', 'myfeeds-affiliate-feed-manager'); ?>
                 </a>
                 <a href="<?php echo esc_url(admin_url('admin.php?page=myfeeds-mapping-editor&tab=templates')); ?>" class="nav-tab <?php echo $active_tab === 'templates' ? 'nav-tab-active' : ''; ?>">
-                    <?php esc_html_e('Templates', 'myfeeds'); ?>
+                    <?php esc_html_e('Templates', 'myfeeds-affiliate-feed-manager'); ?>
                 </a>
             </h2>
             
@@ -143,10 +143,10 @@ class MyFeeds_Universal_Mapper_UI {
             <div class="myfeeds-mapping-container">
                 <!-- Feed Selector -->
                 <div class="myfeeds-panel">
-                    <h2><?php esc_html_e('1. Select Feed', 'myfeeds'); ?></h2>
+                    <h2><?php esc_html_e('1. Select Feed', 'myfeeds-affiliate-feed-manager'); ?></h2>
                     
                     <select id="myfeeds-feed-selector" class="myfeeds-select-large">
-                        <option value=""><?php esc_html_e('-- Select a feed --', 'myfeeds'); ?></option>
+                        <option value=""><?php esc_html_e('-- Select a feed --', 'myfeeds-affiliate-feed-manager'); ?></option>
                         <?php foreach ($feeds as $key => $feed): ?>
                             <option value="<?php echo esc_attr($key); ?>" <?php selected($feed_key, $key); ?>>
                                 <?php echo esc_html($feed['name']); ?> 
@@ -157,9 +157,9 @@ class MyFeeds_Universal_Mapper_UI {
                     
                     <?php if (!empty($templates)): ?>
                         <div class="myfeeds-template-apply" style="margin-top: 15px;">
-                            <label><?php esc_html_e('Or apply a template:', 'myfeeds'); ?></label>
+                            <label><?php esc_html_e('Or apply a template:', 'myfeeds-affiliate-feed-manager'); ?></label>
                             <select id="myfeeds-template-selector" class="myfeeds-select">
-                                <option value=""><?php esc_html_e('-- Select template --', 'myfeeds'); ?></option>
+                                <option value=""><?php esc_html_e('-- Select template --', 'myfeeds-affiliate-feed-manager'); ?></option>
                                 <?php foreach ($templates as $tid => $template): ?>
                                     <option value="<?php echo esc_attr($tid); ?>">
                                         <?php echo esc_html($template['name']); ?>
@@ -170,7 +170,7 @@ class MyFeeds_Universal_Mapper_UI {
                                 <?php endforeach; ?>
                             </select>
                             <button type="button" id="myfeeds-apply-template" class="button">
-                                <?php esc_html_e('Apply Template', 'myfeeds'); ?>
+                                <?php esc_html_e('Apply Template', 'myfeeds-affiliate-feed-manager'); ?>
                             </button>
                         </div>
                     <?php endif; ?>
@@ -178,17 +178,17 @@ class MyFeeds_Universal_Mapper_UI {
                 
                 <!-- Mapping Interface -->
                 <div class="myfeeds-panel" id="myfeeds-mapping-interface" style="display: none;">
-                    <h2><?php esc_html_e('2. Map Feed Columns to Fields', 'myfeeds'); ?></h2>
+                    <h2><?php esc_html_e('2. Map Feed Columns to Fields', 'myfeeds-affiliate-feed-manager'); ?></h2>
                     
                     <div class="myfeeds-mapping-info">
-                        <p><?php esc_html_e('Drag feed columns to the corresponding field, or select from dropdown.', 'myfeeds'); ?></p>
+                        <p><?php esc_html_e('Drag feed columns to the corresponding field, or select from dropdown.', 'myfeeds-affiliate-feed-manager'); ?></p>
                     </div>
                     
                     <!-- Available Feed Columns -->
                     <div class="myfeeds-columns-panel">
-                        <h3><?php esc_html_e('Available Feed Columns', 'myfeeds'); ?></h3>
+                        <h3><?php esc_html_e('Available Feed Columns', 'myfeeds-affiliate-feed-manager'); ?></h3>
                         <div id="myfeeds-feed-columns" class="myfeeds-column-list">
-                            <p class="description"><?php esc_html_e('Loading feed columns...', 'myfeeds'); ?></p>
+                            <p class="description"><?php esc_html_e('Loading feed columns...', 'myfeeds-affiliate-feed-manager'); ?></p>
                         </div>
                     </div>
                     
@@ -214,7 +214,7 @@ class MyFeeds_Universal_Mapper_UI {
                                                 <?php endif; ?>
                                             </label>
                                             <select class="myfeeds-field-mapping" data-field="<?php echo esc_attr($field_key); ?>">
-                                                <option value=""><?php esc_html_e('-- Not mapped --', 'myfeeds'); ?></option>
+                                                <option value=""><?php esc_html_e('-- Not mapped --', 'myfeeds-affiliate-feed-manager'); ?></option>
                                             </select>
                                             <span class="myfeeds-field-help" title="<?php echo esc_attr($field['description']); ?>">?</span>
                                         </div>
@@ -226,24 +226,24 @@ class MyFeeds_Universal_Mapper_UI {
                     
                     <!-- Sample Data Preview -->
                     <div class="myfeeds-preview-panel">
-                        <h3><?php esc_html_e('Preview', 'myfeeds'); ?></h3>
+                        <h3><?php esc_html_e('Preview', 'myfeeds-affiliate-feed-manager'); ?></h3>
                         <div id="myfeeds-mapping-preview">
-                            <p class="description"><?php esc_html_e('Select a feed to see sample data', 'myfeeds'); ?></p>
+                            <p class="description"><?php esc_html_e('Select a feed to see sample data', 'myfeeds-affiliate-feed-manager'); ?></p>
                         </div>
                     </div>
                     
                     <!-- Actions -->
                     <div class="myfeeds-mapping-actions">
                         <button type="button" id="myfeeds-save-mapping" class="button button-primary button-large">
-                            <?php esc_html_e('💾 Save Mapping', 'myfeeds'); ?>
+                            <?php esc_html_e('💾 Save Mapping', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
                         
                         <button type="button" id="myfeeds-save-as-template" class="button">
-                            <?php esc_html_e('📑 Save as Template', 'myfeeds'); ?>
+                            <?php esc_html_e('📑 Save as Template', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
                         
                         <button type="button" id="myfeeds-auto-detect" class="button">
-                            <?php esc_html_e('🔍 Auto-Detect', 'myfeeds'); ?>
+                            <?php esc_html_e('🔍 Auto-Detect', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
                     </div>
                 </div>
@@ -252,28 +252,28 @@ class MyFeeds_Universal_Mapper_UI {
             <!-- Save as Template Modal -->
             <div id="myfeeds-template-modal" class="myfeeds-modal" style="display: none;">
                 <div class="myfeeds-modal-content">
-                    <h3><?php esc_html_e('Save as Template', 'myfeeds'); ?></h3>
-                    <p><?php esc_html_e('Create a reusable template from this mapping:', 'myfeeds'); ?></p>
+                    <h3><?php esc_html_e('Save as Template', 'myfeeds-affiliate-feed-manager'); ?></h3>
+                    <p><?php esc_html_e('Create a reusable template from this mapping:', 'myfeeds-affiliate-feed-manager'); ?></p>
                     
-                    <label><?php esc_html_e('Template Name', 'myfeeds'); ?></label>
-                    <input type="text" id="myfeeds-template-name" placeholder="<?php esc_attr_e('e.g., AWIN Fashion', 'myfeeds'); ?>">
+                    <label><?php esc_html_e('Template Name', 'myfeeds-affiliate-feed-manager'); ?></label>
+                    <input type="text" id="myfeeds-template-name" placeholder="<?php esc_attr_e('e.g., AWIN Fashion', 'myfeeds-affiliate-feed-manager'); ?>">
                     
-                    <label><?php esc_html_e('Network (optional)', 'myfeeds'); ?></label>
+                    <label><?php esc_html_e('Network (optional)', 'myfeeds-affiliate-feed-manager'); ?></label>
                     <select id="myfeeds-template-network">
-                        <option value=""><?php esc_html_e('-- Select --', 'myfeeds'); ?></option>
+                        <option value=""><?php esc_html_e('-- Select --', 'myfeeds-affiliate-feed-manager'); ?></option>
                         <option value="awin">AWIN</option>
                         <option value="tradedoubler">TradeDoubler</option>
                         <option value="cj">Commission Junction</option>
                         <option value="amazon">Amazon Associates</option>
-                        <option value="other"><?php esc_html_e('Other', 'myfeeds'); ?></option>
+                        <option value="other"><?php esc_html_e('Other', 'myfeeds-affiliate-feed-manager'); ?></option>
                     </select>
                     
                     <div class="myfeeds-modal-actions">
                         <button type="button" id="myfeeds-template-save-confirm" class="button button-primary">
-                            <?php esc_html_e('Save Template', 'myfeeds'); ?>
+                            <?php esc_html_e('Save Template', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
                         <button type="button" class="button myfeeds-modal-close">
-                            <?php esc_html_e('Cancel', 'myfeeds'); ?>
+                            <?php esc_html_e('Cancel', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
                     </div>
                 </div>
@@ -299,26 +299,26 @@ class MyFeeds_Universal_Mapper_UI {
         if (isset($_GET['delete_template']) && isset($_GET['_wpnonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 'delete_template')) {
             $template_id = sanitize_text_field(wp_unslash($_GET['delete_template']));
             MyFeeds_Settings_Manager::delete_mapping_template($template_id);
-            echo '<div class="notice notice-success"><p>' . esc_html__('Template deleted', 'myfeeds') . '</p></div>';
+            echo '<div class="notice notice-success"><p>' . esc_html__('Template deleted', 'myfeeds-affiliate-feed-manager') . '</p></div>';
             $templates = MyFeeds_Settings_Manager::get_mapping_templates();
         }
         
         ?>
-            <p><?php esc_html_e('Reusable mapping configurations for different affiliate networks.', 'myfeeds'); ?></p>
+            <p><?php esc_html_e('Reusable mapping configurations for different affiliate networks.', 'myfeeds-affiliate-feed-manager'); ?></p>
             
             <?php if (empty($templates)): ?>
                 <div class="notice notice-info">
-                    <p><?php esc_html_e('No templates yet. Create one from the Mapping Editor by clicking "Save as Template".', 'myfeeds'); ?></p>
+                    <p><?php esc_html_e('No templates yet. Create one from the Mapping Editor by clicking "Save as Template".', 'myfeeds-affiliate-feed-manager'); ?></p>
                 </div>
             <?php else: ?>
                 <table class="wp-list-table widefat fixed striped">
                     <thead>
                         <tr>
-                            <th><?php esc_html_e('Template Name', 'myfeeds'); ?></th>
-                            <th><?php esc_html_e('Network', 'myfeeds'); ?></th>
-                            <th><?php esc_html_e('Mapped Fields', 'myfeeds'); ?></th>
-                            <th><?php esc_html_e('Created', 'myfeeds'); ?></th>
-                            <th><?php esc_html_e('Actions', 'myfeeds'); ?></th>
+                            <th><?php esc_html_e('Template Name', 'myfeeds-affiliate-feed-manager'); ?></th>
+                            <th><?php esc_html_e('Network', 'myfeeds-affiliate-feed-manager'); ?></th>
+                            <th><?php esc_html_e('Mapped Fields', 'myfeeds-affiliate-feed-manager'); ?></th>
+                            <th><?php esc_html_e('Created', 'myfeeds-affiliate-feed-manager'); ?></th>
+                            <th><?php esc_html_e('Actions', 'myfeeds-affiliate-feed-manager'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -334,8 +334,8 @@ class MyFeeds_Universal_Mapper_UI {
                                         'delete_template'
                                     )); ?>" 
                                        class="button button-small" 
-                                       onclick="return confirm('<?php esc_html_e('Delete this template?', 'myfeeds'); ?>');">
-                                        <?php esc_html_e('Delete', 'myfeeds'); ?>
+                                       onclick="return confirm('<?php esc_html_e('Delete this template?', 'myfeeds-affiliate-feed-manager'); ?>');">
+                                        <?php esc_html_e('Delete', 'myfeeds-affiliate-feed-manager'); ?>
                                     </a>
                                 </td>
                             </tr>
@@ -380,7 +380,7 @@ class MyFeeds_Universal_Mapper_UI {
                 update_option('myfeeds_log_level', $log_level);
             }
             
-            echo '<div class="notice notice-success"><p>' . esc_html__('Settings saved!', 'myfeeds') . '</p></div>';
+            echo '<div class="notice notice-success"><p>' . esc_html__('Settings saved!', 'myfeeds-affiliate-feed-manager') . '</p></div>';
         }
         
         // Free plugin: Pro-gated API key fields stay disabled.
@@ -389,7 +389,7 @@ class MyFeeds_Universal_Mapper_UI {
         
         ?>
         <div class="wrap">
-            <h1><?php esc_html_e('My Product Picker Settings', 'myfeeds'); ?></h1>
+            <h1><?php esc_html_e('MyFeeds Settings', 'myfeeds-affiliate-feed-manager'); ?></h1>
             
             <!-- Database Storage Status (read-only, no toggle) -->
             <?php if (class_exists('MyFeeds_DB_Manager')): ?>
@@ -398,14 +398,14 @@ class MyFeeds_Universal_Mapper_UI {
                 $db_stats = $table_exists ? MyFeeds_DB_Manager::get_stats() : array('count' => 0);
             ?>
             <div class="myfeeds-settings-section" style="border-left: 4px solid #00a32a;">
-                <h2><?php esc_html_e('Storage', 'myfeeds'); ?></h2>
+                <h2><?php esc_html_e('Storage', 'myfeeds-affiliate-feed-manager'); ?></h2>
                 <p style="font-size: 14px;">
-                    <?php esc_html_e('Mode:', 'myfeeds'); ?> <strong><?php esc_html_e('Database', 'myfeeds'); ?></strong>
+                    <?php esc_html_e('Mode:', 'myfeeds-affiliate-feed-manager'); ?> <strong><?php esc_html_e('Database', 'myfeeds-affiliate-feed-manager'); ?></strong>
                     <?php if ($table_exists && isset($db_stats['active'])): ?>
                         <?php /* translators: %d: number of active products */ ?>
-                        &mdash; <?php echo esc_html(sprintf(__('%d active products', 'myfeeds'), $db_stats['active'])); ?>
+                        &mdash; <?php echo esc_html(sprintf(__('%d active products', 'myfeeds-affiliate-feed-manager'), $db_stats['active'])); ?>
                     <?php elseif (!$table_exists): ?>
-                        &mdash; <span style="color:#d63638;"><?php esc_html_e('Table missing. Please deactivate and reactivate the plugin.', 'myfeeds'); ?></span>
+                        &mdash; <span style="color:#d63638;"><?php esc_html_e('Table missing. Please deactivate and reactivate the plugin.', 'myfeeds-affiliate-feed-manager'); ?></span>
                     <?php endif; ?>
                 </p>
             </div>
@@ -416,43 +416,43 @@ class MyFeeds_Universal_Mapper_UI {
                 
                 <!-- General Settings -->
                 <div class="myfeeds-settings-section">
-                    <h2><?php esc_html_e('General Settings', 'myfeeds'); ?></h2>
+                    <h2><?php esc_html_e('General Settings', 'myfeeds-affiliate-feed-manager'); ?></h2>
                     
                     <table class="form-table">
                         <tr>
-                            <th scope="row"><?php esc_html_e('Batch Size', 'myfeeds'); ?></th>
+                            <th scope="row"><?php esc_html_e('Batch Size', 'myfeeds-affiliate-feed-manager'); ?></th>
                             <td>
                                 <input type="number" name="batch_size" value="<?php echo esc_attr($general_settings['batch_size']); ?>" min="10" max="500">
-                                <p class="description"><?php esc_html_e('Number of products to process per batch (10-500)', 'myfeeds'); ?></p>
+                                <p class="description"><?php esc_html_e('Number of products to process per batch (10-500)', 'myfeeds-affiliate-feed-manager'); ?></p>
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><?php esc_html_e('Background Import', 'myfeeds'); ?></th>
+                            <th scope="row"><?php esc_html_e('Background Import', 'myfeeds-affiliate-feed-manager'); ?></th>
                             <td>
                                 <label>
                                     <input type="checkbox" name="enable_background_import" <?php checked($general_settings['enable_background_import']); ?>>
-                                    <?php esc_html_e('Enable background processing for large imports', 'myfeeds'); ?>
+                                    <?php esc_html_e('Enable background processing for large imports', 'myfeeds-affiliate-feed-manager'); ?>
                                 </label>
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><?php esc_html_e('Debug Mode', 'myfeeds'); ?></th>
+                            <th scope="row"><?php esc_html_e('Debug Mode', 'myfeeds-affiliate-feed-manager'); ?></th>
                             <td>
                                 <label>
                                     <input type="checkbox" name="debug_mode" <?php checked($general_settings['debug_mode'] ?? false); ?>>
-                                    <?php esc_html_e('Enable debug logging', 'myfeeds'); ?>
+                                    <?php esc_html_e('Enable debug logging', 'myfeeds-affiliate-feed-manager'); ?>
                                 </label>
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><?php esc_html_e('Log Level', 'myfeeds'); ?></th>
+                            <th scope="row"><?php esc_html_e('Log Level', 'myfeeds-affiliate-feed-manager'); ?></th>
                             <td>
                                 <select name="myfeeds_log_level">
-                                    <option value="error" <?php selected($current_log_level, 'error'); ?>>Error — <?php esc_html_e('Only real errors', 'myfeeds'); ?></option>
-                                    <option value="info" <?php selected($current_log_level, 'info'); ?>>Info — <?php esc_html_e('Errors + feed/import summaries', 'myfeeds'); ?></option>
-                                    <option value="debug" <?php selected($current_log_level, 'debug'); ?>>Debug — <?php esc_html_e('Everything (verbose, for support)', 'myfeeds'); ?></option>
+                                    <option value="error" <?php selected($current_log_level, 'error'); ?>>Error — <?php esc_html_e('Only real errors', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                    <option value="info" <?php selected($current_log_level, 'info'); ?>>Info — <?php esc_html_e('Errors + feed/import summaries', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                    <option value="debug" <?php selected($current_log_level, 'debug'); ?>>Debug — <?php esc_html_e('Everything (verbose, for support)', 'myfeeds-affiliate-feed-manager'); ?></option>
                                 </select>
-                                <p class="description"><?php esc_html_e('Controls how much detail is written to the error log. Default: Info.', 'myfeeds'); ?></p>
+                                <p class="description"><?php esc_html_e('Controls how much detail is written to the error log. Default: Info.', 'myfeeds-affiliate-feed-manager'); ?></p>
                             </td>
                         </tr>
                     </table>
@@ -461,56 +461,56 @@ class MyFeeds_Universal_Mapper_UI {
                 <!-- Pro Features: API Keys -->
                 <div class="myfeeds-settings-section">
                     <h2>
-                        <?php esc_html_e('Pro Features: API Keys', 'myfeeds'); ?>
+                        <?php esc_html_e('Pro Features: API Keys', 'myfeeds-affiliate-feed-manager'); ?>
                         <?php if (!$is_pro): ?>
-                            <span class="myfeeds-pro-badge"><?php esc_html_e('PRO', 'myfeeds'); ?></span>
+                            <span class="myfeeds-pro-badge"><?php esc_html_e('PRO', 'myfeeds-affiliate-feed-manager'); ?></span>
                         <?php endif; ?>
                     </h2>
                     
                     <?php if (!$is_pro): ?>
                         <div class="notice notice-warning inline">
-                            <p><?php esc_html_e('These features require a Pro license. Upgrade to unlock Supabase sync and AI-powered search.', 'myfeeds'); ?></p>
+                            <p><?php esc_html_e('These features require a Pro license. Upgrade to unlock Supabase sync and AI-powered search.', 'myfeeds-affiliate-feed-manager'); ?></p>
                         </div>
                     <?php endif; ?>
                     
                     <table class="form-table">
                         <tr>
-                            <th scope="row"><?php esc_html_e('Supabase URL', 'myfeeds'); ?></th>
+                            <th scope="row"><?php esc_html_e('Supabase URL', 'myfeeds-affiliate-feed-manager'); ?></th>
                             <td>
                                 <input type="url" name="supabase_url" value="<?php echo esc_attr($api_keys['supabase_url']); ?>" 
                                        class="regular-text" placeholder="https://xxxxx.supabase.co" <?php disabled(!$is_pro); ?>>
-                                <p class="description"><?php esc_html_e('Your Supabase project URL', 'myfeeds'); ?></p>
+                                <p class="description"><?php esc_html_e('Your Supabase project URL', 'myfeeds-affiliate-feed-manager'); ?></p>
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><?php esc_html_e('Supabase Anon Key', 'myfeeds'); ?></th>
+                            <th scope="row"><?php esc_html_e('Supabase Anon Key', 'myfeeds-affiliate-feed-manager'); ?></th>
                             <td>
                                 <input type="password" name="supabase_anon_key" value="<?php echo esc_attr($api_keys['supabase_anon_key']); ?>" 
                                        class="regular-text" <?php disabled(!$is_pro); ?>>
-                                <p class="description"><?php esc_html_e('Public anonymous key (safe for frontend)', 'myfeeds'); ?></p>
+                                <p class="description"><?php esc_html_e('Public anonymous key (safe for frontend)', 'myfeeds-affiliate-feed-manager'); ?></p>
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><?php esc_html_e('Supabase Service Key', 'myfeeds'); ?></th>
+                            <th scope="row"><?php esc_html_e('Supabase Service Key', 'myfeeds-affiliate-feed-manager'); ?></th>
                             <td>
                                 <input type="password" name="supabase_service_key" value="<?php echo esc_attr($api_keys['supabase_service_key']); ?>" 
                                        class="regular-text" <?php disabled(!$is_pro); ?>>
-                                <p class="description"><?php esc_html_e('Service role key (keep secret, backend only)', 'myfeeds'); ?></p>
+                                <p class="description"><?php esc_html_e('Service role key (keep secret, backend only)', 'myfeeds-affiliate-feed-manager'); ?></p>
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><?php esc_html_e('OpenAI API Key', 'myfeeds'); ?></th>
+                            <th scope="row"><?php esc_html_e('OpenAI API Key', 'myfeeds-affiliate-feed-manager'); ?></th>
                             <td>
                                 <input type="password" name="openai_api_key" value="<?php echo esc_attr($api_keys['openai_api_key']); ?>" 
                                        class="regular-text" placeholder="sk-..." <?php disabled(!$is_pro); ?>>
-                                <p class="description"><?php esc_html_e('Required for AI-powered vector search and image search', 'myfeeds'); ?></p>
+                                <p class="description"><?php esc_html_e('Required for AI-powered vector search and image search', 'myfeeds-affiliate-feed-manager'); ?></p>
                             </td>
                         </tr>
                     </table>
                 </div>
                 
                 <p class="submit">
-                    <input type="submit" name="myfeeds_save_settings" class="button button-primary" value="<?php esc_attr_e('Save Settings', 'myfeeds'); ?>">
+                    <input type="submit" name="myfeeds_save_settings" class="button button-primary" value="<?php esc_attr_e('Save Settings', 'myfeeds-affiliate-feed-manager'); ?>">
                 </p>
             </form>
         </div>

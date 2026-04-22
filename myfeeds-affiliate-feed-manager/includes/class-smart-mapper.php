@@ -822,7 +822,7 @@ class MyFeeds_Smart_Mapper {
         $shipping = $product['shipping'] ?? '';
         
         if (empty($shipping)) {
-            $product['shipping_text'] = __('Shipping costs may apply', 'myfeeds');
+            $product['shipping_text'] = __('Shipping costs may apply', 'myfeeds-affiliate-feed-manager');
             return $product;
         }
         
@@ -830,11 +830,11 @@ class MyFeeds_Smart_Mapper {
         if (is_numeric($shipping)) {
             $cost = floatval($shipping);
             if ($cost == 0) {
-                $product['shipping_text'] = __('Free Shipping', 'myfeeds');
+                $product['shipping_text'] = __('Free Shipping', 'myfeeds-affiliate-feed-manager');
             } else {
                 $currency = $product['currency'] ?? 'EUR';
                 /* translators: %1$s: shipping cost, %2$s: currency */
-                $product['shipping_text'] = sprintf(__('Shipping: %1$s %2$s', 'myfeeds'), 
+                $product['shipping_text'] = sprintf(__('Shipping: %1$s %2$s', 'myfeeds-affiliate-feed-manager'), 
                     number_format($cost, 2), $currency);
             }
         } else {
@@ -842,15 +842,15 @@ class MyFeeds_Smart_Mapper {
             if (preg_match('/(\d+\.?\d*)/', $shipping, $matches)) {
                 $cost = floatval($matches[1]);
                 if ($cost == 0) {
-                    $product['shipping_text'] = __('Free Shipping', 'myfeeds');
+                    $product['shipping_text'] = __('Free Shipping', 'myfeeds-affiliate-feed-manager');
                 } else {
                     $currency = $product['currency'] ?? 'EUR';
                     /* translators: %1$s: shipping cost, %2$s: currency */
-                    $product['shipping_text'] = sprintf(__('Shipping: %1$s %2$s', 'myfeeds'), 
+                    $product['shipping_text'] = sprintf(__('Shipping: %1$s %2$s', 'myfeeds-affiliate-feed-manager'), 
                         number_format($cost, 2), $currency);
                 }
             } else {
-                $product['shipping_text'] = __('Shipping costs may apply', 'myfeeds');
+                $product['shipping_text'] = __('Shipping costs may apply', 'myfeeds-affiliate-feed-manager');
             }
         }
         

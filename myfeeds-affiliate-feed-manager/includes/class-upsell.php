@@ -30,7 +30,7 @@ class MyFeeds_Upsell {
             return;
         }
         $submenu['myfeeds-feeds'][] = array(
-            __('Go Pro ↗', 'myfeeds'),
+            __('Go Pro ↗', 'myfeeds-affiliate-feed-manager'),
             'manage_options',
             esc_url(self::PRICING_URL),
         );
@@ -69,10 +69,10 @@ class MyFeeds_Upsell {
         ?>
         <div class="notice notice-info is-dismissible myfeeds-upsell-banner">
             <p>
-                <strong><?php esc_html_e('Need more than one feed?', 'myfeeds'); ?></strong>
-                <?php esc_html_e('MyFeeds Pro adds multi-feed management, daily auto-sync and a carousel block.', 'myfeeds'); ?>
+                <strong><?php esc_html_e('Need more than one feed?', 'myfeeds-affiliate-feed-manager'); ?></strong>
+                <?php esc_html_e('MyFeeds Pro adds multi-feed management, daily auto-sync and a carousel block.', 'myfeeds-affiliate-feed-manager'); ?>
                 <a href="<?php echo esc_url(self::PRICING_URL); ?>" target="_blank" rel="noopener">
-                    <?php esc_html_e('See plans →', 'myfeeds'); ?>
+                    <?php esc_html_e('See plans →', 'myfeeds-affiliate-feed-manager'); ?>
                 </a>
             </p>
         </div>
@@ -90,7 +90,7 @@ class MyFeeds_Upsell {
 
     private function is_myfeeds_screen() {
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
-        return $screen && strpos((string) $screen->id, 'myfeeds') !== false;
+        return $screen && strpos((string) $screen->id, 'myfeeds-affiliate-feed-manager') !== false;
     }
 
     private function dismiss_script() {
