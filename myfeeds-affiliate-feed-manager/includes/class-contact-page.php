@@ -14,20 +14,13 @@ class MyFeeds_Contact_Page {
     public function init() {
         add_action('admin_menu', array($this, 'replace_contact_page'), 999);
         add_action('wp_ajax_myfeeds_send_contact', array($this, 'ajax_send_contact'));
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_assets'));
     }
 
     /**
-     * Hide Freemius contact menu, register our own, redirect old slug
+     * Register our contact page and redirect the legacy slug.
      */
     public function replace_contact_page() {
-        // 1. Hide the Freemius contact submenu via CSS
-        add_action('admin_head', function() {
-            echo '<style>
-                span.fs-submenu-item.myfeeds.contact.fs_external_contact { display: none !important; }
-            </style>';
-        });
-
-        // 2. Register our own contact page
         add_submenu_page(
             'myfeeds-feeds',
             'Contact Us',
@@ -37,11 +30,37 @@ class MyFeeds_Contact_Page {
             array($this, 'render_contact_page')
         );
 
-        // 3. Redirect old Freemius contact URL to our page
+        // Redirect legacy contact URL to our page
         if (isset($_GET['page']) && $_GET['page'] === 'myfeeds-feeds-contact') {
             wp_safe_redirect(admin_url('admin.php?page=myfeeds-custom-contact'));
             exit;
         }
+    }
+
+    /**
+     * Enqueue contact-page assets only on our custom contact screen.
+     */
+    public function enqueue_assets($hook) {
+        if ($hook !== 'myfeeds_page_myfeeds-custom-contact') {
+            return;
+        }
+        wp_enqueue_style(
+            'myfeeds-contact-page',
+            MYFEEDS_PLUGIN_URL . 'assets/contact-page.css',
+            array(),
+            MYFEEDS_VERSION
+        );
+        wp_enqueue_script(
+            'myfeeds-contact-page',
+            MYFEEDS_PLUGIN_URL . 'assets/contact-page.js',
+            array(),
+            MYFEEDS_VERSION,
+            true
+        );
+        wp_localize_script('myfeeds-contact-page', 'myfeedsContact', array(
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'nonce'   => wp_create_nonce('myfeeds_contact_nonce'),
+        ));
     }
 
     /**
@@ -96,9 +115,6 @@ class MyFeeds_Contact_Page {
      * Render the full contact & FAQ page
      */
     public function render_contact_page() {
-        $nonce = wp_create_nonce('myfeeds_contact_nonce');
-        $ajax_url = admin_url('admin-ajax.php');
-
         // FAQ items grouped by category
         $faq_groups = array(
             'Getting Started' => array(
@@ -157,246 +173,6 @@ class MyFeeds_Contact_Page {
 
         ?>
         <div class="wrap myfeeds-contact-wrap">
-            <style>
-                /* Override WP Admin background for this page */
-                .myfeeds-contact-wrap {
-                    margin: -10px -20px -20px -20px !important;
-                    padding: 0 !important;
-                    max-width: none !important;
-                }
-                body.wp-admin #wpcontent,
-                body.wp-admin #wpbody,
-                body.wp-admin #wpbody-content {
-                    background: #13111C !important;
-                }
-                .myfeeds-contact-container {
-                    background: #13111C;
-                    min-height: calc(100vh - 32px);
-                    padding: 48px 32px 60px;
-                }
-                .myfeeds-contact-wrap > h1:first-of-type {
-                    display: none;
-                }
-                #wpfooter {
-                    display: none;
-                }
-                .myfeeds-contact-wrap,
-                .myfeeds-contact-wrap * {
-                    box-sizing: border-box;
-                }
-
-                /* ── Header ── */
-                .myfeeds-contact-header {
-                    text-align: center;
-                    padding: 0 0 36px;
-                }
-                .myfeeds-contact-header h1 {
-                    font-size: 28px;
-                    font-weight: 700;
-                    color: #f0eef6;
-                    margin: 0 0 6px;
-                }
-                .myfeeds-contact-header p {
-                    font-size: 15px;
-                    color: #9e98b5;
-                    margin: 0;
-                }
-
-                /* ── FAQ Section ── */
-                .myfeeds-faq-section {
-                    max-width: 860px;
-                    margin: 0 auto 48px;
-                }
-                .myfeeds-faq-section-title {
-                    font-size: 20px;
-                    font-weight: 700;
-                    color: #f0eef6;
-                    text-align: center;
-                    margin: 0 0 24px;
-                }
-                .myfeeds-faq-group-label {
-                    font-size: 11px;
-                    font-weight: 600;
-                    color: #7a7394;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                    margin: 20px 0 8px;
-                }
-                .myfeeds-faq-item {
-                    background: #1e1b2e;
-                    border: 1px solid #2e2a42;
-                    border-radius: 10px;
-                    margin-bottom: 8px;
-                    overflow: hidden;
-                    transition: border-color 0.2s ease;
-                }
-                .myfeeds-faq-item:hover {
-                    border-color: #3d3757;
-                }
-                .myfeeds-faq-item.open {
-                    border-color: #3d3757;
-                }
-                .myfeeds-faq-question {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    padding: 14px 18px;
-                    cursor: pointer;
-                    user-select: none;
-                }
-                .myfeeds-faq-question span.q-text {
-                    font-size: 14px;
-                    font-weight: 600;
-                    color: #f0eef6;
-                    flex: 1;
-                }
-                .myfeeds-faq-question span.q-chevron {
-                    font-size: 14px;
-                    color: #7a7394;
-                    transition: transform 0.25s ease;
-                    flex-shrink: 0;
-                    margin-left: 12px;
-                }
-                .myfeeds-faq-item.open .q-chevron {
-                    transform: rotate(90deg);
-                }
-                .myfeeds-faq-answer {
-                    max-height: 0;
-                    overflow: hidden;
-                    transition: max-height 0.3s ease, padding 0.3s ease;
-                    padding: 0 18px;
-                }
-                .myfeeds-faq-item.open .myfeeds-faq-answer {
-                    max-height: 200px;
-                    padding: 0 18px 14px;
-                }
-                .myfeeds-faq-answer p {
-                    font-size: 13px;
-                    font-weight: 400;
-                    color: #c4bfda;
-                    margin: 0;
-                    padding-top: 8px;
-                    line-height: 1.6;
-                }
-
-                /* ── Contact Form Section ── */
-                .myfeeds-contact-form-section {
-                    max-width: 560px;
-                    margin: 0 auto 36px;
-                    text-align: center;
-                }
-                .myfeeds-contact-form-title {
-                    font-size: 20px;
-                    font-weight: 700;
-                    color: #f0eef6;
-                    margin: 0 0 6px;
-                }
-                .myfeeds-contact-form-subtitle {
-                    font-size: 14px;
-                    color: #9e98b5;
-                    margin: 0 0 28px;
-                }
-                .myfeeds-contact-form {
-                    text-align: left;
-                }
-                .myfeeds-contact-form .field-group {
-                    margin-bottom: 18px;
-                }
-                .myfeeds-contact-form label {
-                    display: block;
-                    font-size: 13px;
-                    font-weight: 600;
-                    color: #c4bfda;
-                    margin-bottom: 6px;
-                }
-                .myfeeds-contact-form select,
-                .myfeeds-contact-form input[type="text"],
-                .myfeeds-contact-form textarea {
-                    width: 100%;
-                    background: #1e1b2e;
-                    border: 1px solid #2e2a42;
-                    border-radius: 8px;
-                    color: #f0eef6;
-                    padding: 10px 14px;
-                    font-size: 14px;
-                    font-family: inherit;
-                    transition: border-color 0.2s ease;
-                    outline: none;
-                }
-                .myfeeds-contact-form select:focus,
-                .myfeeds-contact-form input[type="text"]:focus,
-                .myfeeds-contact-form textarea:focus {
-                    border-color: #667eea;
-                }
-                .myfeeds-contact-form select::placeholder,
-                .myfeeds-contact-form input[type="text"]::placeholder,
-                .myfeeds-contact-form textarea::placeholder {
-                    color: #7a7394;
-                }
-                .myfeeds-contact-form textarea {
-                    resize: vertical;
-                    min-height: 120px;
-                }
-                .myfeeds-contact-form select {
-                    appearance: none;
-                    -webkit-appearance: none;
-                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237a7394' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-                    background-repeat: no-repeat;
-                    background-position: right 14px center;
-                    padding-right: 36px;
-                }
-                .myfeeds-contact-submit {
-                    display: block;
-                    width: 100%;
-                    padding: 13px 0;
-                    border: none;
-                    border-radius: 10px;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: #fff;
-                    font-size: 14px;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: box-shadow 0.2s ease, opacity 0.2s ease;
-                    line-height: 1.4;
-                }
-                .myfeeds-contact-submit:hover {
-                    box-shadow: 0 4px 20px rgba(102,126,234,0.4);
-                }
-                .myfeeds-contact-submit:disabled {
-                    opacity: 0.6;
-                    cursor: not-allowed;
-                }
-                .myfeeds-contact-msg {
-                    margin-top: 14px;
-                    font-size: 14px;
-                    text-align: center;
-                }
-                .myfeeds-contact-msg.success {
-                    color: #4ade80;
-                }
-                .myfeeds-contact-msg.error {
-                    color: #f87171;
-                }
-                .myfeeds-contact-success-box {
-                    text-align: center;
-                    padding: 32px 0;
-                }
-                .myfeeds-contact-success-box p {
-                    font-size: 16px;
-                    font-weight: 600;
-                    color: #4ade80;
-                    margin: 0;
-                }
-
-                /* ── Footer ── */
-                .myfeeds-contact-footer {
-                    text-align: center;
-                    font-size: 13px;
-                    color: #7a7394;
-                    margin: 0;
-                }
-            </style>
-
             <div class="myfeeds-contact-container">
 
                 <!-- Header -->
@@ -460,84 +236,6 @@ class MyFeeds_Contact_Page {
                 <p class="myfeeds-contact-footer">We typically respond within 24 hours.</p>
 
             </div><!-- /.myfeeds-contact-container -->
-
-            <script>
-            (function(){
-                var wrap = document.querySelector('.myfeeds-contact-wrap');
-                if (!wrap) return;
-
-                // ── FAQ Accordion ──
-                var faqItems = wrap.querySelectorAll('.myfeeds-faq-item');
-                faqItems.forEach(function(item) {
-                    var question = item.querySelector('.myfeeds-faq-question');
-                    question.addEventListener('click', function() {
-                        var wasOpen = item.classList.contains('open');
-                        // Close all
-                        faqItems.forEach(function(i) { i.classList.remove('open'); });
-                        // Toggle clicked
-                        if (!wasOpen) {
-                            item.classList.add('open');
-                        }
-                    });
-                });
-
-                // ── Contact Form Submit ──
-                var submitBtn = document.getElementById('myfeeds-contact-submit');
-                var msgEl     = document.getElementById('myfeeds-contact-msg');
-                var formEl    = document.getElementById('myfeeds-contact-form');
-                var successEl = document.getElementById('myfeeds-contact-success');
-
-                submitBtn.addEventListener('click', function() {
-                    var category = document.getElementById('myfeeds-contact-category').value;
-                    var subject  = document.getElementById('myfeeds-contact-subject').value.trim();
-                    var message  = document.getElementById('myfeeds-contact-message').value.trim();
-
-                    // Validate
-                    if (!subject || !message) {
-                        msgEl.textContent = 'Please fill in both subject and message.';
-                        msgEl.className = 'myfeeds-contact-msg error';
-                        return;
-                    }
-
-                    // Disable button
-                    submitBtn.disabled = true;
-                    submitBtn.textContent = 'Sending...';
-                    msgEl.textContent = '';
-                    msgEl.className = 'myfeeds-contact-msg';
-
-                    var data = new FormData();
-                    data.append('action', 'myfeeds_send_contact');
-                    data.append('nonce', '<?php echo esc_js($nonce); ?>');
-                    data.append('category', category);
-                    data.append('subject', subject);
-                    data.append('message', message);
-
-                    fetch('<?php echo esc_js($ajax_url); ?>', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        body: data
-                    })
-                    .then(function(res) { return res.json(); })
-                    .then(function(res) {
-                        if (res.success) {
-                            formEl.style.display = 'none';
-                            successEl.style.display = 'block';
-                        } else {
-                            msgEl.textContent = res.data && res.data.message ? res.data.message : 'Something went wrong.';
-                            msgEl.className = 'myfeeds-contact-msg error';
-                            submitBtn.disabled = false;
-                            submitBtn.textContent = 'Send Message';
-                        }
-                    })
-                    .catch(function() {
-                        msgEl.textContent = 'Network error. Please try again.';
-                        msgEl.className = 'myfeeds-contact-msg error';
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = 'Send Message';
-                    });
-                });
-            })();
-            </script>
         </div>
         <?php
     }
