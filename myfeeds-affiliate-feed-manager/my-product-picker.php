@@ -223,6 +223,7 @@ function myfeeds_load_includes() {
         'class-network-handlers.php' => 'Network Handlers Class', 
         'class-feed-manager.php' => 'Feed Manager Class',
         'class-contact-page.php' => 'Custom Contact Page',
+        'class-upsell.php'       => 'Free-to-Pro Upsell Surfaces',
         'class-product-picker.php' => 'Product Picker Class',
         'class-product-resolver.php' => 'Product Resolver (Multi-Source Fallback)',
         'class-atomic-index-manager.php' => 'Atomic Index Manager',
@@ -331,6 +332,13 @@ class MyFeeds_Affiliate_Product_Picker {
                 myfeeds_log("Custom Contact Page initialized");
             }
             
+            // Initialize Free-to-Pro Upsell Surfaces
+            if (class_exists('MyFeeds_Upsell')) {
+                $upsell = new MyFeeds_Upsell();
+                $upsell->init();
+                myfeeds_log("Upsell surfaces initialized");
+            }
+
             // Initialize Universal Mapper UI
             if (class_exists('MyFeeds_Universal_Mapper_UI')) {
                 myfeeds_log("Creating MyFeeds_Universal_Mapper_UI instance");
