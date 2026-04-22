@@ -1502,7 +1502,9 @@ class MyFeeds_Feed_Manager {
     /**
      * REST API: Report plan limits to the Product Picker frontend.
      * Free has no product-count cap, so the fields are returned for
-     * API-shape compatibility without enforcing a limit.
+     * API-shape compatibility without enforcing a limit. The upgrade_url
+     * points the "Upgrade →" link (e.g. next to the carousel-mode toggle)
+     * at myfeeds.site.
      */
     public function rest_get_plan_limits() {
         return rest_ensure_response(array(
@@ -1510,7 +1512,7 @@ class MyFeeds_Feed_Manager {
             'max_products' => PHP_INT_MAX,
             'active_products' => 0,
             'can_select_more' => true,
-            'upgrade_url' => '',
+            'upgrade_url' => 'https://myfeeds.site/?utm_source=wp-plugin-free&utm_medium=block-editor',
         ));
     }
     

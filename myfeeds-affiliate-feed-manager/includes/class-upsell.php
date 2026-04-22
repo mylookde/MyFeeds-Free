@@ -22,6 +22,7 @@ class MyFeeds_Upsell {
         add_action('admin_enqueue_scripts', array($this, 'enqueue_dismiss_handler'));
         add_action('admin_notices', array($this, 'render_dismissible_banner'));
         add_action('wp_ajax_myfeeds_dismiss_upsell', array($this, 'ajax_dismiss'));
+        add_action('admin_footer', array($this, 'open_go_pro_in_new_tab'));
     }
 
     public function add_go_pro_submenu() {
@@ -30,10 +31,21 @@ class MyFeeds_Upsell {
             return;
         }
         $submenu['myfeeds-feeds'][] = array(
-            __('Go Pro ↗', 'myfeeds'),
+            __('Go Pro ↗', 'myfeeds-affiliate-feed-manager'),
             'manage_options',
             esc_url(self::PRICING_URL),
         );
+    }
+
+    /**
+     * WP admin renders submenu anchors without a target attribute and there
+     * is no filter to change that. Tag the Go Pro link via JS so it opens
+     * in a new tab. Tiny inline script, runs on every admin page because
+     * the sidebar menu is always present.
+     */
+    public function open_go_pro_in_new_tab() {
+        $url = esc_js(self::PRICING_URL);
+        echo "<script>(function(){var a=document.querySelector('#adminmenu a[href=\"{$url}\"]');if(a){a.target='_blank';a.rel='noopener noreferrer';}})();</script>";
     }
 
     public function enqueue_dismiss_handler($hook) {
@@ -69,10 +81,10 @@ class MyFeeds_Upsell {
         ?>
         <div class="notice notice-info is-dismissible myfeeds-upsell-banner">
             <p>
-                <strong><?php esc_html_e('Need more than one feed?', 'myfeeds'); ?></strong>
-                <?php esc_html_e('MyFeeds Pro adds multi-feed management, daily auto-sync and a carousel block.', 'myfeeds'); ?>
+                <strong><?php esc_html_e('Need more than one feed?', 'myfeeds-affiliate-feed-manager'); ?></strong>
+                <?php esc_html_e('MyFeeds Pro adds multi-feed management, daily auto-sync and a carousel block.', 'myfeeds-affiliate-feed-manager'); ?>
                 <a href="<?php echo esc_url(self::PRICING_URL); ?>" target="_blank" rel="noopener">
-                    <?php esc_html_e('See plans →', 'myfeeds'); ?>
+                    <?php esc_html_e('See plans →', 'myfeeds-affiliate-feed-manager'); ?>
                 </a>
             </p>
         </div>
