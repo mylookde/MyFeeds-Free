@@ -88,9 +88,15 @@ class MyFeeds_Upsell {
         wp_send_json_success();
     }
 
+    /**
+     * The banner is only shown on the main MyFeeds feeds page. Other
+     * MyFeeds-* admin screens (dark-themed contact page, mapping editor,
+     * settings) carry their own visual language, where a default WP
+     * admin notice would clash with the surrounding design.
+     */
     private function is_myfeeds_screen() {
-        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
-        return $screen && strpos((string) $screen->id, 'myfeeds') !== false;
+        $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+        return $page === 'myfeeds-feeds';
     }
 
     private function dismiss_script() {
