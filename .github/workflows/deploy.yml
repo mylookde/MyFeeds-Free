@@ -6,11 +6,13 @@ name: Deploy to SiteGround
 # new commit.
 #
 # Required repository secrets (Settings → Secrets and variables → Actions):
-#   SSH_HOST          e.g. access-XXXXXX.webspace.siteground.eu
+#   SSH_HOST          e.g. ssh.mylook.com.de
 #   SSH_USER          your SiteGround SSH username (Site Tools → SSH Keys Manager)
 #   SSH_PORT          usually 18765 for SiteGround; defaults to 22 if unset
 #   SSH_PRIVATE_KEY   the private half of the SSH key whose public half is
 #                     added in Site Tools → SSH Keys Manager
+#   SSH_PASSPHRASE    the passphrase you set when generating the key in
+#                     SiteGround; leave unset if the key has no passphrase
 #   WP_PLUGINS_DIR    absolute path to wp-content/plugins on the server,
 #                     e.g. /home/customer/www/shop.mylook.com.de/public_html/wp-content/plugins
 
@@ -33,16 +35,26 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Prepare SSH
+      - name: Load SSH deploy key
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PASSPHRASE: ${{ secrets.SSH_PASSPHRASE }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
+
+          # If a passphrase was supplied, strip it in place so ssh-add / rsync
+          # can use the key non-interactively. The unencrypted key only lives
+          # in the runner's ephemeral filesystem for the duration of the job.
+          if [ -n "${SSH_PASSPHRASE:-}" ]; then
+            ssh-keygen -p -f ~/.ssh/id_deploy -P "$SSH_PASSPHRASE" -N "" >/dev/null
+          fi
+
           PORT="${SSH_PORT:-22}"
           ssh-keyscan -p "$PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
@@ -53,6 +65,7 @@ jobs:
           SSH_PORT: ${{ secrets.SSH_PORT }}
           WP_PLUGINS_DIR: ${{ secrets.WP_PLUGINS_DIR }}
         run: |
+          set -euo pipefail
           PORT="${SSH_PORT:-22}"
           TARGET="${WP_PLUGINS_DIR%/}/myfeeds-affiliate-feed-manager/"
           rsync -az --delete \
