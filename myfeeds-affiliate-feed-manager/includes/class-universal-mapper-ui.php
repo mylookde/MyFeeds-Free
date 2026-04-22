@@ -23,10 +23,53 @@ class MyFeeds_Universal_Mapper_UI {
         add_action('wp_ajax_myfeeds_save_template', array($this, 'ajax_save_template'));
         add_action('wp_ajax_myfeeds_apply_template', array($this, 'ajax_apply_template'));
         add_action('wp_ajax_myfeeds_delete_template', array($this, 'ajax_delete_template'));
-        
+
         // Admin page for mapping editor
         add_action('admin_menu', array($this, 'register_mapping_page'));
         add_action('admin_menu', array($this, 'register_settings_submenu'), 30);
+
+        // Enqueue mapping-editor assets only on that screen
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_assets'));
+    }
+
+    /**
+     * Enqueue the mapping editor assets only on the mapping editor screen.
+     * The shared myfeeds-admin script (from class-feed-manager) provides
+     * the `myfeedsAdmin` object used by mapping-editor.js.
+     */
+    public function enqueue_assets($hook) {
+        if ($hook !== 'myfeeds_page_myfeeds-mapping-editor') {
+            return;
+        }
+
+        wp_enqueue_style(
+            'myfeeds-mapping-editor',
+            MYFEEDS_PLUGIN_URL . 'assets/mapping-editor.css',
+            array(),
+            MYFEEDS_VERSION
+        );
+        wp_enqueue_script(
+            'myfeeds-mapping-editor',
+            MYFEEDS_PLUGIN_URL . 'assets/mapping-editor.js',
+            array('jquery', 'myfeeds-admin'),
+            MYFEEDS_VERSION,
+            true
+        );
+
+        $feed_key = isset($_GET['feed_key']) ? intval($_GET['feed_key']) : null;
+        wp_localize_script('myfeeds-mapping-editor', 'myfeedsMapping', array(
+            'autoDetectUrl'  => admin_url('admin.php?page=myfeeds-mapping-editor'),
+            'initialFeedKey' => $feed_key,
+            'i18n'           => array(
+                'mappingSaved'     => __('Mapping saved successfully!', 'myfeeds'),
+                'enterTemplateName'=> __('Please enter a template name', 'myfeeds'),
+                'templateSaved'    => __('Template saved!', 'myfeeds'),
+                'selectTemplate'   => __('Please select a template', 'myfeeds'),
+                'selectFeedFirst'  => __('Please select a feed first', 'myfeeds'),
+                'templateApplied'  => __('Template applied! Reloading...', 'myfeeds'),
+                'detecting'        => __('Detecting...', 'myfeeds'),
+            ),
+        ));
     }
     
     /**
@@ -236,391 +279,6 @@ class MyFeeds_Universal_Mapper_UI {
                 </div>
             </div>
         
-        <style>
-            .myfeeds-mapping-editor { max-width: 1400px; }
-            
-            .myfeeds-panel {
-                background: #fff;
-                padding: 20px;
-                margin: 20px 0;
-                border: 1px solid #ccd0d4;
-                box-shadow: 0 1px 1px rgba(0,0,0,.04);
-            }
-            
-            .myfeeds-select-large {
-                width: 100%;
-                max-width: 500px;
-                padding: 10px;
-                font-size: 14px;
-            }
-            
-            .myfeeds-columns-panel {
-                background: #f5f5f5;
-                padding: 15px;
-                margin: 15px 0;
-                border-radius: 4px;
-            }
-            
-            .myfeeds-column-list {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 8px;
-            }
-            
-            .myfeeds-column-tag {
-                background: #fff;
-                border: 1px solid #ddd;
-                padding: 5px 10px;
-                border-radius: 3px;
-                font-family: monospace;
-                font-size: 12px;
-                cursor: pointer;
-            }
-            
-            .myfeeds-column-tag:hover {
-                background: #e7f3ff;
-                border-color: #2271b1;
-            }
-            
-            .myfeeds-mapping-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-                gap: 20px;
-                margin: 20px 0;
-            }
-            
-            .myfeeds-field-group {
-                background: #fafafa;
-                padding: 15px;
-                border: 1px solid #eee;
-                border-radius: 4px;
-            }
-            
-            .myfeeds-field-group h3 {
-                margin: 0 0 15px 0;
-                padding-bottom: 10px;
-                border-bottom: 1px solid #ddd;
-            }
-            
-            .myfeeds-field-group h3 .description {
-                display: block;
-                font-size: 12px;
-                font-weight: normal;
-                color: #666;
-                margin-top: 5px;
-            }
-            
-            .myfeeds-field-row {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                margin-bottom: 10px;
-            }
-            
-            .myfeeds-field-row label {
-                flex: 0 0 140px;
-                font-weight: 500;
-            }
-            
-            .myfeeds-field-row label .required {
-                color: #d63638;
-            }
-            
-            .myfeeds-field-row select {
-                flex: 1;
-                padding: 5px;
-            }
-            
-            .myfeeds-field-help {
-                width: 20px;
-                height: 20px;
-                line-height: 20px;
-                text-align: center;
-                background: #ddd;
-                border-radius: 50%;
-                font-size: 11px;
-                cursor: help;
-            }
-            
-            .myfeeds-preview-panel {
-                background: #f0f0f1;
-                padding: 15px;
-                margin: 20px 0;
-                border-radius: 4px;
-            }
-            
-            .myfeeds-preview-panel pre {
-                background: #fff;
-                padding: 15px;
-                overflow-x: auto;
-                font-size: 12px;
-                max-height: 300px;
-                overflow-y: auto;
-            }
-            
-            .myfeeds-mapping-actions {
-                padding-top: 20px;
-                border-top: 1px solid #ddd;
-                display: flex;
-                gap: 10px;
-            }
-            
-            .myfeeds-modal {
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: rgba(0,0,0,0.5);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 100000;
-            }
-            
-            .myfeeds-modal-content {
-                background: #fff;
-                padding: 30px;
-                border-radius: 4px;
-                max-width: 500px;
-                width: 100%;
-            }
-            
-            .myfeeds-modal-content label {
-                display: block;
-                margin: 15px 0 5px;
-                font-weight: 500;
-            }
-            
-            .myfeeds-modal-content input,
-            .myfeeds-modal-content select {
-                width: 100%;
-                padding: 8px;
-            }
-            
-            .myfeeds-modal-actions {
-                margin-top: 20px;
-                display: flex;
-                gap: 10px;
-                justify-content: flex-end;
-            }
-        </style>
-        
-        <script>
-        jQuery(document).ready(function($) {
-            var currentFeedKey = null;
-            var currentMapping = {};
-            var feedColumns = [];
-            
-            // Feed selector change
-            $('#myfeeds-feed-selector').on('change', function() {
-                var feedKey = $(this).val();
-                if (feedKey) {
-                    currentFeedKey = feedKey;
-                    loadFeedColumns(feedKey);
-                    $('#myfeeds-mapping-interface').show();
-                } else {
-                    $('#myfeeds-mapping-interface').hide();
-                }
-            });
-            
-            // Load feed columns via AJAX
-            function loadFeedColumns(feedKey) {
-                $('#myfeeds-feed-columns').html('<p>Loading...</p>');
-                
-                $.post(ajaxurl, {
-                    action: 'myfeeds_get_feed_columns',
-                    feed_key: feedKey,
-                    nonce: myfeedsAdmin.nonce
-                }, function(response) {
-                    if (response.success) {
-                        feedColumns = response.data.columns;
-                        currentMapping = response.data.current_mapping || {};
-                        
-                        renderFeedColumns(feedColumns);
-                        populateDropdowns(feedColumns);
-                        applyCurrentMapping(currentMapping);
-                        renderPreview(response.data.sample_data);
-                    } else {
-                        $('#myfeeds-feed-columns').html('<p class="error">' + response.data.message + '</p>');
-                    }
-                });
-            }
-            
-            // Render available columns
-            function renderFeedColumns(columns) {
-                var html = '';
-                columns.forEach(function(col) {
-                    html += '<span class="myfeeds-column-tag" data-column="' + col + '">' + col + '</span>';
-                });
-                $('#myfeeds-feed-columns').html(html);
-            }
-            
-            // Populate field dropdowns with columns
-            function populateDropdowns(columns) {
-                $('.myfeeds-field-mapping').each(function() {
-                    var $select = $(this);
-                    var currentVal = $select.val();
-                    
-                    $select.find('option:not(:first)').remove();
-                    
-                    columns.forEach(function(col) {
-                        $select.append('<option value="' + col + '">' + col + '</option>');
-                    });
-                    
-                    if (currentVal) {
-                        $select.val(currentVal);
-                    }
-                });
-            }
-            
-            // Apply current mapping to dropdowns
-            function applyCurrentMapping(mapping) {
-                Object.keys(mapping).forEach(function(field) {
-                    var value = mapping[field];
-                    if (typeof value === 'string') {
-                        $('.myfeeds-field-mapping[data-field="' + field + '"]').val(value);
-                    }
-                });
-            }
-            
-            // Render preview
-            function renderPreview(sampleData) {
-                if (sampleData) {
-                    $('#myfeeds-mapping-preview').html('<pre>' + JSON.stringify(sampleData, null, 2) + '</pre>');
-                }
-            }
-            
-            // Column tag click - copy to clipboard or auto-fill
-            $(document).on('click', '.myfeeds-column-tag', function() {
-                var col = $(this).data('column');
-                // Find first empty required field and fill it
-                var filled = false;
-                $('.myfeeds-field-row').each(function() {
-                    var $select = $(this).find('.myfeeds-field-mapping');
-                    if (!$select.val() && $(this).find('.required').length > 0) {
-                        $select.val(col);
-                        filled = true;
-                        return false;
-                    }
-                });
-                
-                if (!filled) {
-                    alert('Column: ' + col + '\n\nSelect this column in one of the dropdowns.');
-                }
-            });
-            
-            // Save mapping
-            $('#myfeeds-save-mapping').on('click', function() {
-                var mapping = collectMapping();
-                
-                $.post(ajaxurl, {
-                    action: 'myfeeds_save_mapping',
-                    feed_key: currentFeedKey,
-                    mapping: JSON.stringify(mapping),
-                    nonce: myfeedsAdmin.nonce
-                }, function(response) {
-                    if (response.success) {
-                        alert('<?php esc_html_e("Mapping saved successfully!", "myfeeds"); ?>');
-                    } else {
-                        alert('Error: ' + response.data.message);
-                    }
-                });
-            });
-            
-            // Collect mapping from form
-            function collectMapping() {
-                var mapping = {};
-                $('.myfeeds-field-mapping').each(function() {
-                    var field = $(this).data('field');
-                    var value = $(this).val();
-                    if (value) {
-                        mapping[field] = value;
-                    }
-                });
-                return mapping;
-            }
-            
-            // Save as template
-            $('#myfeeds-save-as-template').on('click', function() {
-                $('#myfeeds-template-modal').show();
-            });
-            
-            $('.myfeeds-modal-close').on('click', function() {
-                $('#myfeeds-template-modal').hide();
-            });
-            
-            $('#myfeeds-template-save-confirm').on('click', function() {
-                var name = $('#myfeeds-template-name').val();
-                var network = $('#myfeeds-template-network').val();
-                var mapping = collectMapping();
-                
-                if (!name) {
-                    alert('<?php esc_html_e("Please enter a template name", "myfeeds"); ?>');
-                    return;
-                }
-                
-                $.post(ajaxurl, {
-                    action: 'myfeeds_save_template',
-                    name: name,
-                    network: network,
-                    mapping: JSON.stringify(mapping),
-                    nonce: myfeedsAdmin.nonce
-                }, function(response) {
-                    if (response.success) {
-                        alert('<?php esc_html_e("Template saved!", "myfeeds"); ?>');
-                        $('#myfeeds-template-modal').hide();
-                        location.reload();
-                    } else {
-                        alert('Error: ' + response.data.message);
-                    }
-                });
-            });
-            
-            // Apply template
-            $('#myfeeds-apply-template').on('click', function() {
-                var templateId = $('#myfeeds-template-selector').val();
-                if (!templateId) {
-                    alert('<?php esc_html_e("Please select a template", "myfeeds"); ?>');
-                    return;
-                }
-                
-                if (!currentFeedKey) {
-                    alert('<?php esc_html_e("Please select a feed first", "myfeeds"); ?>');
-                    return;
-                }
-                
-                $.post(ajaxurl, {
-                    action: 'myfeeds_apply_template',
-                    template_id: templateId,
-                    feed_key: currentFeedKey,
-                    nonce: myfeedsAdmin.nonce
-                }, function(response) {
-                    if (response.success) {
-                        alert('<?php esc_html_e("Template applied! Reloading...", "myfeeds"); ?>');
-                        location.reload();
-                    } else {
-                        alert('Error: ' + response.data.message);
-                    }
-                });
-            });
-            
-            // Auto-detect button
-            $('#myfeeds-auto-detect').on('click', function() {
-                if (!currentFeedKey) return;
-                
-                $(this).text('<?php esc_html_e("Detecting...", "myfeeds"); ?>');
-                
-                // Trigger the backend auto-detect via page reload with action
-                window.location.href = '<?php echo esc_url(admin_url("admin.php?page=myfeeds-mapping-editor")); ?>&feed_key=' + currentFeedKey + '&action=auto_detect';
-            });
-            
-            // Auto-load if feed_key in URL
-            <?php if ($feed_key !== null): ?>
-            $('#myfeeds-feed-selector').val('<?php echo esc_js($feed_key); ?>').trigger('change');
-            <?php endif; ?>
-        });
-        </script>
         <?php
     }
     
@@ -856,25 +514,6 @@ class MyFeeds_Universal_Mapper_UI {
                 </p>
             </form>
         </div>
-        
-        <style>
-            .myfeeds-settings-section {
-                background: #fff;
-                padding: 20px;
-                margin: 20px 0;
-                border: 1px solid #ccd0d4;
-            }
-            .myfeeds-pro-badge {
-                background: #2271b1;
-                color: #fff;
-                padding: 3px 8px;
-                border-radius: 3px;
-                font-size: 11px;
-                font-weight: bold;
-                margin-left: 10px;
-                vertical-align: middle;
-            }
-        </style>
         <?php
     }
     
