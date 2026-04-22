@@ -319,35 +319,6 @@ class MyFeeds_Settings_Manager {
     }
     
     /**
-     * Check if Pro features are available
-     * This checks both Freemius license AND if API keys are configured
-     */
-    public static function can_use_pro_features() {
-        // First check Freemius license
-        if (function_exists('my_pp_has_pro_features') && !my_pp_has_pro_features()) {
-            return false;
-        }
-        
-        return true;
-    }
-    
-    /**
-     * Check if Supabase is configured
-     */
-    public static function is_supabase_configured() {
-        $keys = self::get_api_keys();
-        return !empty($keys['supabase_url']) && !empty($keys['supabase_anon_key']);
-    }
-    
-    /**
-     * Check if OpenAI is configured
-     */
-    public static function is_openai_configured() {
-        $keys = self::get_api_keys();
-        return !empty($keys['openai_api_key']);
-    }
-    
-    /**
      * Get field groups for display
      */
     public static function get_field_groups() {

@@ -37,7 +37,6 @@ class MyFeeds_Feed_Manager {
         add_action('wp_ajax_myfeeds_reimport_feed', array($this, 'ajax_reimport_feed'));
         add_action('wp_ajax_myfeeds_delete_feed', array($this, 'ajax_delete_feed'));
         add_action('wp_ajax_myfeeds_get_header_stats', array($this, 'ajax_get_header_stats'));
-        add_action('wp_ajax_myfeeds_confirm_active_feeds', array($this, 'ajax_confirm_active_feeds'));
         
         // REST API
         add_action('rest_api_init', array($this, 'register_rest_routes'));
@@ -84,14 +83,7 @@ class MyFeeds_Feed_Manager {
      */
     public function render_feeds_page() {
         $feeds = get_option(self::OPTION_KEY, array());
-        
-        // Check if plan upgrade allows reactivating feeds
-        if (class_exists('MyFeeds_Plan_Limits')) {
-            MyFeeds_Plan_Limits::maybe_reactivate_feeds_on_upgrade();
-            // Re-read feeds after potential reactivation
-            $feeds = get_option(self::OPTION_KEY, array());
-        }
-        
+
         // Handle messages
         $this->display_admin_messages();
         
@@ -127,7 +119,7 @@ class MyFeeds_Feed_Manager {
                     </div>
                     <div class="myfeeds-stat-item">
                         <span class="myfeeds-stat-number" id="myfeeds-plan-badge" data-testid="plan-badge">
-                            <?php echo esc_html(class_exists('MyFeeds_Plan_Limits') ? MyFeeds_Plan_Limits::get_plan_label() : 'Pro'); ?>
+                            <?php esc_html_e('Free', 'myfeeds'); ?>
                         </span>
                         <span class="myfeeds-stat-label">Plan</span>
                     </div>
@@ -197,24 +189,7 @@ class MyFeeds_Feed_Manager {
                 
                 <!-- Auto-Sync Schedule Info -->
                 <?php $this->render_auto_sync_info_compact(); ?>
-                
-                <?php if (class_exists('MyFeeds_Plan_Limits') && !MyFeeds_Plan_Limits::auto_sync_allowed()): ?>
-                    <div style="color: #999; margin-top: 10px; font-size: 12px;">
-                        <?php esc_html_e('Auto-Sync is a Pro feature.', 'myfeeds'); ?> 
-                        <a href="<?php echo esc_url(MyFeeds_Plan_Limits::get_upgrade_url()); ?>"><?php esc_html_e('Upgrade', 'myfeeds'); ?></a>
-                    </div>
-                <?php endif; ?>
             </div>
-            
-            <?php if (class_exists('MyFeeds_Plan_Limits') && MyFeeds_Plan_Limits::is_free()): ?>
-            <div class="myfeeds-upgrade-banner">
-                <strong><?php esc_html_e('Upgrade to Pro', 'myfeeds'); ?></strong>
-                <p style="margin: 8px 0 12px;"><?php esc_html_e('Unlimited feeds, unlimited products, automatic daily sync, and priority support.', 'myfeeds'); ?></p>
-                <a href="<?php echo esc_url(MyFeeds_Plan_Limits::get_upgrade_url()); ?>" class="button button-primary">
-                    <?php esc_html_e('Upgrade Now', 'myfeeds'); ?>
-                </a>
-            </div>
-            <?php endif; ?>
         </div>
         
         <!-- Unified Rebuild JavaScript - NON-BLOCKING UI with DEBUGGING -->
@@ -972,141 +947,6 @@ class MyFeeds_Feed_Manager {
         }
         </style>
         
-        <?php if (class_exists('MyFeeds_Plan_Limits') && MyFeeds_Plan_Limits::needs_feed_selection()): ?>
-        <?php
-            $all_feeds = get_option('myfeeds_feeds', array());
-            $max_allowed = MyFeeds_Plan_Limits::max_feeds();
-            $plan_label = MyFeeds_Plan_Limits::get_plan_label();
-        ?>
-        <div id="myfeeds-feed-selection-modal" class="myfeeds-modal-overlay" style="display:flex;">
-            <div class="myfeeds-modal-content" style="max-width:520px;">
-                <div class="myfeeds-modal-header" style="border-bottom:1px solid #eee;">
-                    <h3 style="margin:0; font-size:16px;">Select your active feeds</h3>
-                </div>
-                <div class="myfeeds-modal-body" style="padding:20px;">
-                    <p style="margin:0 0 16px; color:#666; font-size:13px;">
-                        Your <strong><?php echo esc_html($plan_label); ?></strong> plan allows 
-                        <strong><?php echo esc_html($max_allowed); ?></strong> active feed<?php echo esc_html($max_allowed === 1 ? '' : 's'); ?>. 
-                        You have <strong><?php echo esc_html(count($all_feeds)); ?></strong> feeds.
-                        Please choose which feed<?php echo esc_html($max_allowed === 1 ? '' : 's'); ?> to keep active. 
-                        Inactive feeds will stop syncing, but their products remain visible on your site.
-                    </p>
-                    
-                    <div id="myfeeds-feed-selection-list" style="max-height:300px; overflow-y:auto;">
-                        <?php foreach ($all_feeds as $key => $feed): ?>
-                        <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid #e2e4e7; border-radius:6px; margin-bottom:8px; cursor:pointer; transition: border-color 0.15s;"
-                               class="myfeeds-feed-select-item">
-                            <input type="checkbox" name="myfeeds_active_feeds[]" value="<?php echo esc_attr($key); ?>"
-                                   class="myfeeds-feed-checkbox" style="margin:0;">
-                            <div style="flex:1; min-width:0;">
-                                <div style="font-weight:600; font-size:13px; color:#1e1e1e;">
-                                    <?php echo esc_html($feed['name']); ?>
-                                </div>
-                                <div style="font-size:11px; color:#888; margin-top:2px;">
-                                    <?php echo esc_html(number_format_i18n(intval($feed['product_count'] ?? 0))); ?> products
-                                    <?php if (!empty($feed['last_sync'])): ?>
-                                        &middot; Last sync: <?php echo esc_html($feed['last_sync']); ?>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </label>
-                        <?php endforeach; ?>
-                    </div>
-                    
-                    <div style="margin-top:16px; display:flex; justify-content:space-between; align-items:center;">
-                        <span id="myfeeds-selection-counter" style="font-size:12px; color:#888;">
-                            0 / <?php echo esc_html($max_allowed); ?> selected
-                        </span>
-                        <button type="button" id="myfeeds-confirm-selection" disabled
-                            style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:#fff !important; border:none; padding:10px 28px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; opacity:0.5; transition: opacity 0.2s;">
-                            Confirm selection
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <style>
-        .myfeeds-feed-select-item:has(input:checked) {
-            border-color: #667eea;
-            background: #f5f3ff;
-        }
-        </style>
-
-        <script>
-        jQuery(document).ready(function($) {
-            var maxAllowed = <?php echo intval($max_allowed); ?>;
-            var $checkboxes = $('.myfeeds-feed-checkbox');
-            var $counter = $('#myfeeds-selection-counter');
-            var $confirmBtn = $('#myfeeds-confirm-selection');
-            
-            function updateState() {
-                var checked = $checkboxes.filter(':checked').length;
-                $counter.text(checked + ' / ' + maxAllowed + ' selected');
-                
-                // Disable unchecked checkboxes when limit reached
-                if (checked >= maxAllowed) {
-                    $checkboxes.not(':checked').prop('disabled', true);
-                } else {
-                    $checkboxes.prop('disabled', false);
-                }
-                
-                // Enable confirm only when at least 1 is selected and within limit
-                var validSelection = checked > 0 && checked <= maxAllowed;
-                $confirmBtn.prop('disabled', !validSelection);
-                $confirmBtn.css('opacity', validSelection ? '1' : '0.5');
-            }
-            
-            $checkboxes.on('change', function() {
-                updateState();
-                // Visual highlight on the label
-                $(this).closest('.myfeeds-feed-select-item').css(
-                    'border-color', this.checked ? '#667eea' : '#e2e4e7'
-                ).css('background', this.checked ? '#f5f3ff' : '#fff');
-            });
-            
-            $confirmBtn.on('click', function() {
-                var $btn = $(this);
-                if ($btn.prop('disabled')) return;
-                
-                var activeKeys = [];
-                $checkboxes.filter(':checked').each(function() {
-                    activeKeys.push($(this).val());
-                });
-                
-                $btn.prop('disabled', true).text('Saving...');
-                
-                $.post(ajaxurl, {
-                    action: 'myfeeds_confirm_active_feeds',
-                    nonce: myfeedsAdmin.nonce,
-                    active_keys: activeKeys
-                }).done(function(response) {
-                    if (response.success) {
-                        // Close modal and reload page
-                        $('#myfeeds-feed-selection-modal').fadeOut(200, function() {
-                            window.location.reload();
-                        });
-                    } else {
-                        alert(response.data ? response.data.message : 'Error saving selection');
-                        $btn.prop('disabled', false).text('Confirm selection');
-                    }
-                }).fail(function() {
-                    alert('Server error. Please try again.');
-                    $btn.prop('disabled', false).text('Confirm selection');
-                });
-            });
-            
-            // Initial state
-            updateState();
-            
-            // Prevent closing the modal by clicking outside or pressing Escape
-            // User MUST select feeds — there is no skip option
-            $('#myfeeds-feed-selection-modal').on('click', function(e) {
-                e.stopPropagation();
-            });
-        });
-        </script>
-        <?php endif; ?>
         
         <?php
     }
@@ -1910,18 +1750,9 @@ class MyFeeds_Feed_Manager {
         <div class="myfeeds-feeds-table">
             <div class="myfeeds-feeds-table-header">
                 <h2><?php esc_html_e('Configured Feeds', 'myfeeds'); ?></h2>
-                <?php $can_add = class_exists('MyFeeds_Plan_Limits') ? MyFeeds_Plan_Limits::can_add_feed() : true; ?>
-                <button type="button" id="myfeeds-add-feed-btn" class="button button-primary" data-testid="add-feed-btn"
-                    <?php if (!$can_add): ?>disabled title="<?php
-                        /* translators: %1$d: maximum number of feeds allowed, %2$s: plural suffix */
-                        printf(esc_attr__('Your plan allows %1$d active feed%2$s. Upgrade for more feeds.', 'myfeeds'), absint(MyFeeds_Plan_Limits::max_feeds()), MyFeeds_Plan_Limits::max_feeds() === 1 ? '' : 's'); ?>"<?php endif; ?>>
+                <button type="button" id="myfeeds-add-feed-btn" class="button button-primary" data-testid="add-feed-btn">
                     + <?php esc_html_e('Add Feed', 'myfeeds'); ?>
                 </button>
-                <?php if (!$can_add): ?>
-                    <a href="<?php echo esc_url(MyFeeds_Plan_Limits::get_upgrade_url()); ?>" class="myfeeds-upgrade-link" style="margin-left: 10px;">
-                        <?php esc_html_e('Upgrade for more feeds', 'myfeeds'); ?>
-                    </a>
-                <?php endif; ?>
             </div>
             <table class="wp-list-table widefat striped">
                 <thead>
@@ -2356,12 +2187,6 @@ class MyFeeds_Feed_Manager {
             $feeds = get_option(self::OPTION_KEY, array());
             $key = isset($_REQUEST['feed_key']) && $_REQUEST['feed_key'] !== '' ? intval($_REQUEST['feed_key']) : null;
             
-            // Check feed limit (only for new feeds, not edits)
-            if ($key === null && class_exists('MyFeeds_Plan_Limits') && !MyFeeds_Plan_Limits::can_add_feed()) {
-                $this->redirect_with_error(__('Your plan does not allow adding more feeds. Upgrade for more feeds.', 'myfeeds'));
-                return;
-            }
-            
             $name = sanitize_text_field(wp_unslash($_POST['feed_name']));
             $url = esc_url_raw(wp_unslash($_POST['feed_url']));
             $format_hint = isset($_POST['feed_format_hint']) ? sanitize_text_field(wp_unslash($_POST['feed_format_hint'])) : '';
@@ -2462,16 +2287,7 @@ class MyFeeds_Feed_Manager {
             
             $feeds = get_option(self::OPTION_KEY, array());
             $key = isset($_POST['feed_key']) && $_POST['feed_key'] !== '' ? intval($_POST['feed_key']) : null;
-            
-            // Check feed limit (only for new feeds, not edits)
-            if ($key === null && class_exists('MyFeeds_Plan_Limits') && !MyFeeds_Plan_Limits::can_add_feed()) {
-                wp_send_json_error(array(
-                    'message' => __('Your plan does not allow adding more feeds. Upgrade for more feeds.', 'myfeeds'),
-                    'upgrade_url' => MyFeeds_Plan_Limits::get_upgrade_url(),
-                ));
-                return;
-            }
-            
+
             $name = sanitize_text_field(wp_unslash($_POST['feed_name'] ?? ''));
             $url = esc_url_raw(wp_unslash($_POST['feed_url'] ?? ''));
             $format_hint = sanitize_text_field(wp_unslash($_POST['feed_format_hint'] ?? ''));
@@ -2779,57 +2595,6 @@ class MyFeeds_Feed_Manager {
             update_option(self::OPTION_KEY, $feeds);
             wp_send_json_error(array('message' => 'Failed to start reimport. Another import may be running.'));
         }
-    }
-
-    /**
-     * AJAX handler: Confirm which feeds remain active after a downgrade.
-     * Receives an array of feed keys that the user chose to keep active.
-     * All other feeds are set to plan_active = false.
-     */
-    public function ajax_confirm_active_feeds() {
-        check_ajax_referer('myfeeds_nonce', 'nonce');
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => 'Permission denied'));
-            return;
-        }
-        
-        $active_keys = isset($_POST['active_keys']) ? array_map('intval', (array) $_POST['active_keys']) : array();
-        $max_allowed = class_exists('MyFeeds_Plan_Limits') ? MyFeeds_Plan_Limits::max_feeds() : PHP_INT_MAX;
-        
-        if (count($active_keys) > $max_allowed) {
-            wp_send_json_error(array(
-                'message' => sprintf('Please select at most %d feed%s.', $max_allowed, $max_allowed === 1 ? '' : 's'),
-            ));
-            return;
-        }
-        
-        if (count($active_keys) === 0) {
-            wp_send_json_error(array('message' => 'Please select at least 1 feed to keep active.'));
-            return;
-        }
-        
-        $feeds = get_option(self::OPTION_KEY, array());
-        $deactivated = 0;
-        
-        foreach ($feeds as $key => &$feed) {
-            if (in_array($key, $active_keys, true)) {
-                $feed['plan_active'] = true;
-            } else {
-                $feed['plan_active'] = false;
-                $deactivated++;
-            }
-        }
-        unset($feed);
-        
-        update_option(self::OPTION_KEY, $feeds);
-        
-        myfeeds_log("Feed selection confirmed: " . count($active_keys) . " active, {$deactivated} deactivated (plan limit)", 'info');
-        
-        wp_send_json_success(array(
-            'message' => sprintf('%d feed%s deactivated.', $deactivated, $deactivated === 1 ? '' : 's'),
-            'active_count' => count($active_keys),
-            'deactivated_count' => $deactivated,
-        ));
     }
 
     /**
@@ -3231,28 +2996,17 @@ class MyFeeds_Feed_Manager {
     }
     
     /**
-     * REST API: Get plan limits for the Product Picker frontend.
-     * Separate endpoint to avoid changing the existing search response format.
+     * REST API: Report plan limits to the Product Picker frontend.
+     * Free has no product-count cap, so the fields are returned for
+     * API-shape compatibility without enforcing a limit.
      */
     public function rest_get_plan_limits() {
-        $active_count = 0;
-        if (class_exists('MyFeeds_Plan_Limits')) {
-            $active_count = MyFeeds_Plan_Limits::get_active_product_count();
-            return rest_ensure_response(array(
-                'plan' => MyFeeds_Plan_Limits::get_plan_label(),
-                'max_products' => MyFeeds_Plan_Limits::max_active_products(),
-                'active_products' => $active_count,
-                'can_select_more' => MyFeeds_Plan_Limits::can_select_product($active_count),
-                'upgrade_url' => MyFeeds_Plan_Limits::get_upgrade_url(),
-            ));
-        }
-        // Fallback if class not loaded: behave as Pro (no limits)
         return rest_ensure_response(array(
-            'plan' => 'Pro',
+            'plan' => 'Free',
             'max_products' => PHP_INT_MAX,
             'active_products' => 0,
             'can_select_more' => true,
-            'upgrade_url' => '#',
+            'upgrade_url' => '',
         ));
     }
     

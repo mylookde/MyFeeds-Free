@@ -35,81 +35,6 @@ if (!defined('ABSPATH')) {
 }
 
 // =============================================================================
-// FREEMIUS SDK INTEGRATION
-// =============================================================================
-
-if ( ! function_exists( 'my_pp' ) ) {
-    function my_pp() {
-        global $my_pp;
-
-        if ( ! isset( $my_pp ) ) {
-            if ( ! defined( 'WP_FS__PRODUCT_21336_MULTISITE' ) ) {
-                define( 'WP_FS__PRODUCT_21336_MULTISITE', true );
-            }
-
-            require_once dirname( __FILE__ ) . '/vendor/freemius/start.php';
-
-            $my_pp = fs_dynamic_init( array(
-                'id'                  => '21336',
-                'slug'                => 'myfeeds',
-                'premium_slug'        => 'myfeeds-pro',
-                'type'                => 'plugin',
-                'public_key'          => 'pk_7423c8dfcb1a020ea6bb674a810fe',
-                'is_premium'          => false,
-                'is_premium_only'     => false,
-                'has_addons'          => false,
-                'has_paid_plans'      => true,
-                'is_org_compliant'    => true,
-                'trial'               => array(
-                    'days'               => 3,
-                    'is_require_payment' => true,
-                ),
-                'menu'                => array(
-                    'slug'           => 'myfeeds-feeds',
-                    'support'        => false,
-                    'network'        => true,
-                ),
-            ) );
-        }
-
-        return $my_pp;
-    }
-
-    my_pp();
-    do_action( 'my_pp_loaded' );
-}
-
-// Deaktiviere Freemius Redirect nach Aktivierung
-add_filter( 'fs_redirect_on_activation_myfeeds', '__return_false' );
-
-// Verhindere dass Freemius versucht, auf nicht existierende Admin-Seiten zuzugreifen
-add_filter( 'fs_show_trial_myfeeds', '__return_false' );
-
-/**
- * Helper function to check if Pro license is active
- * Use this to gate Pro features (Supabase sync, OpenAI embeddings, etc.)
- */
-function my_pp_is_pro() {
-    return my_pp()->is_paying();
-}
-
-/**
- * Helper function to check if user is on trial
- */
-function my_pp_is_trial() {
-    return my_pp()->is_trial();
-}
-
-/**
- * Helper function to check if Pro features are available (paying OR trial)
- */
-function my_pp_has_pro_features() {
-    return my_pp()->is_paying() || my_pp()->is_trial();
-}
-
-// Remote Debug System removed for WordPress.org compliance.
-
-// =============================================================================
 // PLUGIN INITIALIZATION
 // =============================================================================
 
@@ -292,7 +217,6 @@ function myfeeds_load_includes() {
         'class-settings-manager.php' => 'Settings Manager Class',
         'class-db-manager.php' => 'Database Manager Class',
         'class-search-engine.php' => 'Search Engine (FULLTEXT + Synonyms)',
-        'class-plan-limits.php' => 'Plan Limits (Free/Pro Feature Gating)',
         'class-batch-importer.php' => 'Batch Importer Class',
         'class-universal-mapper-ui.php' => 'Universal Mapper UI Class',
         'class-smart-mapper.php' => 'Smart Mapper Class',

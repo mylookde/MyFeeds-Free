@@ -725,8 +725,8 @@ class MyFeeds_Universal_Mapper_UI {
             echo '<div class="notice notice-success"><p>' . esc_html__('Settings saved!', 'myfeeds') . '</p></div>';
         }
         
-        // Check Pro status
-        $is_pro = function_exists('my_pp_has_pro_features') ? my_pp_has_pro_features() : false;
+        // Free plugin: Pro-gated API key fields stay disabled.
+        $is_pro = false;
         $current_log_level = get_option('myfeeds_log_level', 'info');
         
         ?>

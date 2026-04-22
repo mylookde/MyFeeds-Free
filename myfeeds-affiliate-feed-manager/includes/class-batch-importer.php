@@ -4358,61 +4358,17 @@ class MyFeeds_Batch_Importer {
      * Daily = Quick Sync (nur aktive Produkte aktualisieren)
      */
     public function trigger_daily_update() {
-        // Guard: Don't start if another import is running
-        $status = get_option(self::OPTION_IMPORT_STATUS, array());
-        if (!empty($status) && ($status['status'] ?? '') === 'running') {
-            myfeeds_log('Daily Quick Sync SKIPPED — another import is already running', 'info');
-            return;
-        }
-        
-        // Guard: Auto-sync is a Pro feature
-        if (class_exists('MyFeeds_Plan_Limits') && !MyFeeds_Plan_Limits::auto_sync_allowed()) {
-            myfeeds_log('Auto-Sync skipped: Free plan does not include auto-sync', 'info');
-            return;
-        }
-        
-        myfeeds_log('Daily Quick Sync triggered at ' . current_time('mysql'), 'info');
-        
-        // Log last auto-sync time
-        update_option('myfeeds_last_auto_sync', array(
-            'type' => 'daily_quick_sync',
-            'time' => current_time('mysql'),
-            'timestamp' => time(),
-            'feed_name' => '',
-        ));
-        
-        do_action(self::CENTRAL_HOOK, 'daily', array('mode' => self::MODE_ACTIVE_ONLY));
+        // Auto-Sync (daily/weekly) is a Pro-tier feature. The Free plugin
+        // keeps these entry points so scheduled hooks from older installs
+        // don't fatal, but they never execute an import.
+        myfeeds_log('Auto-Sync skipped: Free plan does not include auto-sync', 'info');
     }
-    
+
     /**
      * Trigger weekly full import (called by WP-Cron)
-     * Weekly = Full Import (alle Produkte, Atomic Rebuild)
      */
     public function trigger_weekly_update() {
-        // Guard: Don't start if another import is running
-        $status = get_option(self::OPTION_IMPORT_STATUS, array());
-        if (!empty($status) && ($status['status'] ?? '') === 'running') {
-            myfeeds_log('Weekly Full Import SKIPPED — another import is already running', 'info');
-            return;
-        }
-        
-        // Guard: Auto-sync is a Pro feature
-        if (class_exists('MyFeeds_Plan_Limits') && !MyFeeds_Plan_Limits::auto_sync_allowed()) {
-            myfeeds_log('Auto-Sync skipped: Free plan does not include auto-sync', 'info');
-            return;
-        }
-        
-        myfeeds_log('Weekly Full Import triggered at ' . current_time('mysql'), 'info');
-        
-        // Log last auto-sync time
-        update_option('myfeeds_last_auto_sync', array(
-            'type' => 'weekly_full_import',
-            'time' => current_time('mysql'),
-            'timestamp' => time(),
-            'feed_name' => '',
-        ));
-        
-        do_action(self::CENTRAL_HOOK, 'weekly', array('mode' => self::MODE_FULL));
+        myfeeds_log('Auto-Sync skipped: Free plan does not include auto-sync', 'info');
     }
     
     // =========================================================================

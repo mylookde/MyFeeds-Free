@@ -139,9 +139,9 @@ class MyFeeds_Product_Picker {
             'apiUrl' => rest_url('myfeeds/v1/'),
             'pluginUrl' => MYFEEDS_PLUGIN_URL,
             'nonce' => wp_create_nonce('wp_rest'),
-            'isFree' => class_exists('MyFeeds_Plan_Limits') && MyFeeds_Plan_Limits::is_free(),
-            'isPro' => class_exists('MyFeeds_Plan_Limits') && MyFeeds_Plan_Limits::is_pro(),
-            'isPremium' => class_exists('MyFeeds_Plan_Limits') && MyFeeds_Plan_Limits::is_premium(),
+            'isFree' => true,
+            'isPro' => false,
+            'isPremium' => false,
         ]);
         
         if (!$localize_result && class_exists('MyFeeds_External_Debug')) {
@@ -155,59 +155,10 @@ class MyFeeds_Product_Picker {
         if (has_block('myfeeds/product-picker')) {
             wp_enqueue_style('myfeeds-product-picker-frontend');
             
-            // Output card design customizations (Pro only)
-            // Free users get default styling via CSS fallback values — no custom CSS variables emitted.
-            // Saved settings are NOT deleted on downgrade — they reactivate on upgrade.
-            $is_design_pro = !class_exists('MyFeeds_Plan_Limits') || MyFeeds_Plan_Limits::design_editor_allowed();
+            // Card design customizations (custom CSS vars, Google Fonts, @font-face)
+            // are a Premium-tier feature and intentionally not emitted in the Free plugin.
 
-            if ($is_design_pro) {
-                // Output card design CSS custom properties
-                if (class_exists('MyFeeds_Settings_Manager') && method_exists('MyFeeds_Settings_Manager', 'get_card_design_css_vars')) {
-                    $design_css = MyFeeds_Settings_Manager::get_card_design_css_vars();
-                    wp_add_inline_style('myfeeds-product-picker-frontend', $design_css);
-                }
-                
-                // Load Google Fonts used in card design
-                if (class_exists('MyFeeds_Settings_Manager') && method_exists('MyFeeds_Settings_Manager', 'get_card_design')) {
-                    $design = MyFeeds_Settings_Manager::get_card_design();
-                    $font_keys = array();
-                    $font_fields = array('badge_font_family', 'brand_font_family', 'title_font_family', 'price_font_family', 'old_price_font_family', 'shipping_font_family', 'merchant_font_family');
-                    foreach ($font_fields as $ff) {
-                        $fk = $design[$ff] ?? '__system__';
-                        if ($fk !== '__system__' && !empty($fk)) {
-                            $font_keys[] = $fk;
-                        }
-                    }
-                    $font_keys = array_unique($font_keys);
-                    
-                    // Google Fonts — store URL for inline output in render_callback
-                    if (!empty($font_keys)) {
-                        $google_url = MyFeeds_Settings_Manager::get_google_fonts_url($font_keys);
-                        if (!empty($google_url)) {
-                            $this->google_fonts_url = $google_url;
-                        }
-                    }
-                    
-                    // Custom fonts: output @font-face rules as inline CSS
-                    $custom_fonts = MyFeeds_Settings_Manager::get_custom_fonts();
-                    if (!empty($custom_fonts)) {
-                        $font_face_css = '';
-                        foreach ($custom_fonts as $cf) {
-                            $name = esc_attr($cf['name']);
-                            $url = esc_url($cf['url']);
-                            $format = 'woff2';
-                            if (strpos($url, '.woff2') === false) {
-                                $format = (strpos($url, '.ttf') !== false) ? 'truetype' : 'woff';
-                            }
-                            $font_face_css .= "@font-face { font-family: \"{$name}\"; src: url(\"{$url}\") format(\"{$format}\"); font-display: swap; }\n";
-                        }
-                        if (!empty($font_face_css)) {
-                            wp_add_inline_style('myfeeds-product-picker-frontend', $font_face_css);
-                        }
-                    }
-                }
-            }
-            
+
             // Check if any product-picker block on this page uses carousel mode
             global $post;
             $needs_carousel = false;
@@ -244,15 +195,9 @@ class MyFeeds_Product_Picker {
      * Recursively check if any product-picker block uses carousel mode
      */
     private function blocks_need_carousel($blocks) {
+        // Carousel display is a Pro-tier feature; the Free plugin always
+        // renders as grid, so carousel assets never need to load.
         foreach ($blocks as $block) {
-            if (($block['blockName'] ?? '') === 'myfeeds/product-picker') {
-                if (($block['attrs']['displayMode'] ?? 'grid') === 'carousel') {
-                    // Premium check: only load carousel assets for Pro users
-                    if (!class_exists('MyFeeds_Plan_Limits') || !MyFeeds_Plan_Limits::is_free()) {
-                        return true;
-                    }
-                }
-            }
             if (!empty($block['innerBlocks'])) {
                 if ($this->blocks_need_carousel($block['innerBlocks'])) {
                     return true;
@@ -290,13 +235,10 @@ class MyFeeds_Product_Picker {
         }
         $autoplay = !empty($attrs['autoplay']);
         $autoplay_interval = intval($attrs['autoplayInterval'] ?? 3);
-        
-        // Premium gate: Force grid mode for free users
-        if (class_exists('MyFeeds_Plan_Limits') && MyFeeds_Plan_Limits::is_free()) {
-            $display_mode = 'grid';
-        }
-        
-        $is_carousel = ($display_mode === 'carousel');
+
+        // Carousel display mode is a Pro-tier feature.
+        $display_mode = 'grid';
+        $is_carousel = false;
         $arrow_color = sanitize_hex_color($attrs['arrowColor'] ?? '#333333') ?: '#333333';
         
         if ($is_carousel) {
@@ -754,17 +696,9 @@ class MyFeeds_Product_Picker {
         // Product details — rendered in user-defined order
         $card_html .= '<div class="myfeeds-product-details">';
 
-        // Get element order from card design settings
+        // Element order customization belongs to the Premium Card Design
+        // Editor; Free ships with the default order.
         $element_order = array('brand', 'title', 'price', 'shipping', 'merchant');
-        $is_design_pro = !class_exists('MyFeeds_Plan_Limits') || MyFeeds_Plan_Limits::design_editor_allowed();
-        if ($is_design_pro) {
-            if ($card_design === null && class_exists('MyFeeds_Settings_Manager') && method_exists('MyFeeds_Settings_Manager', 'get_card_design')) {
-                $card_design = MyFeeds_Settings_Manager::get_card_design();
-            }
-            if (!empty($card_design['element_order']) && is_array($card_design['element_order'])) {
-                $element_order = $card_design['element_order'];
-            }
-        }
 
         // Render elements in saved order
         foreach ($element_order as $element) {

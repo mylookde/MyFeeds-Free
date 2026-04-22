@@ -67,13 +67,6 @@ class MyFeeds_Contact_Page {
 
         // Build informative body
         $plan_label = 'Free';
-        if (class_exists('MyFeeds_Plan_Limits')) {
-            if (MyFeeds_Plan_Limits::is_premium()) {
-                $plan_label = 'Premium';
-            } elseif (MyFeeds_Plan_Limits::is_pro()) {
-                $plan_label = 'Pro';
-            }
-        }
 
         $body  = $message . "\n\n";
         $body .= "---\n";
