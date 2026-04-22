@@ -1,5 +1,5 @@
-=== MyFeeds ===
-Contributors: myfeeds
+=== MyFeeds — Affiliate Product Feed Manager ===
+Contributors: mylookde
 Tags: affiliate, product feeds, gutenberg, product picker, awin
 Requires at least: 5.8
 Tested up to: 6.9
@@ -8,64 +8,63 @@ Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Import affiliate product feeds, search thousands of products, and showcase them in your blog posts with a powerful Gutenberg block.
+Import an affiliate product feed, search it locally, and showcase products in your posts with a native Gutenberg block.
 
 == Description ==
 
-**MyFeeds** turns any affiliate product feed into a searchable local product index inside your WordPress site. No external services, no API calls on the frontend, no slowdowns — everything runs on your own database.
+**MyFeeds — Affiliate Product Feed Manager** turns an affiliate product feed into a locally searchable product index inside your WordPress site. All product data is imported into your own database, so the frontend makes no external calls when a visitor loads a page.
 
-Pick products from your feeds using the **MyFeeds – Product Picker** block in the Gutenberg editor. Search by name, brand, or category with smart search that understands synonyms and German umlauts. Display products in a clean grid or carousel layout with automatic price and availability updates.
+Pick products from your feed using the **MyFeeds – Product Picker** block in the Gutenberg editor. Search by name, brand, or category with a smart search that understands synonyms and German umlauts. Products are displayed in a responsive grid with live prices, images, and your affiliate links.
 
 = How it works =
 
-1. Paste a product feed URL from your affiliate network (AWIN, Webgains, Rakuten, Tradedoubler, and others)
-2. MyFeeds imports and indexes all products locally in your database
-3. Use the Product Picker block in any post or page to search and select products
-4. Products are displayed with live prices, images, and your affiliate links
+1. Paste a product feed URL from your affiliate network (AWIN, Webgains, Rakuten, Tradedoubler, Admitad, and other networks that provide CSV, TSV, XML, or JSON feeds).
+2. MyFeeds imports and indexes the products locally in your database.
+3. Use the Product Picker block in any post or page to search the index and select products.
+4. Published pages render a responsive grid with prices, images, and affiliate links.
 
-= Key Features =
+= Free plugin features =
 
-* **Feed Import** — Import CSV, XML, and other product feed formats from any affiliate network
-* **Smart Search** — FULLTEXT search with synonym expansion, German stemming, umlaut normalization, and gender-as-filter
-* **Product Picker Block** — Native Gutenberg block to search, select, and display products in posts and pages
-* **Grid & Carousel Layouts** — Display products in responsive grid or horizontal carousel
-* **Auto-Sync** — Daily quick sync keeps prices and availability up to date automatically
-* **Card Design Editor** — Customize product card appearance with visual controls, Google Fonts, custom font upload, and drag & drop element ordering
-* **Local Storage** — All product data stored in your WordPress database. No external dependencies, no frontend API calls
-* **Works With Any Theme** — Compatible with any WordPress theme that supports the block editor
+* **One product feed** — Add and manage one affiliate product feed. The Free plugin is designed around a single-feed workflow.
+* **Universal feed import** — CSV, TSV, XML, and JSON feeds are detected and parsed automatically.
+* **Smart Mapping** — Automatic field detection (title, price, brand, image, affiliate link, …) with manual override if needed.
+* **Smart Search** — FULLTEXT search with synonym expansion, German stemming, umlaut normalisation, and gender-aware filtering.
+* **Product Picker block** — Native Gutenberg block to search, select, and display products in posts and pages.
+* **Grid layout** — Responsive product grid with prices, brands, shipping info, and affiliate links.
+* **Manual sync** — Update products on demand with a single click. A local cache keeps the frontend fast.
+* **Local storage** — All product data lives in your WordPress database. No external calls on the frontend.
+* **Works with any block theme** — Compatible with any WordPress theme that supports the block editor.
 
-= Free vs Pro vs Premium =
+= Free / Pro / Premium =
 
-**Free** — 1 feed, 3 products per post, grid layout, smart search, manual sync.
+MyFeeds is also available as paid Pro and Premium plugins from [myfeeds.site](https://myfeeds.site), which add multi-feed management, automatic daily sync, a carousel block, and a visual card design editor. The upgrade is entirely optional — the Free plugin is fully functional on its own.
 
-**Pro** ($19/mo) — Up to 5 feeds, unlimited products, carousel layout, daily auto-sync, quick sync, email support.
-
-**Premium** ($39/mo) — Unlimited feeds, card design editor, Google Fonts, custom font upload, drag & drop element order, priority support.
-
-All paid plans include a 3-day free trial. Cancel anytime.
+* **Free** (this plugin) — One feed, Gutenberg grid block, smart search, manual sync.
+* **Pro** — Up to five feeds, daily auto-sync, and a carousel block.
+* **Premium** — Unlimited feeds, a visual card design editor with Google Fonts and custom font upload, and priority support.
 
 == Installation ==
 
-1. Upload the `myfeeds` folder to the `/wp-content/plugins/` directory, or install directly through the WordPress plugin screen.
-2. Activate the plugin through the "Plugins" screen in WordPress.
-3. Go to **MyFeeds** in your admin sidebar to add your first product feed.
+1. Upload the `myfeeds-affiliate-feed-manager` folder to the `/wp-content/plugins/` directory, or install the plugin directly from the WordPress plugin screen.
+2. Activate the plugin through the **Plugins** screen in WordPress.
+3. Go to **MyFeeds** in your admin sidebar and click **Add your first feed**.
 4. Paste a product feed URL from your affiliate network and click **Import**.
 5. In the block editor, add the **MyFeeds – Product Picker** block to any post or page.
 6. Search for products, select them, and publish.
 
 = Where do I get a product feed URL? =
 
-Sign up with an affiliate network (such as AWIN, CJ, or Tradedoubler), navigate to their product feed section — usually called "Create a feed" or "Product feeds" — and copy the feed URL.
+Sign up with an affiliate network (such as AWIN, CJ, or Tradedoubler), navigate to the product feed section — usually labelled "Create a feed" or "Product feeds" — and copy the feed URL.
 
 == Frequently Asked Questions ==
 
 = How do I add products to a blog post? =
 
-In the block editor, add a "MyFeeds – Product Picker" block. Use the search bar to find products by name, brand, or category, then click to select the ones you want to display.
+In the block editor, insert a **MyFeeds – Product Picker** block. Use the search bar to find products by name, brand, or category, then click to select the ones you want to display.
 
 = How long does an import take? =
 
-It depends on the feed size. A feed with 10,000 products typically takes 2–5 minutes. Imports run in the background, so you can continue working while they process.
+It depends on the feed size. A feed with 10,000 products typically takes 2–5 minutes. Imports run in the background via Action Scheduler, so you can keep working while they process.
 
 = Why are some products missing after import? =
 
@@ -73,55 +72,64 @@ Only products with valid data (title, price, image, and affiliate link) are impo
 
 = Does MyFeeds slow down my site? =
 
-No. All product data is stored locally in your WordPress database. There are no external API calls on the frontend — your site stays fast.
+No. All product data is stored locally in your WordPress database. The frontend makes no external API calls — your site stays fast.
 
 = Does MyFeeds work with any theme? =
 
 Yes, it works with any WordPress theme that supports the Gutenberg block editor (WordPress 5.8+).
 
-= Can I use MyFeeds with the classic editor? =
+= Can I use MyFeeds with the Classic Editor? =
 
-No, MyFeeds requires the Gutenberg block editor.
-
-= Is there a free trial? =
-
-Yes, all paid plans include a 3-day free trial with no commitment.
-
-= Can I switch plans anytime? =
-
-Yes, you can upgrade or downgrade at any time from the Manage Plan page inside the plugin.
-
-= What happens when I downgrade? =
-
-Your data stays intact. If you exceed the new plan's feed limit, you'll be asked to choose which feeds to keep active.
+No. MyFeeds requires the block editor.
 
 = Which affiliate networks are supported? =
 
-MyFeeds works with any affiliate network that provides a product feed URL (CSV, XML, or similar formats). Currently tested with AWIN and Webgains. Also compatible with Rakuten, Tradedoubler, Admitad, and any other network that offers CSV or XML feeds. More native integrations coming soon.
+MyFeeds works with any affiliate network that provides a product feed URL in CSV, TSV, XML, or JSON format. The parser has been tested with AWIN, Webgains, Rakuten, Tradedoubler, and Admitad.
+
+= Does the plugin make any external requests? =
+
+Yes — see **External Services** below. In short: when you add an AWIN feed, the plugin talks to the official AWIN Publisher API to confirm your credentials and look up feed URLs. No data leaves your site on the frontend.
+
+== External Services ==
+
+This plugin connects to one external service, the official AWIN Publisher API, and only when the site administrator chooses to use it.
+
+= AWIN Publisher API =
+
+When you add an AWIN feed in the WordPress admin, the plugin calls the AWIN Publisher API on your behalf to verify your publisher credentials, look up your approved advertisers, and resolve their feed download URLs so the import job knows where to pull the product feed from.
+
+* **What data is sent:** your AWIN publisher ID, the advertiser ID, and your AWIN API key (passed as an HTTP header). No WordPress user data, no visitor data, and nothing from the frontend is transmitted.
+* **When it is sent:** only in the WordPress admin, when you open the AWIN feed setup dialog, verify credentials, or trigger a feed refresh. No frontend page view ever calls this API.
+* **Where it is sent:** `https://api.awin.com/` — AWIN's official publisher API endpoint.
+* **Why:** AWIN requires publishers to fetch feed download URLs via their API rather than hard-coding them, because the URLs are rotated and tied to your publisher account.
+
+AWIN's terms of service and privacy policy apply to this data exchange:
+
+* Terms of Service: <https://www.awin.com/gb/legal/publisher-terms>
+* Privacy Policy: <https://www.awin.com/gb/legal/privacy-policy>
+
+No data is sent to any other external service. The plugin stores imported products in your own WordPress database and serves them from there; the frontend never contacts an external host to render a product.
 
 == Screenshots ==
 
-1. Feed Manager — manage your affiliate product feeds with live status, product counts, and mapping quality indicators.
-2. Background Import — imports run in the background with real-time progress bar. Continue working while products are imported.
-3. Feed Management — Update All Feeds or Quick Sync active products. Auto-sync schedule with next sync times.
-4. Smart Mapping — automatic field detection with manual override. Maps any CSV/XML feed to product fields.
-5. Card Design Editor — customize product card appearance with visual controls, live preview, and hover effects (Premium).
-6. Grid Layout — products displayed in a responsive grid with prices, brands, and affiliate links.
-7. Carousel Layout — horizontal scrollable product carousel with discount badges and sale prices.
+1. Feed Manager — configure one affiliate product feed with status, product count, and mapping quality.
+2. Background Import — imports run in the background with a real-time progress bar. Continue working while products are imported.
+3. Smart Mapping — automatic field detection with manual override. Maps any CSV/TSV/XML/JSON feed to product fields.
+4. MyFeeds – Product Picker block — search the local product index and select products inline in the editor.
+5. Grid layout — products rendered in a responsive grid with prices, brands, shipping info, and affiliate links.
 
 == Changelog ==
 
 = 1.0.0 =
-* Initial release.
-* Feed import system with background processing via Action Scheduler.
-* Smart search with FULLTEXT indexing, synonym expansion, and German stemming.
-* MyFeeds – Product Picker Gutenberg block with grid and carousel layouts.
-* Card Design Editor with Google Fonts, custom font upload, and drag & drop ordering.
-* Free, Pro, and Premium plans with Freemius integration.
-* Daily auto-sync and weekly full import for paid plans.
-* Built-in Help & FAQ page with contact form.
+* Initial release on WordPress.org.
+* Single-feed architecture with universal CSV, TSV, XML, and JSON feed parser.
+* Smart Mapping with automatic field detection and manual override.
+* Smart Search with FULLTEXT indexing, synonym expansion, and German-language handling.
+* MyFeeds – Product Picker Gutenberg block with a responsive grid layout.
+* Background imports via the bundled Action Scheduler library.
+* AWIN Publisher API integration for credential and feed-URL resolution.
 
 == Upgrade Notice ==
 
 = 1.0.0 =
-Welcome to MyFeeds! Import your first affiliate product feed and start showcasing products in your blog posts.
+Welcome to MyFeeds. Import your first affiliate product feed and start showcasing products in your posts.
