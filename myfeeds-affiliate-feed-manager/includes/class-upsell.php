@@ -30,7 +30,7 @@ class MyFeeds_Upsell {
             return;
         }
         $submenu['myfeeds-feeds'][] = array(
-            __('Go Pro ↗', 'myfeeds-affiliate-feed-manager'),
+            __('Go Pro ↗', 'myfeeds'),
             'manage_options',
             esc_url(self::PRICING_URL),
         );
@@ -69,10 +69,10 @@ class MyFeeds_Upsell {
         ?>
         <div class="notice notice-info is-dismissible myfeeds-upsell-banner">
             <p>
-                <strong><?php esc_html_e('Need more than one feed?', 'myfeeds-affiliate-feed-manager'); ?></strong>
-                <?php esc_html_e('MyFeeds Pro adds multi-feed management, daily auto-sync and a carousel block.', 'myfeeds-affiliate-feed-manager'); ?>
+                <strong><?php esc_html_e('Need more than one feed?', 'myfeeds'); ?></strong>
+                <?php esc_html_e('MyFeeds Pro adds multi-feed management, daily auto-sync and a carousel block.', 'myfeeds'); ?>
                 <a href="<?php echo esc_url(self::PRICING_URL); ?>" target="_blank" rel="noopener">
-                    <?php esc_html_e('See plans →', 'myfeeds-affiliate-feed-manager'); ?>
+                    <?php esc_html_e('See plans →', 'myfeeds'); ?>
                 </a>
             </p>
         </div>
@@ -88,9 +88,15 @@ class MyFeeds_Upsell {
         wp_send_json_success();
     }
 
+    /**
+     * The banner is only shown on the main MyFeeds feeds page. Other
+     * MyFeeds-* admin screens (dark-themed contact page, mapping editor,
+     * settings) carry their own visual language, where a default WP
+     * admin notice would clash with the surrounding design.
+     */
     private function is_myfeeds_screen() {
-        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
-        return $screen && strpos((string) $screen->id, 'myfeeds-affiliate-feed-manager') !== false;
+        $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+        return $page === 'myfeeds-feeds';
     }
 
     private function dismiss_script() {
