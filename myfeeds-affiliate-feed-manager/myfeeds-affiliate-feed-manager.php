@@ -231,6 +231,14 @@ add_action('admin_init', function() {
             }
             update_option('myfeeds_db_schema_version', '2.2');
         }
+
+        // v2.3 schema upgrade: compound indexes (feed_id, status) and
+        // (feed_name, status) — speeds up per-feed product counts and
+        // calculate_mapping_quality from full table scans to index lookups.
+        if (version_compare($db_version, '2.3', '<')) {
+            MyFeeds_DB_Manager::create_table(); // dbDelta adds the new compound keys
+            update_option('myfeeds_db_schema_version', '2.3');
+        }
         
         // Stable feed_id migration: Run once to assign stable_ids and clean orphans
         if (!get_option('myfeeds_stable_id_migrated')) {

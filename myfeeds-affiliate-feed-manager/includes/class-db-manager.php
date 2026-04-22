@@ -92,7 +92,9 @@ class MyFeeds_DB_Manager {
             KEY idx_brand (brand),
             KEY idx_last_updated (last_updated),
             KEY idx_colour (colour),
-            KEY idx_name_colour (product_name(100), colour(100))
+            KEY idx_name_colour (product_name(100), colour(100)),
+            KEY idx_feed_status (feed_id, status),
+            KEY idx_feed_name_status (feed_name, status)
         ) {$charset_collate};";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';

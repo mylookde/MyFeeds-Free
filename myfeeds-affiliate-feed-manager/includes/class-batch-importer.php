@@ -3323,19 +3323,18 @@ class MyFeeds_Batch_Importer {
                         // =====================================================================
                         // EARLY EXIT CHECK: Have we found all active IDs?
                         // Only for priority_pass - stops scanning once all IDs are found!
+                        //
+                        // Use count($items) instead of scanning $active_ids every row:
+                        // inside this branch $items receives only keys that are also in
+                        // $active_ids, and $items is a unique-key map, so its cardinality
+                        // is exactly the number of distinct active IDs found so far. That
+                        // replaces an O(|active_ids|) inner loop per match with an O(1)
+                        // check — essential on feeds with hundreds of matches.
                         // =====================================================================
-                        if ($mode === 'priority_pass') {
-                            $found_ids_count = 0;
-                            foreach ($active_ids as $aid => $v) {
-                                if (isset($items[$aid])) {
-                                    $found_ids_count++;
-                                }
-                            }
-                            if ($found_ids_count >= count($active_ids)) {
-                                $found_all_active = true;
-                                myfeeds_log("Priority Pass: All " . count($active_ids) . " active IDs found! Early exit at row $i of $total_rows", 'debug');
-                                break; // Exit the loop early!
-                            }
+                        if ($mode === 'priority_pass' && count($items) >= count($active_ids)) {
+                            $found_all_active = true;
+                            myfeeds_log("Priority Pass: All " . count($active_ids) . " active IDs found! Early exit at row $i of $total_rows", 'debug');
+                            break; // Exit the loop early!
                         }
                     }
                     // Skip products not in active list für priority_pass und active_only
