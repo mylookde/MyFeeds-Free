@@ -35,23 +35,26 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Start ssh-agent with deploy key
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-          ssh-auth-sock: /tmp/ssh-auth.sock
-          # webfactory/ssh-agent reads the passphrase from this env var
-          # when the key is encrypted; harmless to pass when empty.
+      - name: Load SSH deploy key
         env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SSH_PASSPHRASE: ${{ secrets.SSH_PASSPHRASE }}
-
-      - name: Pin SiteGround host key
-        env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+
+          # If a passphrase was supplied, strip it in place so ssh-add / rsync
+          # can use the key non-interactively. The unencrypted key only lives
+          # in the runner's ephemeral filesystem for the duration of the job.
+          if [ -n "${SSH_PASSPHRASE:-}" ]; then
+            ssh-keygen -p -f ~/.ssh/id_deploy -P "$SSH_PASSPHRASE" -N "" >/dev/null
+          fi
+
           PORT="${SSH_PORT:-22}"
           ssh-keyscan -p "$PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
@@ -62,6 +65,7 @@ jobs:
           SSH_PORT: ${{ secrets.SSH_PORT }}
           WP_PLUGINS_DIR: ${{ secrets.WP_PLUGINS_DIR }}
         run: |
+          set -euo pipefail
           PORT="${SSH_PORT:-22}"
           TARGET="${WP_PLUGINS_DIR%/}/myfeeds-affiliate-feed-manager/"
           rsync -az --delete \
@@ -72,6 +76,10 @@ jobs:
             --exclude='.DS_Store' \
             --exclude='tests/' \
             --exclude='.vibe-context/' \
-            -e "ssh -p $PORT -o StrictHostKeyChecking=yes" \
+            -e "ssh -p $PORT -i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes" \
             ./myfeeds-affiliate-feed-manager/ \
             "${SSH_USER}@${SSH_HOST}:${TARGET}"
+
+      - name: Clear deploy key
+        if: always()
+        run: rm -f ~/.ssh/id_deploy
