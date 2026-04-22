@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) {
 class MyFeeds_Upsell {
 
     const DISMISS_META_KEY = 'myfeeds_upsell_dismissed_v1';
-    const PRICING_URL      = 'https://myfeeds.site/pricing?utm_source=wp-plugin-free&utm_medium=admin-menu';
+    const PRICING_URL      = 'https://myfeeds.site/?utm_source=wp-plugin-free&utm_medium=admin-menu';
 
     public function init() {
         add_action('admin_menu', array($this, 'add_go_pro_submenu'), 100);
