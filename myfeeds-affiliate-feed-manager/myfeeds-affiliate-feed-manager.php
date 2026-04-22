@@ -166,6 +166,45 @@ if (!get_option('myfeeds_naming_migrated_v2')) {
     myfeeds_run_naming_migration_v2();
 }
 
+// =============================================================================
+// ONE-TIME SINGLE-FEED MIGRATION
+// The Free plugin only ever manages one feed. Installs that previously ran a
+// multi-feed Pro build can end up with leftover feeds in the myfeeds_feeds
+// option and their imported products sitting in the DB. This migration keeps
+// only the first feed in the visible slot, archives the rest under
+// myfeeds_feeds_archive (so a future Pro upgrade can restore them), and
+// purges orphan product rows via the existing cleanup helper.
+// =============================================================================
+function myfeeds_run_single_feed_migration_v1() {
+    $feeds = get_option('myfeeds_feeds', array());
+
+    if (is_array($feeds) && count($feeds) > 1) {
+        $first_key  = array_key_first($feeds);
+        $kept       = array($first_key => $feeds[$first_key]);
+        $archived   = $feeds;
+        unset($archived[$first_key]);
+
+        update_option('myfeeds_feeds_archive', $archived);
+        update_option('myfeeds_feeds', $kept);
+
+        myfeeds_log('Single-feed migration: kept "' . ($kept[$first_key]['name'] ?? $first_key) . '", archived ' . count($archived) . ' extra feed(s) to myfeeds_feeds_archive', 'info');
+    }
+
+    if (class_exists('MyFeeds_DB_Manager') && method_exists('MyFeeds_DB_Manager', 'cleanup_orphaned_products')) {
+        $deleted = MyFeeds_DB_Manager::cleanup_orphaned_products();
+        if ($deleted > 0) {
+            myfeeds_log("Single-feed migration: removed {$deleted} orphan product row(s) from archived feeds", 'info');
+        }
+    }
+
+    update_option('myfeeds_single_feed_migrated_v1', true);
+}
+add_action('plugins_loaded', function () {
+    if (!get_option('myfeeds_single_feed_migrated_v1')) {
+        myfeeds_run_single_feed_migration_v1();
+    }
+}, 30);
+
 // Ensure DB mode option is set on load (for fresh installs or upgrades)
 add_action('admin_init', function() {
     if (get_option('myfeeds_use_db') === false) {
