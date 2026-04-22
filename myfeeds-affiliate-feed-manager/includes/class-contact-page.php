@@ -158,7 +158,7 @@ class MyFeeds_Contact_Page {
             'Plans & Billing' => array(
                 array(
                     'q' => 'Is there a free trial?',
-                    'a' => 'Yes, all paid plans include a 3-day free trial with no commitment.',
+                    'a' => 'Yes, all paid plans include a 7-day free trial with no commitment.',
                 ),
                 array(
                     'q' => 'Can I switch plans anytime?',
