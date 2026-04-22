@@ -1603,18 +1603,26 @@ class MyFeeds_Batch_Importer {
             if (!empty($remaining_ids)) {
                 myfeeds_log("Quick Sync (DB): " . count($remaining_ids) . " products not found in feeds — NOT marking as unavailable (Quick Sync policy)", 'info');
             }
-            // Re-activate products that were previously marked unavailable but are now found in feeds
+            // Re-activate products that were previously marked unavailable but are now found
+            // in feeds. The single bulk UPDATE below replaces a per-product UPDATE loop —
+            // same WHERE guard (status='unavailable'), identical semantics, 1 round trip
+            // instead of N.
             $reactivated_count = 0;
+            $found_ids = array();
             foreach ($active_ids_hash as $aid => $v) {
                 if (!isset($remaining_ids[$aid])) {
-                    global $wpdb;
-                    $table = MyFeeds_DB_Manager::table_name();
-                    $affected = $wpdb->query($wpdb->prepare(
-                        "UPDATE {$table} SET status = 'active' WHERE external_id = %s AND status = 'unavailable'",
-                        (string) $aid
-                    ));
-                    if ($affected > 0) $reactivated_count++;
+                    $found_ids[] = (string) $aid;
                 }
+            }
+            if (!empty($found_ids)) {
+                global $wpdb;
+                $table = MyFeeds_DB_Manager::table_name();
+                $placeholders = implode(',', array_fill(0, count($found_ids), '%s'));
+                $reactivated_count = (int) $wpdb->query($wpdb->prepare(
+                    "UPDATE {$table} SET status = 'active'
+                     WHERE status = 'unavailable' AND external_id IN ({$placeholders})",
+                    ...$found_ids
+                ));
             }
             if ($reactivated_count > 0) {
                 myfeeds_log("Quick Sync (DB): {$reactivated_count} previously unavailable products reactivated", 'info');

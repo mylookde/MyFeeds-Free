@@ -479,63 +479,50 @@ class MyFeeds_DB_Manager {
         global $wpdb;
         $table = self::table_name();
         
-        $total = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE feed_name = %s AND status = 'active'",
+        // Single aggregated query replaces 10 separate COUNT(*) calls. One full table
+        // scan (bounded by the feed_name + status filter) returns every counter we need,
+        // so the mapping-quality card stops costing ~10 round trips per feed.
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN product_name IS NOT NULL AND product_name != ''
+                          AND price IS NOT NULL AND price > 0
+                          AND image_url IS NOT NULL AND image_url != ''
+                          AND affiliate_link IS NOT NULL AND affiliate_link != ''
+                         THEN 1 ELSE 0 END) AS complete,
+                SUM(CASE WHEN product_name IS NULL OR product_name = '' THEN 1 ELSE 0 END) AS missing_product_name,
+                SUM(CASE WHEN price IS NULL OR price = 0 THEN 1 ELSE 0 END) AS missing_price,
+                SUM(CASE WHEN image_url IS NULL OR image_url = '' THEN 1 ELSE 0 END) AS missing_image,
+                SUM(CASE WHEN affiliate_link IS NULL OR affiliate_link = '' THEN 1 ELSE 0 END) AS missing_link,
+                SUM(CASE WHEN brand IS NULL OR brand = '' THEN 1 ELSE 0 END) AS missing_brand,
+                SUM(CASE WHEN original_price IS NULL OR original_price = 0 THEN 1 ELSE 0 END) AS missing_original_price,
+                SUM(CASE WHEN category IS NULL OR category = '' THEN 1 ELSE 0 END) AS missing_category,
+                SUM(CASE WHEN currency IS NULL OR currency = '' THEN 1 ELSE 0 END) AS missing_currency,
+                SUM(CASE WHEN in_stock IS NULL THEN 1 ELSE 0 END) AS missing_in_stock
+             FROM {$table} WHERE feed_name = %s AND status = 'active'",
             $feed_name
-        ));
-        
+        ), ARRAY_A);
+
+        $total = (int) ($row['total'] ?? 0);
         if ($total === 0) {
             return array('quality' => 0, 'total' => 0, 'complete' => 0, 'fields' => array());
         }
-        
+
         // QUALITY_DEBUG: Log a sample product so the user can see exactly where data lives
         self::log_quality_debug_sample($feed_name, $table);
-        
-        // Count products with ALL Required fields filled
-        $complete = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} 
-             WHERE feed_name = %s AND status = 'active'
-             AND product_name IS NOT NULL AND product_name != ''
-             AND price IS NOT NULL AND price > 0
-             AND image_url IS NOT NULL AND image_url != ''
-             AND affiliate_link IS NOT NULL AND affiliate_link != ''",
-            $feed_name
-        ));
-        
-        // --- Required fields ---
-        $missing_product_name = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE feed_name = %s AND status = 'active' AND (product_name IS NULL OR product_name = '')", $feed_name
-        ));
-        $missing_price = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE feed_name = %s AND status = 'active' AND (price IS NULL OR price = 0)", $feed_name
-        ));
-        $missing_image = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE feed_name = %s AND status = 'active' AND (image_url IS NULL OR image_url = '')", $feed_name
-        ));
-        $missing_link = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE feed_name = %s AND status = 'active' AND (affiliate_link IS NULL OR affiliate_link = '')", $feed_name
-        ));
-        
-        // --- Important fields ---
-        $missing_brand = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE feed_name = %s AND status = 'active' AND (brand IS NULL OR brand = '')", $feed_name
-        ));
-        $missing_original_price = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE feed_name = %s AND status = 'active' AND (original_price IS NULL OR original_price = 0)", $feed_name
-        ));
-        
-        // --- Optional fields ---
-        $missing_category = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE feed_name = %s AND status = 'active' AND (category IS NULL OR category = '')", $feed_name
-        ));
-        $missing_currency = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE feed_name = %s AND status = 'active' AND (currency IS NULL OR currency = '')", $feed_name
-        ));
-        $missing_in_stock = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE feed_name = %s AND status = 'active' AND in_stock IS NULL", $feed_name
-        ));
-        
-        $quality = ($total > 0) ? round(($complete / $total) * 100) : 0;
+
+        $complete               = (int) $row['complete'];
+        $missing_product_name   = (int) $row['missing_product_name'];
+        $missing_price          = (int) $row['missing_price'];
+        $missing_image          = (int) $row['missing_image'];
+        $missing_link           = (int) $row['missing_link'];
+        $missing_brand          = (int) $row['missing_brand'];
+        $missing_original_price = (int) $row['missing_original_price'];
+        $missing_category       = (int) $row['missing_category'];
+        $missing_currency       = (int) $row['missing_currency'];
+        $missing_in_stock       = (int) $row['missing_in_stock'];
+
+        $quality = round(($complete / $total) * 100);
         
         return array(
             'quality' => $quality,
@@ -1419,17 +1406,20 @@ class MyFeeds_DB_Manager {
             return;
         }
 
-        // Mark orphans as 'unavailable' — NEVER hard-delete during normal import
-        foreach ($orphaned as $row) {
-            $eid = $row['external_id'];
-            $wpdb->update(
-                $table,
-                array('status' => 'unavailable', 'last_updated' => current_time('mysql')),
-                array('external_id' => $eid, 'status' => 'active'),
-                array('%s', '%s'),
-                array('%s', '%s')
-            );
-            $marked_unavailable++;
+        // Mark orphans as 'unavailable' — NEVER hard-delete during normal import.
+        // Single bulk UPDATE replaces a per-row $wpdb->update() loop. The AND status='active'
+        // guard preserves the original semantics: a product that someone else already
+        // flipped to 'unavailable' between the SELECT above and now is left untouched.
+        if (!empty($orphaned)) {
+            $eids = array_map(function ($row) { return $row['external_id']; }, $orphaned);
+            $placeholders = implode(',', array_fill(0, count($eids), '%s'));
+            $now = current_time('mysql');
+            $marked_unavailable = (int) $wpdb->query($wpdb->prepare(
+                "UPDATE {$table} SET status = 'unavailable', last_updated = %s
+                 WHERE status = 'active' AND external_id IN ({$placeholders})",
+                $now,
+                ...$eids
+            ));
         }
 
         if ($marked_unavailable > 0) {
