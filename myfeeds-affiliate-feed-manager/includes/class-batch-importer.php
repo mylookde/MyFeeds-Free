@@ -790,7 +790,7 @@ class MyFeeds_Batch_Importer {
             $block_name = $block['blockName'] ?? '';
             
             // Check block name for MyFeeds blocks
-            if (strpos($block_name, 'myfeeds-affiliate-feed-manager') !== false) {
+            if (strpos($block_name, 'myfeeds') !== false) {
                 MyFeeds_Logger::debug("=== BLOCK ATTR DIAGNOSIS (Post #{$post_id}) ===");
                 MyFeeds_Logger::info("BLOCK_DIAG Post #{$post_id}: blockName='{$block_name}', attrs_keys=[" . (!empty($block['attrs']) ? implode(', ', array_keys($block['attrs'])) : 'EMPTY') . "], selectedProducts_count=" . (isset($block['attrs']['selectedProducts']) ? count($block['attrs']['selectedProducts']) : 'N/A'));
                 MyFeeds_Logger::debug("Block: name='{$block_name}'");
@@ -906,7 +906,7 @@ class MyFeeds_Batch_Importer {
             // Recursively check inner blocks
             if (!empty($block['innerBlocks'])) {
                 // DIAGNOSTIC: Log inner blocks count
-                if (strpos($block_name, 'myfeeds-affiliate-feed-manager') !== false) {
+                if (strpos($block_name, 'myfeeds') !== false) {
                     MyFeeds_Logger::debug("Block '{$block_name}' has " . count($block['innerBlocks']) . " innerBlocks");
                 }
                 $this->extract_ids_from_blocks($block['innerBlocks'], $product_ids, $post_id);

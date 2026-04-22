@@ -61,7 +61,7 @@ class MyFeeds_Product_Resolver {
     private static function resolve_from_db($product_id, $hints = array()) {
         // Per-request cache via WP object cache (non-persistent by default)
         $cache_key = 'myfeeds_product_' . $product_id;
-        $cached = wp_cache_get($cache_key, 'myfeeds-affiliate-feed-manager');
+        $cached = wp_cache_get($cache_key, 'myfeeds');
         if ($cached !== false) {
             return $cached;
         }

@@ -51,7 +51,7 @@ class MyFeeds_Feed_Manager {
     }
     
     public function enqueue_admin_scripts($hook) {
-        if (strpos($hook, 'myfeeds-affiliate-feed-manager') === false) {
+        if (strpos($hook, 'myfeeds') === false) {
             return;
         }
 
