@@ -84,9 +84,17 @@ class MyFeeds_Feed_Manager {
     public function render_feeds_page() {
         $feeds = get_option(self::OPTION_KEY, array());
 
+        // Free is a single-feed plugin. Option storage may still contain
+        // leftovers from a previous multi-feed install; we keep that data
+        // intact but never expose more than one feed in the UI.
+        if (count($feeds) > 1) {
+            $first_key = array_key_first($feeds);
+            $feeds = array($first_key => $feeds[$first_key]);
+        }
+
         // Handle messages
         $this->display_admin_messages();
-        
+
         ?>
         <div class="wrap">
             <h1><?php esc_html_e('MyFeeds – Affiliate Feed Manager', 'myfeeds'); ?></h1>
@@ -1746,14 +1754,23 @@ class MyFeeds_Feed_Manager {
      * Render simplified feeds table
      */
     private function render_feeds_table($feeds) {
+        $has_feed = !empty($feeds);
         ?>
         <div class="myfeeds-feeds-table">
             <div class="myfeeds-feeds-table-header">
-                <h2><?php esc_html_e('Configured Feeds', 'myfeeds'); ?></h2>
-                <button type="button" id="myfeeds-add-feed-btn" class="button button-primary" data-testid="add-feed-btn">
-                    + <?php esc_html_e('Add Feed', 'myfeeds'); ?>
-                </button>
+                <h2><?php esc_html_e('Configured Feed', 'myfeeds'); ?></h2>
             </div>
+            <?php if (!$has_feed): ?>
+                <div class="myfeeds-empty-state" style="text-align:center; padding:48px 24px; border:1px dashed #c3c4c7; border-radius:8px; background:#fff;">
+                    <h3 style="margin-top:0;"><?php esc_html_e('Add your first feed', 'myfeeds'); ?></h3>
+                    <p style="max-width:480px; margin:8px auto 20px; color:#50575e;">
+                        <?php esc_html_e('Paste the product feed URL from your affiliate network. MyFeeds auto-detects the format and maps every product field for you.', 'myfeeds'); ?>
+                    </p>
+                    <button type="button" id="myfeeds-add-feed-btn" class="button button-primary button-hero" data-testid="add-feed-btn">
+                        + <?php esc_html_e('Add your first feed', 'myfeeds'); ?>
+                    </button>
+                </div>
+            <?php else: ?>
             <table class="wp-list-table widefat striped">
                 <thead>
                     <tr>
@@ -1767,15 +1784,13 @@ class MyFeeds_Feed_Manager {
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if ($feeds): foreach ($feeds as $key => $feed): ?>
-                        <?php 
+                    <?php foreach ($feeds as $key => $feed): ?>
+                        <?php
                         $detected_network = isset($feed['detected_network']) ? $feed['detected_network'] : __('Auto-detected', 'myfeeds');
                         $mapping_confidence = isset($feed['mapping_confidence']) ? $feed['mapping_confidence'] : 0;
-                        $is_plan_active = !isset($feed['plan_active']) || $feed['plan_active'] === true;
                         ?>
                         <tr data-feed-name="<?php echo esc_attr($feed['name']); ?>"
-                            data-feed-key="<?php echo esc_attr($key); ?>"
-                            class="<?php echo $is_plan_active ? '' : 'myfeeds-feed-inactive'; ?>">
+                            data-feed-key="<?php echo esc_attr($key); ?>">
                             <td><strong><?php echo esc_html($feed['name']); ?></strong></td>
                             <td>
                                 <span class="myfeeds-feed-url" title="<?php echo esc_attr($feed['url']); ?>">
@@ -1883,16 +1898,15 @@ class MyFeeds_Feed_Manager {
                                     data-feed-url="<?php echo esc_attr($feed['url']); ?>"
                                     data-feed-format="<?php echo esc_attr($feed['format_hint'] ?? ''); ?>"
                                     data-feed-network="<?php echo esc_attr($feed['network_hint'] ?? 'awin'); ?>"
-                                    data-testid="edit-feed-<?php echo esc_attr($key); ?>"
-                                    <?php if (!$is_plan_active): ?>disabled title="<?php esc_attr_e('Feed is inactive. Reactivate it from the selection modal or upgrade your plan.', 'myfeeds'); ?>"<?php endif; ?>>
+                                    data-testid="edit-feed-<?php echo esc_attr($key); ?>">
                                     <?php esc_html_e('Edit', 'myfeeds'); ?>
                                 </button>
-                                
+
                                 <button type="button" class="button button-small myfeeds-reimport-btn"
                                     data-feed-key="<?php echo esc_attr($key); ?>"
                                     data-feed-name="<?php echo esc_attr($feed['name']); ?>"
                                     data-testid="reimport-feed-<?php echo esc_attr($key); ?>"
-                                    <?php if (!$is_plan_active || $is_importing): ?>disabled title="<?php echo !$is_plan_active ? esc_attr__('Feed is inactive. Reactivate it from the selection modal or upgrade your plan.', 'myfeeds') : esc_attr__('Import already running', 'myfeeds'); ?>"<?php endif; ?>>
+                                    <?php if ($is_importing): ?>disabled title="<?php esc_attr_e('Import already running', 'myfeeds'); ?>"<?php endif; ?>>
                                     <?php esc_html_e('Reimport', 'myfeeds'); ?>
                                 </button>
                                 
@@ -1906,18 +1920,10 @@ class MyFeeds_Feed_Manager {
                                 </button>
                             </td>
                         </tr>
-                    <?php endforeach; else: ?>
-                        <tr>
-                            <td colspan="7" style="text-align: center; padding: 40px;">
-                                <div class="myfeeds-empty-state">
-                                    <h3>Welcome to MyFeeds!</h3>
-                                    <p>Click "+ Add Feed" above to add your first affiliate feed. Our smart mapping system will automatically detect and map all product fields.</p>
-                                </div>
-                            </td>
-                        </tr>
-                    <?php endif; ?>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
+            <?php endif; ?>
         </div>
         
         <!-- Mapping Quality Detail Modal -->
@@ -2554,13 +2560,6 @@ class MyFeeds_Feed_Manager {
         
         if (!isset($feeds[$feed_key])) {
             wp_send_json_error(array('message' => 'Feed not found'));
-            return;
-        }
-        
-        // Check if feed is active (plan limit)
-        $is_plan_active = !isset($feeds[$feed_key]['plan_active']) || $feeds[$feed_key]['plan_active'] === true;
-        if (!$is_plan_active) {
-            wp_send_json_error(array('message' => 'This feed is inactive. Please reactivate it first or upgrade your plan.'));
             return;
         }
         
