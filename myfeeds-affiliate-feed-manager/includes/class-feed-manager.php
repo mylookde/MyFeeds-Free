@@ -678,12 +678,18 @@ class MyFeeds_Feed_Manager {
     }
     
     private function display_admin_messages() {
+        // Notice payloads are written by our own redirect_with_success/error
+        // helpers, but $_GET is still untrusted, so sanitize on read.
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended
         if (isset($_GET['myfeeds_success'])) {
-            echo '<div class="notice notice-success"><p>' . esc_html($_GET['myfeeds_success']) . '</p></div>';
+            $message = sanitize_text_field(wp_unslash($_GET['myfeeds_success']));
+            echo '<div class="notice notice-success"><p>' . esc_html($message) . '</p></div>';
         }
         if (isset($_GET['myfeeds_error'])) {
-            echo '<div class="notice notice-error"><p>' . esc_html($_GET['myfeeds_error']) . '</p></div>';
+            $message = sanitize_text_field(wp_unslash($_GET['myfeeds_error']));
+            echo '<div class="notice notice-error"><p>' . esc_html($message) . '</p></div>';
         }
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended
     }
     
     /**
@@ -698,8 +704,8 @@ class MyFeeds_Feed_Manager {
             $feeds = get_option(self::OPTION_KEY, array());
             $key = isset($_REQUEST['feed_key']) && $_REQUEST['feed_key'] !== '' ? intval($_REQUEST['feed_key']) : null;
             
-            $name = sanitize_text_field(wp_unslash($_POST['feed_name']));
-            $url = esc_url_raw(wp_unslash($_POST['feed_url']));
+            $name = isset($_POST['feed_name']) ? sanitize_text_field(wp_unslash($_POST['feed_name'])) : '';
+            $url = isset($_POST['feed_url']) ? esc_url_raw(wp_unslash($_POST['feed_url'])) : '';
             $format_hint = isset($_POST['feed_format_hint']) ? sanitize_text_field(wp_unslash($_POST['feed_format_hint'])) : '';
             $network_hint = isset($_POST['feed_network_hint']) ? sanitize_text_field(wp_unslash($_POST['feed_network_hint'])) : '';
             
@@ -2867,8 +2873,8 @@ class MyFeeds_Feed_Manager {
         if (!current_user_can('manage_options') || !check_admin_referer('myfeeds_delete_feed')) {
             wp_die(esc_html__('Security check failed', 'myfeeds-affiliate-feed-manager'));
         }
-        
-        $key = intval($_POST['feed_key']);
+
+        $key = isset($_POST['feed_key']) ? intval(wp_unslash($_POST['feed_key'])) : 0;
         $feeds = get_option(self::OPTION_KEY, array());
         
         if (isset($feeds[$key])) {
@@ -3024,8 +3030,8 @@ class MyFeeds_Feed_Manager {
         if (!current_user_can('manage_options') || !check_admin_referer('myfeeds_test_feed')) {
             wp_die(esc_html__('Security check failed', 'myfeeds-affiliate-feed-manager'));
         }
-        
-        $key = intval($_POST['feed_key']);
+
+        $key = isset($_POST['feed_key']) ? intval(wp_unslash($_POST['feed_key'])) : 0;
         $feeds = get_option(self::OPTION_KEY, array());
         
         if (!isset($feeds[$key])) {

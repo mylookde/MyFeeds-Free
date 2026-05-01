@@ -195,7 +195,6 @@ class MyFeeds_Batch_Importer {
     const OPTION_ACTIVE_IDS = 'myfeeds_active_product_ids';
     const OPTION_BATCH_STATE = 'myfeeds_batch_state';  // NEW: Tracks current batch position for resume
     const CRON_HOOK = 'myfeeds_process_batch';         // Legacy - kept for backwards compat
-    const CENTRAL_HOOK = 'myfeeds_start_feed_update';
     const INDEX_FILE = 'myfeeds-feed-index.json';
     
     // Action Scheduler constants
@@ -311,7 +310,7 @@ class MyFeeds_Batch_Importer {
         
         try {
             if ($action === 'myfeeds_bg_full_update') {
-                do_action(self::CENTRAL_HOOK, 'direct', array('mode' => self::MODE_FULL));
+                do_action('myfeeds_start_feed_update', 'direct', array('mode' => self::MODE_FULL));
             } elseif ($action === 'myfeeds_bg_quick_sync') {
                 $active_ids = isset($args['active_ids']) ? json_decode($args['active_ids'], true) : array();
                 if (!empty($active_ids)) {
@@ -339,7 +338,7 @@ class MyFeeds_Batch_Importer {
         
         // Central hook - unified entry point for all feed updates
         // Now accepts $mode parameter: 'full' or 'active_only'
-        add_action(self::CENTRAL_HOOK, array($this, 'handle_central_update'), 10, 2);
+        add_action('myfeeds_start_feed_update', array($this, 'handle_central_update'), 10, 2);
         
         // AJAX handlers for admin
         add_action('wp_ajax_myfeeds_start_batch_import', array($this, 'ajax_start_batch_import'));
@@ -382,44 +381,48 @@ class MyFeeds_Batch_Importer {
      */
     public function ajax_background_full_update() {
         MyFeeds_Logger::info('Background Full Update: Handler called');
-        
-        // Verify this is a background request
+
+        // Background workers run in their own loopback request and have no user
+        // session, so wp_nonce isn't available. Authentication is done with a
+        // single-use secret stored as a transient by spawn_background_worker()
+        // and verified below. The bare $_POST reads are intentional and safe.
+        // phpcs:disable WordPress.Security.NonceVerification.Missing
+
         if (empty($_POST['_background'])) {
             MyFeeds_Logger::error('Background Full Update: Not a background request');
             wp_die('Direct access not allowed');
         }
-        
-        // Verify secret key (transient-based auth)
-        $provided_key = sanitize_text_field($_POST['secret_key'] ?? '');
-        $stored_key = get_transient('myfeeds_bg_secret_myfeeds_bg_full_update');
+
+        $provided_key = sanitize_text_field(wp_unslash($_POST['secret_key'] ?? ''));
+        $stored_key   = get_transient('myfeeds_bg_secret_myfeeds_bg_full_update');
         
         if (empty($provided_key) || $provided_key !== $stored_key) {
             MyFeeds_Logger::error('Background Full Update: Invalid secret key');
             wp_die('Invalid authentication');
         }
-        
-        // Delete transient after use (one-time key)
+
+        // One-time key — invalidate after first use.
         delete_transient('myfeeds_bg_secret_myfeeds_bg_full_update');
-        
-        // Increase time limit for background processing
+
         set_time_limit(300);
         ignore_user_abort(true);
-        
+
         MyFeeds_Logger::info('Background Full Update: Starting execution');
-        
+
         try {
-            do_action(self::CENTRAL_HOOK, 'background', array('mode' => self::MODE_FULL));
+            do_action('myfeeds_start_feed_update', 'background', array('mode' => self::MODE_FULL));
             MyFeeds_Logger::info('Background Full Update: Completed successfully');
         } catch (\Throwable $e) {
             MyFeeds_Logger::error('Background Full Update failed: ' . $e->getMessage());
-            
-            // Update status to show error
+
             $status = get_option(self::OPTION_IMPORT_STATUS, array());
             $status['status'] = 'error';
             $status['errors'][] = array('message' => $e->getMessage());
             update_option(self::OPTION_IMPORT_STATUS, $status, false);
         }
-        
+
+        // phpcs:enable WordPress.Security.NonceVerification.Missing
+
         wp_die();
     }
     
@@ -430,30 +433,33 @@ class MyFeeds_Batch_Importer {
      */
     public function ajax_background_quick_sync() {
         MyFeeds_Logger::info('Background Quick Sync: Handler called');
-        
-        // Verify this is a background request
+
+        // Background workers run in their own loopback request and have no user
+        // session, so wp_nonce isn't available. Authentication is done with a
+        // single-use secret stored as a transient by spawn_background_worker()
+        // and verified below.
+        // phpcs:disable WordPress.Security.NonceVerification.Missing
+
         if (empty($_POST['_background'])) {
             MyFeeds_Logger::error('Background Quick Sync: Not a background request');
             wp_die('Direct access not allowed');
         }
-        
-        // Verify secret key (transient-based auth)
-        $provided_key = sanitize_text_field($_POST['secret_key'] ?? '');
-        $stored_key = get_transient('myfeeds_bg_secret_myfeeds_bg_quick_sync');
-        
+
+        $provided_key = sanitize_text_field(wp_unslash($_POST['secret_key'] ?? ''));
+        $stored_key   = get_transient('myfeeds_bg_secret_myfeeds_bg_quick_sync');
+
         if (empty($provided_key) || $provided_key !== $stored_key) {
             MyFeeds_Logger::error('Background Quick Sync: Invalid secret key');
             wp_die('Invalid authentication');
         }
-        
-        // Delete transient after use (one-time key)
+
         delete_transient('myfeeds_bg_secret_myfeeds_bg_quick_sync');
-        
-        // Increase time limit for background processing
+
         set_time_limit(300);
         ignore_user_abort(true);
-        
-        $active_ids = isset($_POST['active_ids']) ? json_decode(stripslashes($_POST['active_ids']), true) : array();
+
+        $active_ids = isset($_POST['active_ids']) ? json_decode(wp_unslash($_POST['active_ids']), true) : array();
+        // phpcs:enable WordPress.Security.NonceVerification.Missing
         
         // Fallback: Try to get from option if not in POST
         if (empty($active_ids)) {
@@ -4382,7 +4388,7 @@ class MyFeeds_Batch_Importer {
             'feed_name' => '',
         ));
 
-        do_action(self::CENTRAL_HOOK, 'daily', array('mode' => self::MODE_ACTIVE_ONLY));
+        do_action('myfeeds_start_feed_update', 'daily', array('mode' => self::MODE_ACTIVE_ONLY));
     }
 
     /**
@@ -4405,7 +4411,7 @@ class MyFeeds_Batch_Importer {
             'feed_name' => '',
         ));
 
-        do_action(self::CENTRAL_HOOK, 'weekly', array('mode' => self::MODE_FULL));
+        do_action('myfeeds_start_feed_update', 'weekly', array('mode' => self::MODE_FULL));
     }
     
     // =========================================================================
@@ -4548,13 +4554,13 @@ class MyFeeds_Batch_Importer {
             wp_send_json_error(array('message' => __('Unauthorized', 'myfeeds-affiliate-feed-manager')));
         }
         
-        $feed_key = isset($_POST['feed_key']) ? sanitize_text_field($_POST['feed_key']) : null;
+        $feed_key = isset($_POST['feed_key']) ? sanitize_text_field(wp_unslash($_POST['feed_key'])) : null;
         
         if ($feed_key !== null && $feed_key !== '') {
             $result = $this->start_single_feed_import($feed_key);
         } else {
             // Use central hook for full import
-            do_action(self::CENTRAL_HOOK, 'ajax', array('mode' => self::MODE_FULL));
+            do_action('myfeeds_start_feed_update', 'ajax', array('mode' => self::MODE_FULL));
             $result = true;
         }
         

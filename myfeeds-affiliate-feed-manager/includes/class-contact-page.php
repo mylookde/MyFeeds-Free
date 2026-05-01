@@ -30,8 +30,10 @@ class MyFeeds_Contact_Page {
             array($this, 'render_contact_page')
         );
 
-        // Redirect legacy contact URL to our page
-        if (isset($_GET['page']) && $_GET['page'] === 'myfeeds-feeds-contact') {
+        // Redirect legacy contact URL to our page. Reading $_GET['page'] for
+        // admin-screen detection is read-only and does not require a nonce.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if (isset($_GET['page']) && sanitize_key(wp_unslash($_GET['page'])) === 'myfeeds-feeds-contact') {
             wp_safe_redirect(admin_url('admin.php?page=myfeeds-custom-contact'));
             exit;
         }

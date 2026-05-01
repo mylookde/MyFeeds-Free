@@ -56,7 +56,8 @@ class MyFeeds_Universal_Mapper_UI {
             true
         );
 
-        $feed_key = isset($_GET['feed_key']) ? intval($_GET['feed_key']) : null;
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $feed_key = isset($_GET['feed_key']) ? intval(wp_unslash($_GET['feed_key'])) : null;
         wp_localize_script('myfeeds-mapping-editor', 'myfeedsMapping', array(
             'autoDetectUrl'  => admin_url('admin.php?page=myfeeds-mapping-editor'),
             'initialFeedKey' => $feed_key,
@@ -93,7 +94,8 @@ class MyFeeds_Universal_Mapper_UI {
      * NOTE: Settings page removed from menu. Redirect to feeds page if accessed directly.
      */
     public function register_settings_submenu() {
-        // Redirect removed Settings page to main feeds page
+        // Reading $_GET['page'] for admin-screen detection is read-only.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         if (isset($_GET['page']) && sanitize_text_field(wp_unslash($_GET['page'])) === 'myfeeds-settings') {
             wp_safe_redirect(admin_url('admin.php?page=myfeeds-feeds'));
             exit;
@@ -104,6 +106,8 @@ class MyFeeds_Universal_Mapper_UI {
      * Render the mapping editor page
      */
     public function render_mapping_editor_page() {
+        // Reading $_GET['tab'] for admin-tab selection is read-only.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $active_tab = isset($_GET['tab']) ? sanitize_text_field(wp_unslash($_GET['tab'])) : 'editor';
         
         ?>
@@ -132,7 +136,8 @@ class MyFeeds_Universal_Mapper_UI {
      * Render the mapping editor content (formerly inline in render_mapping_editor_page)
      */
     private function render_mapping_editor_content() {
-        $feed_key = isset($_GET['feed_key']) ? intval($_GET['feed_key']) : null;
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $feed_key = isset($_GET['feed_key']) ? intval(wp_unslash($_GET['feed_key'])) : null;
         $feeds = get_option('myfeeds_feeds', array());
         $templates = MyFeeds_Settings_Manager::get_mapping_templates();
         $standard_fields = MyFeeds_Settings_Manager::$standard_fields;
@@ -526,12 +531,12 @@ class MyFeeds_Universal_Mapper_UI {
      */
     public function ajax_get_feed_columns() {
         check_ajax_referer('myfeeds_nonce', 'nonce');
-        
+
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
-        
-        $feed_key = intval($_POST['feed_key']);
+
+        $feed_key = isset($_POST['feed_key']) ? intval(wp_unslash($_POST['feed_key'])) : 0;
         $feeds = get_option('myfeeds_feeds', array());
         
         if (!isset($feeds[$feed_key])) {
@@ -582,13 +587,16 @@ class MyFeeds_Universal_Mapper_UI {
      */
     public function ajax_save_mapping() {
         check_ajax_referer('myfeeds_nonce', 'nonce');
-        
+
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
-        
-        $feed_key = intval($_POST['feed_key']);
-        $mapping = json_decode(wp_unslash($_POST['mapping']), true);
+
+        $feed_key = isset($_POST['feed_key']) ? intval(wp_unslash($_POST['feed_key'])) : 0;
+        // $_POST['mapping'] is a JSON string. json_decode does not execute code,
+        // so sanitize_text_field would corrupt the structure here.
+        $mapping_raw = isset($_POST['mapping']) ? wp_unslash($_POST['mapping']) : '';
+        $mapping = json_decode($mapping_raw, true);
         
         if (!is_array($mapping)) {
             wp_send_json_error(array('message' => 'Invalid mapping data'));
@@ -614,14 +622,15 @@ class MyFeeds_Universal_Mapper_UI {
      */
     public function ajax_save_template() {
         check_ajax_referer('myfeeds_nonce', 'nonce');
-        
+
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
-        
-        $name = sanitize_text_field(wp_unslash($_POST['name']));
-        $network = sanitize_text_field(wp_unslash($_POST['network']));
-        $mapping = json_decode(wp_unslash($_POST['mapping']), true);
+
+        $name        = isset($_POST['name']) ? sanitize_text_field(wp_unslash($_POST['name'])) : '';
+        $network     = isset($_POST['network']) ? sanitize_text_field(wp_unslash($_POST['network'])) : '';
+        $mapping_raw = isset($_POST['mapping']) ? wp_unslash($_POST['mapping']) : '';
+        $mapping     = json_decode($mapping_raw, true);
         
         if (empty($name)) {
             wp_send_json_error(array('message' => 'Template name required'));
@@ -643,13 +652,13 @@ class MyFeeds_Universal_Mapper_UI {
      */
     public function ajax_apply_template() {
         check_ajax_referer('myfeeds_nonce', 'nonce');
-        
+
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
-        
-        $template_id = sanitize_text_field(wp_unslash($_POST['template_id']));
-        $feed_key = intval($_POST['feed_key']);
+
+        $template_id = isset($_POST['template_id']) ? sanitize_text_field(wp_unslash($_POST['template_id'])) : '';
+        $feed_key    = isset($_POST['feed_key']) ? intval(wp_unslash($_POST['feed_key'])) : 0;
         
         $result = MyFeeds_Settings_Manager::apply_template_to_feed($template_id, $feed_key);
         
@@ -665,12 +674,12 @@ class MyFeeds_Universal_Mapper_UI {
      */
     public function ajax_delete_template() {
         check_ajax_referer('myfeeds_nonce', 'nonce');
-        
+
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
-        
-        $template_id = sanitize_text_field(wp_unslash($_POST['template_id']));
+
+        $template_id = isset($_POST['template_id']) ? sanitize_text_field(wp_unslash($_POST['template_id'])) : '';
         
         MyFeeds_Settings_Manager::delete_mapping_template($template_id);
         
