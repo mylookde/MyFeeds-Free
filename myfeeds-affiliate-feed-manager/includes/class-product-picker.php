@@ -61,7 +61,7 @@ class MyFeeds_Product_Picker {
         $script_registered = wp_register_script(
             'myfeeds-product-picker-editor',
             MYFEEDS_PLUGIN_URL . 'build/index.js',
-            ['wp-blocks', 'wp-components', 'wp-element', 'wp-editor', 'wp-data'],
+            ['wp-blocks', 'wp-components', 'wp-element'],
             $script_ver,
             true
         );
