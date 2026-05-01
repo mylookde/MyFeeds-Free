@@ -592,22 +592,20 @@ class MyFeeds_Universal_Mapper_UI {
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
 
-        $feed_key = isset($_POST['feed_key']) ? intval(wp_unslash($_POST['feed_key'])) : 0;
-        // $_POST['mapping'] is a JSON string. json_decode does not execute code,
-        // so sanitize_text_field would corrupt the structure here.
+        $feed_key    = isset($_POST['feed_key']) ? intval(wp_unslash($_POST['feed_key'])) : 0;
         $mapping_raw = isset($_POST['mapping']) ? wp_unslash($_POST['mapping']) : '';
-        $mapping = json_decode($mapping_raw, true);
-        
-        if (!is_array($mapping)) {
+        $mapping     = self::sanitize_mapping_payload($mapping_raw);
+
+        if ($mapping === null) {
             wp_send_json_error(array('message' => 'Invalid mapping data'));
         }
-        
+
         $feeds = get_option('myfeeds_feeds', array());
-        
+
         if (!isset($feeds[$feed_key])) {
             wp_send_json_error(array('message' => 'Feed not found'));
         }
-        
+
         $feeds[$feed_key]['mapping'] = $mapping;
         $feeds[$feed_key]['last_mapping_update'] = current_time('mysql');
         $feeds[$feed_key]['mapping_source'] = 'manual';
@@ -630,13 +628,13 @@ class MyFeeds_Universal_Mapper_UI {
         $name        = isset($_POST['name']) ? sanitize_text_field(wp_unslash($_POST['name'])) : '';
         $network     = isset($_POST['network']) ? sanitize_text_field(wp_unslash($_POST['network'])) : '';
         $mapping_raw = isset($_POST['mapping']) ? wp_unslash($_POST['mapping']) : '';
-        $mapping     = json_decode($mapping_raw, true);
-        
+        $mapping     = self::sanitize_mapping_payload($mapping_raw);
+
         if (empty($name)) {
             wp_send_json_error(array('message' => 'Template name required'));
         }
-        
-        if (!is_array($mapping)) {
+
+        if ($mapping === null) {
             wp_send_json_error(array('message' => 'Invalid mapping data'));
         }
         
@@ -680,9 +678,34 @@ class MyFeeds_Universal_Mapper_UI {
         }
 
         $template_id = isset($_POST['template_id']) ? sanitize_text_field(wp_unslash($_POST['template_id'])) : '';
-        
+
         MyFeeds_Settings_Manager::delete_mapping_template($template_id);
-        
+
         wp_send_json_success(array('message' => 'Template deleted'));
+    }
+
+    /**
+     * Decode and sanitize a mapping payload coming from the editor.
+     * Mappings are flat associative arrays of standard-field => column-name.
+     * Both keys and values are sanitized as text. Returns null when the
+     * payload is missing or not a flat string map.
+     */
+    private static function sanitize_mapping_payload($raw) {
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return null;
+        }
+        $sanitized = array();
+        foreach ($decoded as $key => $value) {
+            $clean_key   = sanitize_key((string) $key);
+            $clean_value = is_scalar($value) ? sanitize_text_field((string) $value) : '';
+            if ($clean_key !== '') {
+                $sanitized[$clean_key] = $clean_value;
+            }
+        }
+        return $sanitized;
     }
 }
