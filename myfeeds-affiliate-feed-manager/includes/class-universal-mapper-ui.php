@@ -592,7 +592,11 @@ class MyFeeds_Universal_Mapper_UI {
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
 
-        $feed_key    = isset($_POST['feed_key']) ? intval(wp_unslash($_POST['feed_key'])) : 0;
+        $feed_key = isset($_POST['feed_key']) ? intval(wp_unslash($_POST['feed_key'])) : 0;
+        // mapping is JSON; sanitize_mapping_payload() unslashes were not used,
+        // sanitization happens after decode (sanitize_key on keys,
+        // sanitize_text_field on values) inside the helper.
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
         $mapping_raw = isset($_POST['mapping']) ? wp_unslash($_POST['mapping']) : '';
         $mapping     = self::sanitize_mapping_payload($mapping_raw);
 
@@ -625,8 +629,11 @@ class MyFeeds_Universal_Mapper_UI {
             wp_send_json_error(array('message' => 'Unauthorized'));
         }
 
-        $name        = isset($_POST['name']) ? sanitize_text_field(wp_unslash($_POST['name'])) : '';
-        $network     = isset($_POST['network']) ? sanitize_text_field(wp_unslash($_POST['network'])) : '';
+        $name    = isset($_POST['name']) ? sanitize_text_field(wp_unslash($_POST['name'])) : '';
+        $network = isset($_POST['network']) ? sanitize_text_field(wp_unslash($_POST['network'])) : '';
+        // mapping is JSON; sanitization happens after decode inside
+        // sanitize_mapping_payload() (sanitize_key + sanitize_text_field).
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
         $mapping_raw = isset($_POST['mapping']) ? wp_unslash($_POST['mapping']) : '';
         $mapping     = self::sanitize_mapping_payload($mapping_raw);
 

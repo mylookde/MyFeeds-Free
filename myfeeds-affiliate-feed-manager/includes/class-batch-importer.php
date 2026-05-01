@@ -458,9 +458,13 @@ class MyFeeds_Batch_Importer {
         set_time_limit(300);
         ignore_user_abort(true);
 
+        // active_ids arrives as a JSON-encoded array of integer IDs. We unslash
+        // and decode here, then cast every element to int below — the int cast
+        // is the actual sanitization step.
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
         $active_ids_raw = isset($_POST['active_ids']) ? wp_unslash($_POST['active_ids']) : '';
         // phpcs:enable WordPress.Security.NonceVerification.Missing
-        $decoded = json_decode($active_ids_raw, true);
+        $decoded = is_string($active_ids_raw) ? json_decode($active_ids_raw, true) : null;
         $active_ids = is_array($decoded) ? array_map('intval', $decoded) : array();
         
         // Fallback: Try to get from option if not in POST
