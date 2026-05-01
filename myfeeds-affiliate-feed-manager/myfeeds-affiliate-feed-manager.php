@@ -12,7 +12,6 @@
  * Requires at least: 5.8
  * Tested up to: 6.9
  * Requires PHP: 7.4
- * Network: true
  */
 
 /*

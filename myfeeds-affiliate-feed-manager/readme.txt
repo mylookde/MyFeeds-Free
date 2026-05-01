@@ -108,6 +108,10 @@ AWIN's terms of service and privacy policy apply to this data exchange:
 * Terms of Service: <https://www.awin.com/gb/legal/publisher-terms>
 * Privacy Policy: <https://www.awin.com/gb/legal/privacy-policy>
 
+= Configured product feed URL =
+
+To import products, the plugin downloads the feed file from the URL you save in the Feed Manager (for example `https://productdata.awin.com/datafeed/download/apikey/.../feed.csv`). This is a one-shot HTTP request, triggered manually when you click "Reimport" or automatically by the nightly quick sync and weekly full import cron jobs. The feed URL is set by the site administrator; the plugin does not call it on the frontend or share it with any third party. Privacy and terms of that download are governed by your affiliate network.
+
 No data is sent to any other external service. The plugin stores imported products in your own WordPress database and serves them from there; the frontend never contacts an external host to render a product.
 
 == Source Code ==
