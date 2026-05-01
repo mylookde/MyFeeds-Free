@@ -44,8 +44,10 @@ class MyFeeds_Upsell {
      * the sidebar menu is always present.
      */
     public function open_go_pro_in_new_tab() {
-        $url = esc_js(self::PRICING_URL);
-        echo "<script>(function(){var a=document.querySelector('#adminmenu a[href=\"{$url}\"]');if(a){a.target='_blank';a.rel='noopener noreferrer';}})();</script>";
+        $selector    = '#adminmenu a[href="' . self::PRICING_URL . '"]';
+        $selector_js = wp_json_encode($selector);
+        $script      = '(function(){var a=document.querySelector(' . $selector_js . ');if(a){a.target="_blank";a.rel="noopener noreferrer";}})();';
+        wp_print_inline_script_tag($script);
     }
 
     public function enqueue_dismiss_handler($hook) {
@@ -107,6 +109,9 @@ class MyFeeds_Upsell {
      * admin notice would clash with the surrounding design.
      */
     private function is_myfeeds_screen() {
+        // Reading $_GET['page'] for admin-screen detection is read-only and
+        // does not require a nonce.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
         return $page === 'myfeeds-feeds';
     }
