@@ -31,16 +31,16 @@ Pick products from your feed using the **MyFeeds – Product Picker** block in t
 * **Smart Search** — FULLTEXT search with synonym expansion, German stemming, umlaut normalisation, and gender-aware filtering.
 * **Product Picker block** — Native Gutenberg block to search, select, and display products in posts and pages.
 * **Grid layout** — Responsive product grid with prices, brands, shipping info, and affiliate links.
-* **Manual sync** — Update products on demand with a single click. A local cache keeps the frontend fast.
+* **Manual and automatic sync** — Update products on demand with a single click, plus a nightly quick refresh and a weekly full re-import via WP-Cron.
 * **Local storage** — All product data lives in your WordPress database. No external calls on the frontend.
 * **Works with any block theme** — Compatible with any WordPress theme that supports the block editor.
 
 = Free / Pro / Premium =
 
-MyFeeds is also available as paid Pro and Premium plugins from [myfeeds.site](https://myfeeds.site), which add multi-feed management, automatic daily sync, a carousel block, and a visual card design editor. The upgrade is entirely optional — the Free plugin is fully functional on its own.
+MyFeeds is also available as paid Pro and Premium plugins from [myfeeds.site](https://myfeeds.site), which add multi-feed management, a carousel block, and a visual card design editor. The upgrade is entirely optional — the Free plugin is fully functional on its own.
 
-* **Free** (this plugin) — One feed, Gutenberg grid block, smart search, manual sync.
-* **Pro** — Up to five feeds, daily auto-sync, and a carousel block.
+* **Free** (this plugin) — One feed, Gutenberg grid block, smart search, manual and automatic sync.
+* **Pro** — Up to five feeds and a carousel block.
 * **Premium** — Unlimited feeds, a visual card design editor with Google Fonts and custom font upload, and priority support.
 
 == Installation ==
@@ -110,6 +110,16 @@ AWIN's terms of service and privacy policy apply to this data exchange:
 
 No data is sent to any other external service. The plugin stores imported products in your own WordPress database and serves them from there; the frontend never contacts an external host to render a product.
 
+== Source Code ==
+
+The full source for this plugin is hosted on GitHub:
+
+* Repository: <https://github.com/mylookde/MyFeeds-Free>
+* Block editor source: `src/index.js`
+* Build tool: terser via `npm run build` (configuration in `package.json`)
+
+To rebuild the editor bundle from source, run `npm install && npm run build` inside the plugin folder.
+
 == Screenshots ==
 
 1. Feed Manager — configure one affiliate product feed with status, product count, and mapping quality.
@@ -127,6 +137,7 @@ No data is sent to any other external service. The plugin stores imported produc
 * Smart Search with FULLTEXT indexing, synonym expansion, and German-language handling.
 * MyFeeds – Product Picker Gutenberg block with a responsive grid layout.
 * Background imports via the bundled Action Scheduler library.
+* Nightly quick sync (active products) and weekly full import via WP-Cron.
 * AWIN Publisher API integration for credential and feed-URL resolution.
 
 == Upgrade Notice ==

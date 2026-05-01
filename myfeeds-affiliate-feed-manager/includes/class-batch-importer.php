@@ -4363,21 +4363,49 @@ class MyFeeds_Batch_Importer {
     }
     
     /**
-     * Trigger daily update (called by WP-Cron)
-     * Daily = Quick Sync (nur aktive Produkte aktualisieren)
+     * Trigger daily update (called by WP-Cron).
+     * Daily = Quick Sync — refresh prices/availability for actively used products only.
      */
     public function trigger_daily_update() {
-        // Auto-Sync (daily/weekly) is a Pro-tier feature. The Free plugin
-        // keeps these entry points so scheduled hooks from older installs
-        // don't fatal, but they never execute an import.
-        myfeeds_log('Auto-Sync skipped: Free plan does not include auto-sync', 'info');
+        $status = get_option(self::OPTION_IMPORT_STATUS, array());
+        if (!empty($status) && ($status['status'] ?? '') === 'running') {
+            myfeeds_log('Daily Quick Sync SKIPPED — another import is already running', 'info');
+            return;
+        }
+
+        myfeeds_log('Daily Quick Sync triggered at ' . current_time('mysql'), 'info');
+
+        update_option('myfeeds_last_auto_sync', array(
+            'type' => 'daily_quick_sync',
+            'time' => current_time('mysql'),
+            'timestamp' => time(),
+            'feed_name' => '',
+        ));
+
+        do_action(self::CENTRAL_HOOK, 'daily', array('mode' => self::MODE_ACTIVE_ONLY));
     }
 
     /**
-     * Trigger weekly full import (called by WP-Cron)
+     * Trigger weekly full import (called by WP-Cron).
+     * Weekly = Full Import — atomic rebuild of the entire feed.
      */
     public function trigger_weekly_update() {
-        myfeeds_log('Auto-Sync skipped: Free plan does not include auto-sync', 'info');
+        $status = get_option(self::OPTION_IMPORT_STATUS, array());
+        if (!empty($status) && ($status['status'] ?? '') === 'running') {
+            myfeeds_log('Weekly Full Import SKIPPED — another import is already running', 'info');
+            return;
+        }
+
+        myfeeds_log('Weekly Full Import triggered at ' . current_time('mysql'), 'info');
+
+        update_option('myfeeds_last_auto_sync', array(
+            'type' => 'weekly_full_import',
+            'time' => current_time('mysql'),
+            'timestamp' => time(),
+            'feed_name' => '',
+        ));
+
+        do_action(self::CENTRAL_HOOK, 'weekly', array('mode' => self::MODE_FULL));
     }
     
     // =========================================================================

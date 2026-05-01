@@ -168,32 +168,31 @@ if (!get_option('myfeeds_naming_migrated_v2')) {
 
 // =============================================================================
 // ONE-TIME SINGLE-FEED MIGRATION
-// The Free plugin only ever manages one feed. Installs that previously ran a
-// multi-feed Pro build can end up with leftover feeds in the myfeeds_feeds
-// option and their imported products sitting in the DB. This migration keeps
-// only the first feed in the visible slot, archives the rest under
-// myfeeds_feeds_archive (so a future Pro upgrade can restore them), and
-// purges orphan product rows via the existing cleanup helper.
+// MyFeeds manages a single feed. Installs that ran an earlier development
+// build with multiple feeds end up with leftover entries in myfeeds_feeds
+// and their imported products in the DB. This migration keeps the first
+// feed, drops the extras, removes the legacy myfeeds_feeds_archive option
+// from prior cleanups, and purges orphan product rows.
 // =============================================================================
 function myfeeds_run_single_feed_migration_v1() {
     $feeds = get_option('myfeeds_feeds', array());
 
     if (is_array($feeds) && count($feeds) > 1) {
-        $first_key  = array_key_first($feeds);
-        $kept       = array($first_key => $feeds[$first_key]);
-        $archived   = $feeds;
-        unset($archived[$first_key]);
+        $first_key = array_key_first($feeds);
+        $kept      = array($first_key => $feeds[$first_key]);
+        $dropped   = count($feeds) - 1;
 
-        update_option('myfeeds_feeds_archive', $archived);
         update_option('myfeeds_feeds', $kept);
 
-        myfeeds_log('Single-feed migration: kept "' . ($kept[$first_key]['name'] ?? $first_key) . '", archived ' . count($archived) . ' extra feed(s) to myfeeds_feeds_archive', 'info');
+        myfeeds_log('Single-feed migration: kept "' . ($kept[$first_key]['name'] ?? $first_key) . '", removed ' . $dropped . ' extra feed entry/entries', 'info');
     }
+
+    delete_option('myfeeds_feeds_archive');
 
     if (class_exists('MyFeeds_DB_Manager') && method_exists('MyFeeds_DB_Manager', 'cleanup_orphaned_products')) {
         $deleted = MyFeeds_DB_Manager::cleanup_orphaned_products();
         if ($deleted > 0) {
-            myfeeds_log("Single-feed migration: removed {$deleted} orphan product row(s) from archived feeds", 'info');
+            myfeeds_log("Single-feed migration: removed {$deleted} orphan product row(s) from dropped feeds", 'info');
         }
     }
 

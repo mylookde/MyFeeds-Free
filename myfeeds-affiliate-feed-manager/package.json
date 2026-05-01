@@ -1,0 +1,18 @@
+{
+  "name": "myfeeds-affiliate-feed-manager",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build pipeline for the MyFeeds Gutenberg block editor bundle.",
+  "license": "GPL-2.0-or-later",
+  "homepage": "https://github.com/mylookde/MyFeeds-Free",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mylookde/MyFeeds-Free.git"
+  },
+  "scripts": {
+    "build": "terser src/index.js --compress --mangle --output build/index.js"
+  },
+  "devDependencies": {
+    "terser": "^5.31.0"
+  }
+}

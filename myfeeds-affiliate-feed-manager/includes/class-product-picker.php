@@ -61,7 +61,7 @@ class MyFeeds_Product_Picker {
         $script_registered = wp_register_script(
             'myfeeds-product-picker-editor',
             MYFEEDS_PLUGIN_URL . 'build/index.js',
-            ['wp-blocks', 'wp-components', 'wp-element', 'wp-editor', 'wp-data'],
+            ['wp-blocks', 'wp-components', 'wp-element'],
             $script_ver,
             true
         );
@@ -103,22 +103,6 @@ class MyFeeds_Product_Picker {
                     'type' => 'array',
                     'default' => [],
                 ],
-                'displayMode' => [
-                    'type' => 'string',
-                    'default' => 'grid',
-                ],
-                'autoplay' => [
-                    'type' => 'boolean',
-                    'default' => false,
-                ],
-                'autoplayInterval' => [
-                    'type' => 'number',
-                    'default' => 3,
-                ],
-                'arrowColor' => [
-                    'type' => 'string',
-                    'default' => '#333333',
-                ],
             ],
         ]);
         
@@ -154,105 +138,28 @@ class MyFeeds_Product_Picker {
     public function enqueue_frontend_assets() {
         if (has_block('myfeeds/product-picker')) {
             wp_enqueue_style('myfeeds-product-picker-frontend');
-            
-            // Card design customizations (custom CSS vars, Google Fonts, @font-face)
-            // are a Premium-tier feature and intentionally not emitted in the Free plugin.
-
-
-            // Check if any product-picker block on this page uses carousel mode
-            global $post;
-            $needs_carousel = false;
-            if ($post && has_blocks($post->post_content)) {
-                $blocks = parse_blocks($post->post_content);
-                $needs_carousel = $this->blocks_need_carousel($blocks);
-            }
-            
-            if ($needs_carousel) {
-                // Splide CSS (core only — bundled locally)
-                wp_enqueue_style(
-                    'splide-core',
-                    MYFEEDS_PLUGIN_URL . 'assets/vendor/splide-core.min.css',
-                    array(),
-                    '4.1.4'
-                );
-                
-                // Splide JS (bundled locally)
-                wp_enqueue_script(
-                    'splide',
-                    MYFEEDS_PLUGIN_URL . 'assets/vendor/splide.min.js',
-                    array(),
-                    '4.1.4',
-                    true
-                );
-                
-                // Our carousel styles + shared init script. Per-block render_callback
-                // pushes a one-line init call via wp_add_inline_script() and a CSS
-                // custom-property assignment via wp_add_inline_style() — instead of
-                // emitting a fresh inline <style>/<script> per instance.
-                wp_enqueue_style('myfeeds-carousel', MYFEEDS_PLUGIN_URL . 'assets/carousel.css', array('splide-core'), MYFEEDS_VERSION);
-                wp_enqueue_script('myfeeds-carousel', MYFEEDS_PLUGIN_URL . 'assets/carousel.js', array('splide'), MYFEEDS_VERSION, true);
-            }
         }
     }
-    
-    /**
-     * Recursively check if any product-picker block uses carousel mode
-     */
-    private function blocks_need_carousel($blocks) {
-        // Carousel display is a Pro-tier feature; the Free plugin always
-        // renders as grid, so carousel assets never need to load.
-        foreach ($blocks as $block) {
-            if (!empty($block['innerBlocks'])) {
-                if ($this->blocks_need_carousel($block['innerBlocks'])) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-    
+
     /**
      * Render callback for block
      */
     public function render_callback($attrs) {
         $products = isset($attrs['selectedProducts']) ? $attrs['selectedProducts'] : array();
-        
+
         if (empty($products)) {
             return '<div class="myfeeds-no-products">' . __('No products selected.', 'myfeeds-affiliate-feed-manager') . '</div>';
         }
-        
-        // Enqueue Google Fonts properly (only once per page)
-        if (!empty($this->google_fonts_url)) {
-            wp_enqueue_style('myfeeds-google-fonts', $this->google_fonts_url, array(), null);
-            $this->google_fonts_url = ''; // Only enqueue once
-        }
-        
+
         $placeholder_url = MYFEEDS_PLUGIN_URL . 'assets/placeholder.png';
         $use_db = class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode();
-        
-        $display_mode = $attrs['displayMode'] ?? 'grid';
-        
-        // Cache card design for this render pass (avoid repeated DB reads)
+
         static $cached_card_design = null;
         if ($cached_card_design === null && class_exists('MyFeeds_Settings_Manager')) {
             $cached_card_design = MyFeeds_Settings_Manager::get_card_design();
         }
-        $autoplay = !empty($attrs['autoplay']);
-        $autoplay_interval = intval($attrs['autoplayInterval'] ?? 3);
 
-        // Carousel display mode is a Pro-tier feature.
-        $display_mode = 'grid';
-        $is_carousel = false;
-        $arrow_color = sanitize_hex_color($attrs['arrowColor'] ?? '#333333') ?: '#333333';
-        
-        if ($is_carousel) {
-            $unique_id = 'myfeeds-carousel-' . wp_unique_id();
-            $output = '<div id="' . esc_attr($unique_id) . '" class="myfeeds-product-carousel splide">';
-            $output .= '<div class="splide__track">';
-            $output .= '<div class="splide__list">';
-        } else {
-            $output = '<div class="myfeeds-product-grid">';
-        }
+        $output = '<div class="myfeeds-product-grid">';
         $rendered_count = 0;
         
         for ($idx = 0; $idx < count($products); $idx++) {
@@ -300,90 +207,30 @@ class MyFeeds_Product_Picker {
             
             if (!$product_data) {
                 myfeeds_log('PP_resolve_failed: id=' . $requested_id, 'error');
-                $placeholder_html = $this->render_missing_product_placeholder($idx, 'not_found', $requested_id);
-                $output .= $is_carousel ? '<div class="splide__slide">' . $placeholder_html . '</div>' : $placeholder_html;
+                $output .= $this->render_missing_product_placeholder($idx, 'not_found', $requested_id);
                 continue;
             }
-            
-            // Check if product is marked as unavailable
+
             if (isset($product_data['status']) && $product_data['status'] === 'unavailable') {
-                $placeholder_html = $this->render_unavailable_product_placeholder($idx, $requested_id);
-                $output .= $is_carousel ? '<div class="splide__slide">' . $placeholder_html . '</div>' : $placeholder_html;
+                $output .= $this->render_unavailable_product_placeholder($idx, $requested_id);
                 continue;
             }
-            
-            // Verify ID match
+
             $returned_id = isset($product_data['id']) ? (string)$product_data['id'] : '';
             if ($returned_id !== $requested_id && $returned_id !== '') {
                 myfeeds_log('PP_id_mismatch: requested=' . $requested_id . ', got=' . $returned_id, 'error');
-                $placeholder_html = $this->render_missing_product_placeholder($idx, 'id_mismatch', $requested_id);
-                $output .= $is_carousel ? '<div class="splide__slide">' . $placeholder_html . '</div>' : $placeholder_html;
+                $output .= $this->render_missing_product_placeholder($idx, 'id_mismatch', $requested_id);
                 continue;
             }
-            
-            $card_html = $this->render_product_card($product_data, $placeholder_url, $cached_card_design);
-            if ($is_carousel) {
-                $output .= '<div class="splide__slide">' . $card_html . '</div>';
-            } else {
-                $output .= $card_html;
-            }
+
+            $output .= $this->render_product_card($product_data, $placeholder_url, $cached_card_design);
             $rendered_count++;
         }
-        
-        if ($is_carousel) {
-            $output .= '</div>'; // Close splide__list
-            $output .= '</div>'; // Close splide__track
-            $output .= '</div>'; // Close splide container
 
-            // Per-instance arrow color is the only dynamic CSS — push a single
-            // CSS custom-property assignment scoped to this carousel's id.
-            // The static rules in assets/carousel.css read it via var().
-            $safe_color = preg_match('/^[a-zA-Z0-9#(),.\s%-]{1,64}$/', $arrow_color) ? $arrow_color : '#555';
-            wp_add_inline_style(
-                'myfeeds-carousel',
-                sprintf('#%s{--myfeeds-arrow-color:%s;}', esc_attr($unique_id), $safe_color)
-            );
+        $output .= '</div>';
 
-            // Splide options for this instance
-            $splide_options = array(
-                'type' => 'loop',
-                'perPage' => 3,
-                'perMove' => 1,
-                'gap' => '16px',
-                'pagination' => false,
-                'arrows' => true,
-                'autoHeight' => true,
-                'breakpoints' => array(
-                    768 => array('perPage' => 2),
-                    480 => array('perPage' => 2),
-                ),
-            );
-
-            if ($autoplay) {
-                $splide_options['autoplay'] = true;
-                $splide_options['interval'] = $autoplay_interval * 1000;
-                $splide_options['pauseOnHover'] = true;
-                $splide_options['pauseOnFocus'] = true;
-            }
-
-            // One-line init call against the shared MyFeedsCarousel.init() in
-            // assets/carousel.js. autoplayMs > 0 enables the smart resume handler.
-            $autoplay_ms = $autoplay ? intval($autoplay_interval) * 1000 : 0;
-            wp_add_inline_script(
-                'myfeeds-carousel',
-                sprintf(
-                    'MyFeedsCarousel.init(%s,%s,%d);',
-                    wp_json_encode($unique_id),
-                    wp_json_encode($splide_options),
-                    $autoplay_ms
-                )
-            );
-        } else {
-            $output .= '</div>'; // Close myfeeds-product-grid
-        }
-        
         myfeeds_log('PP_render_complete: total=' . count($products) . ', rendered=' . $rendered_count, 'info');
-        
+
         return $output;
     }
     

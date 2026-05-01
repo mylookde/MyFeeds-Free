@@ -82,7 +82,7 @@ class MyFeeds_Upsell {
         <div class="notice notice-info is-dismissible myfeeds-upsell-banner">
             <p>
                 <strong><?php esc_html_e('Need more than one feed?', 'myfeeds-affiliate-feed-manager'); ?></strong>
-                <?php esc_html_e('MyFeeds Pro adds multi-feed management, daily auto-sync and a carousel block.', 'myfeeds-affiliate-feed-manager'); ?>
+                <?php esc_html_e('MyFeeds Pro adds multi-feed management, a carousel block and a visual card design editor.', 'myfeeds-affiliate-feed-manager'); ?>
                 <a href="<?php echo esc_url(self::PRICING_URL); ?>" target="_blank" rel="noopener">
                     <?php esc_html_e('See plans →', 'myfeeds-affiliate-feed-manager'); ?>
                 </a>
