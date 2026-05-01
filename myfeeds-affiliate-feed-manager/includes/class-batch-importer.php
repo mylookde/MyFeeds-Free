@@ -458,8 +458,10 @@ class MyFeeds_Batch_Importer {
         set_time_limit(300);
         ignore_user_abort(true);
 
-        $active_ids = isset($_POST['active_ids']) ? json_decode(wp_unslash($_POST['active_ids']), true) : array();
+        $active_ids_raw = isset($_POST['active_ids']) ? wp_unslash($_POST['active_ids']) : '';
         // phpcs:enable WordPress.Security.NonceVerification.Missing
+        $decoded = json_decode($active_ids_raw, true);
+        $active_ids = is_array($decoded) ? array_map('intval', $decoded) : array();
         
         // Fallback: Try to get from option if not in POST
         if (empty($active_ids)) {

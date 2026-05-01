@@ -556,7 +556,9 @@ class MyFeeds_DB_Manager {
      */
     private static function log_quality_debug_sample($feed_name, $table) {
         global $wpdb;
-        
+
+        // $table is built from $wpdb->prefix + a constant string, not user input.
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter
         $sample = $wpdb->get_row($wpdb->prepare(
             "SELECT external_id, product_name, price, original_price, image_url, affiliate_link,
                     brand, category, currency, in_stock, raw_data
@@ -1173,6 +1175,8 @@ class MyFeeds_DB_Manager {
             $wpdb->query("SET SESSION innodb_lock_wait_timeout = 5");
 
             $check_start = microtime(true);
+            // $table is built from $wpdb->prefix + a constant string, not user input.
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter
             $check = $wpdb->query("SELECT 1 FROM {$table} LIMIT 1");
             $check_duration = round((microtime(true) - $check_start) * 1000);
 
