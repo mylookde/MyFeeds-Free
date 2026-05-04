@@ -188,44 +188,6 @@ if (!get_option('myfeeds_naming_migrated_v2')) {
 }
 
 // =============================================================================
-// ONE-TIME SINGLE-FEED MIGRATION
-// MyFeeds manages a single feed. Installs that ran an earlier development
-// build with multiple feeds end up with leftover entries in myfeeds_feeds
-// and their imported products in the DB. This migration keeps the first
-// feed, drops the extras, removes the legacy myfeeds_feeds_archive option
-// from prior cleanups, and purges orphan product rows.
-// =============================================================================
-function myfeeds_run_single_feed_migration_v1() {
-    $feeds = get_option('myfeeds_feeds', array());
-
-    if (is_array($feeds) && count($feeds) > 1) {
-        $first_key = array_key_first($feeds);
-        $kept      = array($first_key => $feeds[$first_key]);
-        $dropped   = count($feeds) - 1;
-
-        update_option('myfeeds_feeds', $kept);
-
-        myfeeds_log('Single-feed migration: kept "' . ($kept[$first_key]['name'] ?? $first_key) . '", removed ' . $dropped . ' extra feed entry/entries', 'info');
-    }
-
-    delete_option('myfeeds_feeds_archive');
-
-    if (class_exists('MyFeeds_DB_Manager') && method_exists('MyFeeds_DB_Manager', 'cleanup_orphaned_products')) {
-        $deleted = MyFeeds_DB_Manager::cleanup_orphaned_products();
-        if ($deleted > 0) {
-            myfeeds_log("Single-feed migration: removed {$deleted} orphan product row(s) from dropped feeds", 'info');
-        }
-    }
-
-    update_option('myfeeds_single_feed_migrated_v1', true);
-}
-add_action('plugins_loaded', function () {
-    if (!get_option('myfeeds_single_feed_migrated_v1')) {
-        myfeeds_run_single_feed_migration_v1();
-    }
-}, 30);
-
-// =============================================================================
 // ONE-TIME UPLOADS-DIR MIGRATION
 // Earlier development builds wrote index/cache files directly into the
 // uploads root. Move those into the plugin-specific subdirectory so the
