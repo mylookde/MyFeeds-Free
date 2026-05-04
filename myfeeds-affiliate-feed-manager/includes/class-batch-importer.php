@@ -1055,11 +1055,6 @@ class MyFeeds_Batch_Importer {
         if ($has_priority) {
             // First pass: Process only active products from each feed
             foreach ($feeds as $key => $feed) {
-                // Skip inactive feeds (plan limit)
-                if (isset($feed['plan_active']) && $feed['plan_active'] === false) {
-                    myfeeds_log("Skipping inactive feed: " . ($feed['name'] ?? 'unknown') . " (plan limit)", 'info');
-                    continue;
-                }
                 // Ensure stable_id exists (assign if missing)
                 if (empty($feed['stable_id'])) {
                     MyFeeds_DB_Manager::assign_stable_id($feed);
@@ -1086,11 +1081,6 @@ class MyFeeds_Batch_Importer {
         
         // Second pass: Full import
         foreach ($feeds as $key => $feed) {
-            // Skip inactive feeds (plan limit)
-            if (isset($feed['plan_active']) && $feed['plan_active'] === false) {
-                myfeeds_log("Skipping inactive feed: " . ($feed['name'] ?? 'unknown') . " (plan limit)", 'info');
-                continue;
-            }
             // Ensure stable_id exists (assign if missing)
             if (empty($feed['stable_id'])) {
                 MyFeeds_DB_Manager::assign_stable_id($feed);
@@ -1155,11 +1145,6 @@ class MyFeeds_Batch_Importer {
         $updated = false;
         
         foreach ($feeds as $key => &$feed) {
-            // Skip inactive feeds (plan limit)
-            if (isset($feed['plan_active']) && $feed['plan_active'] === false) {
-                myfeeds_log("Re-Mapping: Skipping inactive feed: " . ($feed['name'] ?? 'unknown') . " (plan limit)", 'info');
-                continue;
-            }
             $url = $feed['url'] ?? '';
             
             // Skip feeds with no URL
@@ -1415,11 +1400,6 @@ class MyFeeds_Batch_Importer {
         // Queue all feeds for import
         $queue = array();
         foreach ($feeds as $key => $feed) {
-            // Skip inactive feeds (plan limit)
-            if (isset($feed['plan_active']) && $feed['plan_active'] === false) {
-                myfeeds_log("Skipping inactive feed: " . ($feed['name'] ?? 'unknown') . " (plan limit)", 'info');
-                continue;
-            }
             // Ensure stable_id exists (assign if missing)
             if (empty($feed['stable_id'])) {
                 MyFeeds_DB_Manager::assign_stable_id($feed);
@@ -1527,11 +1507,6 @@ class MyFeeds_Batch_Importer {
         
         // Process each feed - but STOP EARLY when all IDs are found!
         foreach ($feeds as $key => $feed) {
-            // Skip inactive feeds (plan limit)
-            if (isset($feed['plan_active']) && $feed['plan_active'] === false) {
-                myfeeds_log("Skipping inactive feed: " . ($feed['name'] ?? 'unknown') . " (plan limit)", 'info');
-                continue;
-            }
             // EARLY EXIT: When all IDs found, stop immediately!
             if (empty($remaining_ids)) {
                 myfeeds_log("Quick Sync: All $total_active IDs found! Stopping early.", 'info');

@@ -15,11 +15,41 @@ class MyFeeds_Feed_Manager {
     
     const OPTION_KEY = 'myfeeds_feeds';
     const INDEX_FILE = 'myfeeds-feed-index.json';
+
+    // Free manages a single feed. The option storage stays an array for
+    // forward compatibility with the Pro drop-in replacement, but Free always
+    // writes into this fixed slot — never appended. Integer 0 keeps it
+    // compatible with existing intval-based POST handlers and array_splice.
+    const FEED_KEY = 0;
     
     private $smart_mapper;
     
     public function __construct($smart_mapper) {
         $this->smart_mapper = $smart_mapper;
+    }
+
+    /**
+     * Return the single configured feed entry, or null if none exists.
+     * Free always stores the feed at the fixed FEED_KEY slot.
+     */
+    public function get_feed() {
+        $feeds = get_option(self::OPTION_KEY, array());
+        return is_array($feeds) && isset($feeds[self::FEED_KEY]) ? $feeds[self::FEED_KEY] : null;
+    }
+
+    /**
+     * Persist the single feed entry. Always replaces the storage option with
+     * an array containing only this feed at FEED_KEY — never appends.
+     */
+    public function save_feed(array $entry) {
+        update_option(self::OPTION_KEY, array(self::FEED_KEY => $entry));
+    }
+
+    /**
+     * Delete the configured feed.
+     */
+    public function delete_feed() {
+        update_option(self::OPTION_KEY, array());
     }
     
     public function init() {
@@ -701,25 +731,23 @@ class MyFeeds_Feed_Manager {
                 wp_die(esc_html__('Security check failed', 'myfeeds-affiliate-feed-manager'));
             }
             
-            $feeds = get_option(self::OPTION_KEY, array());
-            $key = isset($_REQUEST['feed_key']) && $_REQUEST['feed_key'] !== '' ? intval($_REQUEST['feed_key']) : null;
-            
             $name = isset($_POST['feed_name']) ? sanitize_text_field(wp_unslash($_POST['feed_name'])) : '';
             $url = isset($_POST['feed_url']) ? esc_url_raw(wp_unslash($_POST['feed_url'])) : '';
             $format_hint = isset($_POST['feed_format_hint']) ? sanitize_text_field(wp_unslash($_POST['feed_format_hint'])) : '';
             $network_hint = isset($_POST['feed_network_hint']) ? sanitize_text_field(wp_unslash($_POST['feed_network_hint'])) : '';
-            
+
             if (empty($name) || empty($url)) {
                 $this->redirect_with_error(__('Feed name and URL are required.', 'myfeeds-affiliate-feed-manager'));
                 return;
             }
-            
+
             $detected_network = $this->detect_network_from_url($url);
             if (!$detected_network) {
                 $detected_network = $network_hint ? $network_hint : 'auto-detected';
             }
-            
-            // Build base entry
+
+            $existing = $this->get_feed();
+
             $entry = array(
                 'name' => $name,
                 'url' => $url,
@@ -728,46 +756,41 @@ class MyFeeds_Feed_Manager {
                 'detected_network' => $detected_network,
                 'last_updated' => current_time('mysql'),
             );
-            
-            if (is_int($key) && isset($feeds[$key])) {
-                $entry['created_at'] = $feeds[$key]['created_at'] ?? current_time('mysql');
-                $feeds[$key] = array_merge($feeds[$key], $entry);
+
+            if ($existing) {
+                $entry = array_merge($existing, $entry);
+                $entry['created_at'] = $existing['created_at'] ?? current_time('mysql');
             } else {
                 $entry['created_at'] = current_time('mysql');
                 $entry['detected_format'] = '';
                 $entry['mapping'] = array();
                 $entry['mapping_confidence'] = 0;
                 $entry['status'] = 'untested';
-                $feeds[] = $entry;
-                $key = array_key_last($feeds);
-                // Assign stable_id to new feed
-                MyFeeds_DB_Manager::assign_stable_id($feeds[$key]);
+                MyFeeds_DB_Manager::assign_stable_id($entry);
             }
-            
-            // Save immediately
-            update_option(self::OPTION_KEY, $feeds);
-            
-            // Attempt quick test
+
+            $this->save_feed($entry);
+
             $test_result = $this->quick_test_feed_url($url, $format_hint);
-            
+
             $status_msg = '';
             if (!is_wp_error($test_result)) {
-                $feeds[$key]['detected_format'] = $test_result['format'];
-                $feeds[$key]['last_test'] = current_time('mysql');
-                $feeds[$key]['status'] = 'active';
-                
+                $entry['detected_format'] = $test_result['format'];
+                $entry['last_test'] = current_time('mysql');
+                $entry['status'] = 'active';
+
                 if (!empty($test_result['sample_data'])) {
                     $mapping = $this->smart_mapper->auto_map_fields($test_result['sample_data'], $url);
                     if ($mapping) {
-                        $feeds[$key]['mapping'] = $mapping;
-                        $feeds[$key]['mapping_confidence'] = $this->smart_mapper->get_mapping_confidence($mapping);
+                        $entry['mapping'] = $mapping;
+                        $entry['mapping_confidence'] = $this->smart_mapper->get_mapping_confidence($mapping);
                     }
                 }
-                
-                update_option(self::OPTION_KEY, $feeds);
+
+                $this->save_feed($entry);
                 $this->rebuild_feed_index();
-                
-                $confidence = $feeds[$key]['mapping_confidence'] ?? 0;
+
+                $confidence = $entry['mapping_confidence'] ?? 0;
                 $status_msg = sprintf(
                     /* translators: %1$s: feed name, %2$s: detected network, %3$d: mapping confidence percentage */
                     __('Feed "%1$s" saved! Network: %2$s, Confidence: %3$d%%.', 'myfeeds-affiliate-feed-manager'),
@@ -780,9 +803,9 @@ class MyFeeds_Feed_Manager {
                     $name, $test_result->get_error_message()
                 );
             }
-            
+
             $this->redirect_with_success($status_msg);
-            
+
         } catch (\Throwable $e) {
             MyFeeds_Affiliate_Product_Picker::log("FATAL ERROR in handle_save_feed: " . $e->getMessage());
             MyFeeds_Affiliate_Product_Picker::log("Stack trace: " . $e->getTraceAsString());
@@ -802,26 +825,25 @@ class MyFeeds_Feed_Manager {
                 return;
             }
             
-            $feeds = get_option(self::OPTION_KEY, array());
-            $key = isset($_POST['feed_key']) && $_POST['feed_key'] !== '' ? intval($_POST['feed_key']) : null;
-
             $name = sanitize_text_field(wp_unslash($_POST['feed_name'] ?? ''));
             $url = esc_url_raw(wp_unslash($_POST['feed_url'] ?? ''));
             $format_hint = sanitize_text_field(wp_unslash($_POST['feed_format_hint'] ?? ''));
             $network_hint = sanitize_text_field(wp_unslash($_POST['feed_network_hint'] ?? ''));
-            
+
             if (empty($name) || empty($url)) {
                 wp_send_json_error(array('message' => __('Feed name and URL are required.', 'myfeeds-affiliate-feed-manager')));
                 return;
             }
-            
+
             // Detect network from URL or use hint
             $detected_network = $this->detect_network_from_url($url);
             if (!$detected_network) {
                 $detected_network = $network_hint ? $network_hint : 'auto-detected';
             }
-            
-            // Build base entry (saved regardless of test outcome)
+
+            $existing = $this->get_feed();
+            $action_label = $existing ? 'updated' : 'created';
+
             $entry = array(
                 'name' => $name,
                 'url' => $url,
@@ -830,51 +852,45 @@ class MyFeeds_Feed_Manager {
                 'detected_network' => $detected_network,
                 'last_updated' => current_time('mysql'),
             );
-            
-            $action_label = 'created';
-            if (is_int($key) && isset($feeds[$key])) {
-                $entry['created_at'] = $feeds[$key]['created_at'] ?? current_time('mysql');
-                $feeds[$key] = array_merge($feeds[$key], $entry);
-                $action_label = 'updated';
+
+            if ($existing) {
+                $entry = array_merge($existing, $entry);
+                $entry['created_at'] = $existing['created_at'] ?? current_time('mysql');
             } else {
                 $entry['created_at'] = current_time('mysql');
                 $entry['detected_format'] = '';
                 $entry['mapping'] = array();
                 $entry['mapping_confidence'] = 0;
                 $entry['status'] = 'untested';
-                $feeds[] = $entry;
-                $key = array_key_last($feeds);
-                // Assign stable_id to new feed
-                MyFeeds_DB_Manager::assign_stable_id($feeds[$key]);
+                MyFeeds_DB_Manager::assign_stable_id($entry);
             }
-            
-            // Save immediately so the feed is never lost
-            update_option(self::OPTION_KEY, $feeds);
-            
+
+            $this->save_feed($entry);
+
             // Now attempt quick test (partial download, fast)
             $test_result = $this->quick_test_feed_url($url, $format_hint);
-            
+
             $warning = '';
             if (is_wp_error($test_result)) {
                 // Test failed — feed is saved but untested. Start background import anyway.
-                $feeds[$key]['status'] = 'untested';
-                update_option(self::OPTION_KEY, $feeds);
-                
-                // Trigger background import for this new feed
+                $entry['status'] = 'untested';
+                $this->save_feed($entry);
+
+                // Trigger background import for newly created feeds
                 $import_scheduled = false;
                 if ($action_label === 'created') {
                     $importer = new \MyFeeds_Batch_Importer();
-                    $import_scheduled = $importer->schedule_new_feed_import($key);
+                    $import_scheduled = $importer->schedule_new_feed_import(self::FEED_KEY);
                     if ($import_scheduled) {
-                        $feeds[$key]['status'] = 'importing';
-                        update_option(self::OPTION_KEY, $feeds);
+                        $entry['status'] = 'importing';
+                        $this->save_feed($entry);
                     }
                 }
-                
-                $import_hint = $import_scheduled 
+
+                $import_hint = $import_scheduled
                     ? __(' Importing products in the background...', 'myfeeds-affiliate-feed-manager')
                     : __(' The feed will be imported during the next "Update All Feeds".', 'myfeeds-affiliate-feed-manager');
-                
+
                 wp_send_json_success(array(
                     'message' => sprintf(
                         /* translators: %1$s: feed name, %2$s: action label, %3$s: error message, %4$s: import hint */
@@ -884,39 +900,39 @@ class MyFeeds_Feed_Manager {
                     'action' => $action_label,
                     'status' => 'untested',
                     'import_scheduled' => $import_scheduled,
-                    'feed_key' => $key,
+                    'feed_key' => self::FEED_KEY,
                     'detected_network' => $detected_network,
                 ));
                 return;
             }
-            
+
             // Update feed with test results
-            $feeds[$key]['detected_format'] = $test_result['format'];
-            $feeds[$key]['last_test'] = current_time('mysql');
-            $feeds[$key]['status'] = 'active';
-            
+            $entry['detected_format'] = $test_result['format'];
+            $entry['last_test'] = current_time('mysql');
+            $entry['status'] = 'active';
+
             // Try mapping if sample data was parsed
             if (!empty($test_result['sample_data'])) {
                 $mapping = $this->smart_mapper->auto_map_fields($test_result['sample_data'], $url);
                 if ($mapping) {
-                    $feeds[$key]['mapping'] = $mapping;
-                    $feeds[$key]['mapping_confidence'] = $this->smart_mapper->get_mapping_confidence($mapping);
+                    $entry['mapping'] = $mapping;
+                    $entry['mapping_confidence'] = $this->smart_mapper->get_mapping_confidence($mapping);
                 }
-                
+
                 // Update detected_network from Smart Mapper if it detected a different network
                 // (e.g. URL says "admitad" but fields say "google_shopping")
                 $mapper_network = $this->smart_mapper->get_last_detected_network();
                 if (!empty($mapper_network) && $mapper_network !== $detected_network) {
                     myfeeds_log("Network override: Smart Mapper detected '{$mapper_network}' (URL suggested '{$detected_network}')", 'info');
                     $detected_network = $mapper_network;
-                    $feeds[$key]['detected_network'] = $detected_network;
+                    $entry['detected_network'] = $detected_network;
                 }
             } else {
                 $warning = __(' Sample parsing incomplete (large feed) — full mapping will run during import.', 'myfeeds-affiliate-feed-manager');
             }
-            
-            update_option(self::OPTION_KEY, $feeds);
-            
+
+            $this->save_feed($entry);
+
             // Rebuild index — wrapped in try/catch so feed creation always succeeds
             try {
                 $this->rebuild_feed_index();
@@ -924,19 +940,19 @@ class MyFeeds_Feed_Manager {
                 myfeeds_log("Warning: rebuild_feed_index failed after save: " . $e->getMessage(), 'error');
                 $warning .= __(' Index rebuild failed, products will sync during background import.', 'myfeeds-affiliate-feed-manager');
             }
-            
+
             // Trigger background import for newly created feeds
             $import_scheduled = false;
             if ($action_label === 'created') {
                 $importer = new \MyFeeds_Batch_Importer();
-                $import_scheduled = $importer->schedule_new_feed_import($key);
+                $import_scheduled = $importer->schedule_new_feed_import(self::FEED_KEY);
                 if ($import_scheduled) {
-                    $feeds[$key]['status'] = 'importing';
-                    update_option(self::OPTION_KEY, $feeds);
+                    $entry['status'] = 'importing';
+                    $this->save_feed($entry);
                 }
             }
-            
-            $confidence = $feeds[$key]['mapping_confidence'] ?? 0;
+
+            $confidence = $entry['mapping_confidence'] ?? 0;
             $confidence_message = '';
             if ($confidence >= 80) {
                 $confidence_message = __(' Excellent field mapping detected!', 'myfeeds-affiliate-feed-manager');
@@ -961,10 +977,10 @@ class MyFeeds_Feed_Manager {
                 'action' => $action_label,
                 'status' => 'active',
                 'import_scheduled' => $import_scheduled,
-                'feed_key' => $key,
+                'feed_key' => self::FEED_KEY,
                 'detected_network' => $detected_network,
             ));
-            
+
         } catch (\Throwable $e) {
             MyFeeds_Affiliate_Product_Picker::log("FATAL ERROR in handle_save_feed_ajax: " . $e->getMessage());
             wp_send_json_error(array('message' => __('A system error occurred: ', 'myfeeds-affiliate-feed-manager') . $e->getMessage()));
@@ -3085,45 +3101,4 @@ class MyFeeds_Feed_Manager {
         <?php
     }
     
-    public function add_feed($url, $name = '') {
-        myfeeds_log("📡 FEED MANAGEMENT: Starting add_feed operation for URL: " . substr($url, 0, 50), 'info');
-        
-        try {
-            if (empty($url)) {
-                myfeeds_log("❌ FEED MANAGEMENT: Empty URL provided for add_feed", 'error');
-                throw new Exception('Feed URL cannot be empty');
-            }
-            
-            $feeds = get_option('myfeeds_feeds', array());
-            
-            if (!is_array($feeds)) {
-                myfeeds_log("⚠️ FEED MANAGEMENT: Feeds option is not an array, resetting", 'debug');
-                $feeds = array();
-            }
-            
-            $feed_id = md5($url);
-            $feeds[$feed_id] = array(
-                'url' => $url,
-                'name' => $name ?: 'Feed ' . gmdate('Y-m-d H:i:s'),
-                'added' => current_time('mysql'),
-                'last_update' => null,
-                'status' => 'active'
-            );
-            
-            $result = update_option('myfeeds_feeds', $feeds);
-            
-            if ($result) {
-                myfeeds_log("✅ FEED MANAGEMENT: Successfully added feed with ID: " . $feed_id, 'info');
-                return $feed_id;
-            } else {
-                myfeeds_log("❌ FEED MANAGEMENT: Failed to update option myfeeds_feeds", 'error');
-                throw new Exception('Failed to save feed to database');
-            }
-            
-        } catch (Exception $e) {
-            myfeeds_log("🚨 FEED MANAGEMENT CRITICAL ERROR: " . $e->getMessage(), 'error');
-            myfeeds_log("🚨 FEED MANAGEMENT STACK TRACE: " . $e->getTraceAsString(), 'error');
-            throw $e;
-        }
-    }
 }
