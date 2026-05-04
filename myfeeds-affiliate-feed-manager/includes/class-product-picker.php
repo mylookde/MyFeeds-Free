@@ -161,7 +161,8 @@ class MyFeeds_Product_Picker {
 
         $output = '<div class="myfeeds-product-grid">';
         $rendered_count = 0;
-        
+        $rendered_products = array();
+
         for ($idx = 0; $idx < count($products); $idx++) {
             $current_item = $products[$idx];
             $product_data = null;
@@ -224,10 +225,19 @@ class MyFeeds_Product_Picker {
             }
 
             $output .= $this->render_product_card($product_data, $placeholder_url, $cached_card_design);
+            $rendered_products[] = $product_data;
             $rendered_count++;
         }
 
         $output .= '</div>';
+
+        // Schema.org JSON-LD ItemList — Google reads this and surfaces the
+        // cards as a product list with rich snippets. Keep it after the
+        // grid so the visual content always renders even if the schema
+        // module is missing for some reason.
+        if (class_exists('MyFeeds_Schema_Generator') && !empty($rendered_products)) {
+            $output .= MyFeeds_Schema_Generator::product_list_jsonld($rendered_products);
+        }
 
         myfeeds_log('PP_render_complete: total=' . count($products) . ', rendered=' . $rendered_count, 'info');
 

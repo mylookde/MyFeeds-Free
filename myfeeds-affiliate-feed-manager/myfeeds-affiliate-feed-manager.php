@@ -297,6 +297,7 @@ function myfeeds_load_includes() {
         'class-feed-manager.php' => 'Feed Manager Class',
         'class-contact-page.php' => 'Custom Contact Page',
         'class-upsell.php'       => 'Free-to-Pro Upsell Surfaces',
+        'class-schema-generator.php' => 'Schema.org JSON-LD Generator',
         'class-product-picker.php' => 'Product Picker Class',
         'class-product-resolver.php' => 'Product Resolver (Multi-Source Fallback)',
         'class-atomic-index-manager.php' => 'Atomic Index Manager',
