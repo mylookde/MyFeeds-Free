@@ -775,8 +775,7 @@ class MyFeeds_Batch_Importer {
      * Only used for Full Update priority pass, NOT for Quick Sync
      */
     private function get_ids_from_existing_index(&$product_ids) {
-        $upload_dir = wp_upload_dir();
-        $index_path = $upload_dir['basedir'] . '/' . self::INDEX_FILE;
+        $index_path = myfeeds_uploads_dir() . '/' . self::INDEX_FILE;
         
         if (file_exists($index_path)) {
             $index_data = json_decode(file_get_contents($index_path), true);
@@ -1511,8 +1510,7 @@ class MyFeeds_Batch_Importer {
         update_option(self::OPTION_IMPORT_STATUS, $status, false);
         
         // Load existing index for update (JSON mode only)
-        $upload_dir = wp_upload_dir();
-        $index_path = $upload_dir['basedir'] . '/' . self::INDEX_FILE;
+        $index_path = myfeeds_uploads_dir() . '/' . self::INDEX_FILE;
         $use_db = MyFeeds_DB_Manager::is_db_mode();
         $existing_data = array('__search_fields' => array(), 'items' => array());
         $items = array();
@@ -3247,12 +3245,11 @@ class MyFeeds_Batch_Importer {
         $header = str_getcsv(array_shift($lines));
         
         // Bestimme welchen Index wir verwenden
-        $upload_dir = wp_upload_dir();
         $batch_items = array();
-        
+
         if ($mode === self::MODE_ACTIVE_ONLY) {
             // ACTIVE_ONLY: Lese den Haupt-Index für In-Place-Updates
-            $index_path = $upload_dir['basedir'] . '/' . self::INDEX_FILE;
+            $index_path = myfeeds_uploads_dir() . '/' . self::INDEX_FILE;
             $existing_data = array('__search_fields' => array(), 'items' => array());
             
             if (file_exists($index_path)) {
@@ -3391,7 +3388,7 @@ class MyFeeds_Batch_Importer {
                     'merchant' => 1,
                     'attributes.color' => 2,
                 );
-                $index_path = $upload_dir['basedir'] . '/' . self::INDEX_FILE;
+                $index_path = myfeeds_uploads_dir() . '/' . self::INDEX_FILE;
                 file_put_contents($index_path, json_encode($existing_data), LOCK_EX);
             }
         } else {
@@ -3601,8 +3598,7 @@ class MyFeeds_Batch_Importer {
      * Uses JSONL streaming — never loads full building index into RAM.
      */
     private function mark_missing_active_products_in_building_index() {
-        $upload_dir = wp_upload_dir();
-        $active_path = $upload_dir['basedir'] . '/' . MyFeeds_Atomic_Index_Manager::INDEX_FILE_ACTIVE;
+        $active_path = myfeeds_uploads_dir() . '/' . MyFeeds_Atomic_Index_Manager::INDEX_FILE_ACTIVE;
         
         if (!file_exists($active_path)) {
             return;
@@ -3758,9 +3754,7 @@ class MyFeeds_Batch_Importer {
             MyFeeds_Logger::info("=== SINGLE-FEED IMPORT COMPLETE ===");
             return;
         }
-        
-        $upload_dir = wp_upload_dir();
-        
+
         // =====================================================================
         // MODE_ACTIVE_ONLY: Quick Sync — merges into active index (no full rebuild)
         // =====================================================================

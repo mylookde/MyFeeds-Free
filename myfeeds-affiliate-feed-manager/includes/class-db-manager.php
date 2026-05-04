@@ -1603,8 +1603,7 @@ class MyFeeds_DB_Manager {
      * @return int Number of products migrated
      */
     public static function migrate_from_json() {
-        $upload_dir = wp_upload_dir();
-        $json_path = $upload_dir['basedir'] . '/myfeeds-feed-index.json';
+        $json_path = myfeeds_uploads_dir() . '/myfeeds-feed-index.json';
 
         if (!file_exists($json_path)) {
             self::log('migration_skipped', array('reason' => 'json_not_found'));
