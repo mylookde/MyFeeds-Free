@@ -44,6 +44,28 @@ define('MYFEEDS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('MYFEEDS_PLUGIN_FILE', __FILE__);
 
 // =============================================================================
+// PLUGIN UPLOADS DIRECTORY
+// All plugin-managed files (index, cache, etc.) live in a plugin-specific
+// subdirectory under wp-content/uploads/, never directly in the uploads root.
+// =============================================================================
+function myfeeds_uploads_dir() {
+    static $dir = null;
+    if ($dir === null) {
+        $upload_dir = wp_upload_dir();
+        $dir = trailingslashit($upload_dir['basedir']) . 'myfeeds';
+        if (!file_exists($dir)) {
+            wp_mkdir_p($dir);
+        }
+        $index_file = $dir . '/index.html';
+        if (!file_exists($index_file)) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Plain empty file, no WP_Filesystem dependency needed during early boot
+            @file_put_contents($index_file, '');
+        }
+    }
+    return $dir;
+}
+
+// =============================================================================
 // CENTRAL LOG-LEVEL SYSTEM
 // Levels: 'error' (only errors), 'info' (+ summaries), 'debug' (everything)
 // Set via MyFeeds → Settings → Log Level. Default for new installs: 'info'
@@ -202,6 +224,50 @@ add_action('plugins_loaded', function () {
         myfeeds_run_single_feed_migration_v1();
     }
 }, 30);
+
+// =============================================================================
+// ONE-TIME UPLOADS-DIR MIGRATION
+// Earlier development builds wrote index/cache files directly into the
+// uploads root. Move those into the plugin-specific subdirectory so the
+// uploads root stays clean and the plugin no longer leaves orphan files
+// behind on uninstall.
+// =============================================================================
+function myfeeds_run_uploads_dir_migration_v1() {
+    $new_dir = myfeeds_uploads_dir();
+    $upload  = wp_upload_dir();
+    $base    = trailingslashit($upload['basedir']);
+
+    $files = array(
+        'myfeeds-feed-index.json',
+        'myfeeds-feed-index-building.jsonl',
+        'myfeeds-feed-index-building.json',
+        'myfeeds-feed-index-backup.json',
+    );
+
+    foreach ($files as $name) {
+        $old = $base . $name;
+        $new = trailingslashit($new_dir) . $name;
+        if (file_exists($old) && !file_exists($new)) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- rename() is the correct atomic move on local filesystems
+            @rename($old, $new);
+        }
+    }
+
+    $old_cache = $base . 'myfeeds-cache';
+    $new_cache = trailingslashit($new_dir) . 'cache';
+    if (is_dir($old_cache) && !is_dir($new_cache)) {
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Directory move
+        @rename($old_cache, $new_cache);
+    }
+
+    update_option('myfeeds_uploads_migrated_v1', true);
+    myfeeds_log('Uploads dir migration complete: files moved to ' . $new_dir, 'info');
+}
+add_action('plugins_loaded', function () {
+    if (!get_option('myfeeds_uploads_migrated_v1')) {
+        myfeeds_run_uploads_dir_migration_v1();
+    }
+}, 25);
 
 // Ensure DB mode option is set on load (for fresh installs or upgrades)
 add_action('admin_init', function() {
@@ -517,8 +583,12 @@ class MyFeeds_Affiliate_Product_Picker {
     
     public function activate() {
         myfeeds_log("Plugin activation started");
-        
+
         try {
+            // Eagerly create the plugin uploads subdirectory so cron jobs and
+            // imports never race against directory creation on first run.
+            myfeeds_uploads_dir();
+
             $this->create_database_tables();
             $this->set_default_options();
             

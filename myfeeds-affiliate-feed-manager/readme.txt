@@ -1,5 +1,5 @@
 === MyFeeds — Affiliate Product Feed Manager ===
-Contributors: mylookde
+Contributors: myfeeds
 Tags: affiliate, product feeds, gutenberg, product picker, awin
 Requires at least: 5.8
 Tested up to: 6.9
@@ -92,7 +92,7 @@ Yes — see **External Services** below. In short: when you add an AWIN feed, th
 
 == External Services ==
 
-This plugin connects to one external service, the official AWIN Publisher API, and only when the site administrator chooses to use it.
+This plugin connects to external services only when the site administrator chooses to configure a feed that uses them. No external services are contacted on the frontend or for visitors.
 
 = AWIN Publisher API =
 
@@ -105,12 +105,23 @@ When you add an AWIN feed in the WordPress admin, the plugin calls the AWIN Publ
 
 AWIN's terms of service and privacy policy apply to this data exchange:
 
-* Terms of Service: <https://www.awin.com/gb/legal/publisher-terms>
+* Terms of Service: <https://www.awin.com/gb/publisher-terms>
 * Privacy Policy: <https://www.awin.com/gb/legal/privacy-policy>
 
-= Configured product feed URL =
+= Configured product feed URL (any affiliate network) =
 
-To import products, the plugin downloads the feed file from the URL you save in the Feed Manager (for example `https://productdata.awin.com/datafeed/download/apikey/.../feed.csv`). This is a one-shot HTTP request, triggered manually when you click "Reimport" or automatically by the nightly quick sync and weekly full import cron jobs. The feed URL is set by the site administrator; the plugin does not call it on the frontend or share it with any third party. Privacy and terms of that download are governed by your affiliate network.
+To import products, the plugin downloads the feed file from the URL you save in the Feed Manager. The feed URL points to your affiliate network's product feed export — for example AWIN (`https://productdata.awin.com/...`), Tradedoubler (`https://fr.tradedoubler.com/...`), Webgains, Rakuten, Admitad, or any other network that hands you a CSV/TSV/XML/JSON feed URL.
+
+* **What data is sent:** an HTTP GET request to the feed URL with a `User-Agent` header identifying the WordPress site and plugin version. No publisher credentials, user data, or visitor data are sent in the request body.
+* **When it is sent:** in the WordPress admin only, when you click "Reimport", and on the configured cron schedule (nightly quick sync and weekly full import). The frontend never calls the feed URL.
+* **Where it is sent:** to the host in the feed URL you configure. The plugin does not share that URL with any third party.
+
+Because the feed URL itself is provided by an affiliate network, the privacy and terms of that download are governed by that network. The two networks listed in our test matrix publish their terms and privacy policies at:
+
+* **Tradedoubler** — Terms: <https://www.tradedoubler.com/terms-conditions>, Privacy Policy: <https://www.tradedoubler.com/privacy-policy>
+* **AWIN** — Terms: <https://www.awin.com/gb/publisher-terms>, Privacy Policy: <https://www.awin.com/gb/legal/privacy-policy>
+
+If you configure a feed URL from a different network (Webgains, Rakuten, Admitad, etc.), the terms and privacy policy of that network apply to the feed download. Please refer to your network's documentation.
 
 No data is sent to any other external service. The plugin stores imported products in your own WordPress database and serves them from there; the frontend never contacts an external host to render a product.
 

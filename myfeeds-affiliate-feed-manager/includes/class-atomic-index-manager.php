@@ -49,11 +49,10 @@ class MyFeeds_Atomic_Index_Manager {
      * @return bool True on success
      */
     public static function start_atomic_rebuild() {
-        $upload_dir = wp_upload_dir();
-        $building_path = $upload_dir['basedir'] . '/' . self::INDEX_FILE_BUILDING;
-        
+        $building_path = myfeeds_uploads_dir() . '/' . self::INDEX_FILE_BUILDING;
+
         // Also clean up legacy JSON building index if present
-        $legacy_path = $upload_dir['basedir'] . '/myfeeds-feed-index-building.json';
+        $legacy_path = myfeeds_uploads_dir() . '/myfeeds-feed-index-building.json';
         if (file_exists($legacy_path)) {
             wp_delete_file($legacy_path);
         }
@@ -88,9 +87,8 @@ class MyFeeds_Atomic_Index_Manager {
             return 0;
         }
         
-        $upload_dir = wp_upload_dir();
-        $building_path = $upload_dir['basedir'] . '/' . self::INDEX_FILE_BUILDING;
-        
+        $building_path = myfeeds_uploads_dir() . '/' . self::INDEX_FILE_BUILDING;
+
         if (!file_exists($building_path)) {
             self::log('add_items_failed', array('reason' => 'building_index_missing'));
             return 0;
@@ -145,10 +143,10 @@ class MyFeeds_Atomic_Index_Manager {
      * @return bool True on success, false if building index is missing or empty
      */
     public static function complete_atomic_rebuild() {
-        $upload_dir = wp_upload_dir();
-        $active_path   = $upload_dir['basedir'] . '/' . self::INDEX_FILE_ACTIVE;
-        $building_path = $upload_dir['basedir'] . '/' . self::INDEX_FILE_BUILDING;
-        $backup_path   = $upload_dir['basedir'] . '/' . self::INDEX_FILE_BACKUP;
+        $base = myfeeds_uploads_dir();
+        $active_path   = $base . '/' . self::INDEX_FILE_ACTIVE;
+        $building_path = $base . '/' . self::INDEX_FILE_BUILDING;
+        $backup_path   = $base . '/' . self::INDEX_FILE_BACKUP;
         
         // --- Validate building index exists ---
         if (!file_exists($building_path) || filesize($building_path) === 0) {
@@ -293,15 +291,15 @@ class MyFeeds_Atomic_Index_Manager {
      * Removes the building index file and resets status.
      */
     public static function abort_rebuild() {
-        $upload_dir = wp_upload_dir();
-        $building_path = $upload_dir['basedir'] . '/' . self::INDEX_FILE_BUILDING;
-        
+        $base = myfeeds_uploads_dir();
+        $building_path = $base . '/' . self::INDEX_FILE_BUILDING;
+
         if (file_exists($building_path)) {
             wp_delete_file($building_path);
         }
-        
+
         // Also clean up legacy JSON building index
-        $legacy_path = $upload_dir['basedir'] . '/myfeeds-feed-index-building.json';
+        $legacy_path = $base . '/myfeeds-feed-index-building.json';
         if (file_exists($legacy_path)) {
             wp_delete_file($legacy_path);
         }
@@ -332,8 +330,7 @@ class MyFeeds_Atomic_Index_Manager {
      * @return array Set of product IDs found in building index [id => true]
      */
     public static function get_building_product_ids() {
-        $upload_dir = wp_upload_dir();
-        $building_path = $upload_dir['basedir'] . '/' . self::INDEX_FILE_BUILDING;
+        $building_path = myfeeds_uploads_dir() . '/' . self::INDEX_FILE_BUILDING;
         
         if (!file_exists($building_path)) {
             return array();
@@ -373,8 +370,7 @@ class MyFeeds_Atomic_Index_Manager {
      * @return int Total number of items in active index after merge
      */
     public static function merge_into_active($keyed_items) {
-        $upload_dir = wp_upload_dir();
-        $active_path = $upload_dir['basedir'] . '/' . self::INDEX_FILE_ACTIVE;
+        $active_path = myfeeds_uploads_dir() . '/' . self::INDEX_FILE_ACTIVE;
         
         // Load active index
         $index = array(
@@ -431,8 +427,7 @@ class MyFeeds_Atomic_Index_Manager {
      * Get active index stats
      */
     public static function get_active_stats() {
-        $upload_dir = wp_upload_dir();
-        $active_path = $upload_dir['basedir'] . '/' . self::INDEX_FILE_ACTIVE;
+        $active_path = myfeeds_uploads_dir() . '/' . self::INDEX_FILE_ACTIVE;
         
         if (!file_exists($active_path)) {
             return array('exists' => false, 'count' => 0);
@@ -453,9 +448,8 @@ class MyFeeds_Atomic_Index_Manager {
      */
     public static function get_building_stats() {
         $status = get_option(self::OPTION_BUILD_STATUS, array());
-        
-        $upload_dir = wp_upload_dir();
-        $building_path = $upload_dir['basedir'] . '/' . self::INDEX_FILE_BUILDING;
+
+        $building_path = myfeeds_uploads_dir() . '/' . self::INDEX_FILE_BUILDING;
         $exists = file_exists($building_path);
         
         return array(

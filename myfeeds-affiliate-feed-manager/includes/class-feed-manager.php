@@ -1542,8 +1542,8 @@ class MyFeeds_Feed_Manager {
         // JSON MODE: Original in-memory search (unchanged below)
         // =====================================================================
         myfeeds_log("REST Search called with query: " . $query, 'debug');
-        
-        $index_path = wp_upload_dir()['basedir'] . '/' . self::INDEX_FILE;
+
+        $index_path = myfeeds_uploads_dir() . '/' . self::INDEX_FILE;
         if (!file_exists($index_path) || filemtime($index_path) < time() - DAY_IN_SECONDS) {
             $this->rebuild_feed_index();
         }
@@ -2096,8 +2096,8 @@ class MyFeeds_Feed_Manager {
             'color' => $color,
             'image_url' => $image_url ? substr($image_url, 0, 50) : '',
         ));
-        
-        $index_path = wp_upload_dir()['basedir'] . '/' . self::INDEX_FILE;
+
+        $index_path = myfeeds_uploads_dir() . '/' . self::INDEX_FILE;
         
         if (!file_exists($index_path)) {
             $this->log_api_debug('single_product_error', array(
@@ -2261,8 +2261,7 @@ class MyFeeds_Feed_Manager {
             }
             myfeeds_log('Feed index written to DB (' . count($items) . ' total items)', 'info');
         } else {
-            $upload = wp_upload_dir();
-            $path = $upload['basedir'] . '/' . self::INDEX_FILE;
+            $path = myfeeds_uploads_dir() . '/' . self::INDEX_FILE;
 
             $output = array(
                 '__search_fields' => $search_fields,

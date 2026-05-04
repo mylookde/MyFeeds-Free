@@ -381,10 +381,9 @@ function myfeeds_get_cache_dir() {
         return $cache_dir;
     }
     
-    // Option 1: WordPress uploads directory (most reliable on shared hosting)
-    if (function_exists('wp_upload_dir')) {
-        $upload_dir = wp_upload_dir();
-        $candidate = $upload_dir['basedir'] . '/myfeeds-cache';
+    // Option 1: Plugin-specific uploads subdirectory (most reliable on shared hosting)
+    if (function_exists('wp_upload_dir') && function_exists('myfeeds_uploads_dir')) {
+        $candidate = myfeeds_uploads_dir() . '/cache';
         if (is_dir($candidate) || wp_mkdir_p($candidate)) {
             $cache_dir = $candidate;
             return $cache_dir;

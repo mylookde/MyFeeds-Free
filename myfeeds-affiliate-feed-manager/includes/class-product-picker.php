@@ -148,7 +148,7 @@ class MyFeeds_Product_Picker {
         $products = isset($attrs['selectedProducts']) ? $attrs['selectedProducts'] : array();
 
         if (empty($products)) {
-            return '<div class="myfeeds-no-products">' . __('No products selected.', 'myfeeds-affiliate-feed-manager') . '</div>';
+            return '<div class="myfeeds-no-products">' . esc_html__('No products selected.', 'myfeeds-affiliate-feed-manager') . '</div>';
         }
 
         $placeholder_url = MYFEEDS_PLUGIN_URL . 'assets/placeholder.png';
@@ -494,7 +494,7 @@ class MyFeeds_Product_Picker {
                     } elseif ($price > 0) {
                         $card_html .= '<span class="myfeeds-current-price">' . $this->format_price($price, $currency_symbol) . '</span>';
                     } else {
-                        $card_html .= '<span class="myfeeds-price-unavailable">' . __('Price on request', 'myfeeds-affiliate-feed-manager') . '</span>';
+                        $card_html .= '<span class="myfeeds-price-unavailable">' . esc_html__('Price on request', 'myfeeds-affiliate-feed-manager') . '</span>';
                     }
                     $card_html .= '</div>';
                     break;
@@ -547,39 +547,35 @@ class MyFeeds_Product_Picker {
      * Format shipping information
      */
     private function format_shipping_info($shipping_raw, $currency_symbol) {
-        // If shipping data is empty or null, return fallback text
-        if (empty($shipping_raw)) { 
-            return __('Shipping costs may apply', 'myfeeds-affiliate-feed-manager'); 
+        // Returns HTML-safe text suitable for direct concatenation into markup.
+
+        if (empty($shipping_raw)) {
+            return esc_html__('Shipping costs may apply', 'myfeeds-affiliate-feed-manager');
         }
-        
-        // Handle numeric shipping costs
+
         if (is_numeric($shipping_raw)) {
             $shipping_val = floatval($shipping_raw);
-            return $shipping_val > 0 
+            return $shipping_val > 0
                 /* translators: %s: formatted shipping cost with currency */
-                ? sprintf(__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), $this->format_price($shipping_val, $currency_symbol))
-                : __('Free Shipping', 'myfeeds-affiliate-feed-manager');
+                ? sprintf(esc_html__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), esc_html($this->format_price($shipping_val, $currency_symbol)))
+                : esc_html__('Free Shipping', 'myfeeds-affiliate-feed-manager');
         }
-        
-        // Handle complex shipping formats like "DE::Ground:3.49" or "0.00"
+
         if (is_string($shipping_raw)) {
-            // Check if string contains "free" (case insensitive)
             if (stripos($shipping_raw, 'free') !== false) {
-                return __('Free Shipping', 'myfeeds-affiliate-feed-manager');
+                return esc_html__('Free Shipping', 'myfeeds-affiliate-feed-manager');
             }
-            
-            // Try to extract numeric value from string
+
             if (preg_match('/(\d+\.?\d*)/', $shipping_raw, $matches)) {
                 $val = floatval($matches[1]);
-                return $val > 0 
+                return $val > 0
                     /* translators: %s: formatted shipping cost with currency */
-                    ? sprintf(__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), $this->format_price($val, $currency_symbol))
-                    : __('Free Shipping', 'myfeeds-affiliate-feed-manager');
+                    ? sprintf(esc_html__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), esc_html($this->format_price($val, $currency_symbol)))
+                    : esc_html__('Free Shipping', 'myfeeds-affiliate-feed-manager');
             }
         }
-        
-        // Default fallback
-        return __('Shipping costs may apply', 'myfeeds-affiliate-feed-manager');
+
+        return esc_html__('Shipping costs may apply', 'myfeeds-affiliate-feed-manager');
     }
 }
 
@@ -594,8 +590,7 @@ function myfeeds_get_single_product($id) {
     }
     
     // JSON mode: file-based lookup
-    $upload = wp_upload_dir();
-    $index_path = $upload['basedir'] . '/myfeeds-feed-index.json';
+    $index_path = myfeeds_uploads_dir() . '/myfeeds-feed-index.json';
     if (!file_exists($index_path)) { return null; }
     $index = json_decode(file_get_contents($index_path), true);
     if (!is_array($index) || !isset($index['items'])) { return null; }

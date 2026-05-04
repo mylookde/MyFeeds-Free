@@ -234,7 +234,7 @@ class MyFeeds_Product_Resolver {
      */
     private static function search_feed_for_product($feed_url, $product_id, $mapping) {
         $cache_key = 'myfeeds_content_' . md5($feed_url);
-        $cache_file = wp_upload_dir()['basedir'] . '/myfeeds-cache/' . $cache_key . '.txt';
+        $cache_file = myfeeds_uploads_dir() . '/cache/' . $cache_key . '.txt';
         
         $content = null;
         if (file_exists($cache_file) && (time() - filemtime($cache_file)) < 3600) {
@@ -392,11 +392,11 @@ class MyFeeds_Product_Resolver {
     // =========================================================================
     
     public static function get_active_index_path() {
-        return wp_upload_dir()['basedir'] . '/' . self::INDEX_FILE_ACTIVE;
+        return myfeeds_uploads_dir() . '/' . self::INDEX_FILE_ACTIVE;
     }
-    
+
     public static function get_building_index_path() {
-        return wp_upload_dir()['basedir'] . '/' . self::INDEX_FILE_BUILDING;
+        return myfeeds_uploads_dir() . '/' . self::INDEX_FILE_BUILDING;
     }
     
     /**
