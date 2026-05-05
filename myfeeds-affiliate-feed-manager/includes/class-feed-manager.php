@@ -16,33 +16,29 @@ class MyFeeds_Feed_Manager {
     const OPTION_KEY = 'myfeeds_feeds';
     const INDEX_FILE = 'myfeeds-feed-index.json';
 
-    // Free manages a single feed. The option storage stays an array for
-    // forward compatibility with the Pro drop-in replacement, but Free always
-    // writes into this fixed slot — never appended. Integer 0 keeps it
-    // compatible with existing intval-based POST handlers and array_splice.
-    const FEED_KEY = 0;
-    
     private $smart_mapper;
-    
+
     public function __construct($smart_mapper) {
         $this->smart_mapper = $smart_mapper;
     }
 
     /**
-     * Return the single configured feed entry, or null if none exists.
-     * Free always stores the feed at the fixed FEED_KEY slot.
+     * Return the configured feed entry, or null if none exists.
      */
     public function get_feed() {
         $feeds = get_option(self::OPTION_KEY, array());
-        return is_array($feeds) && isset($feeds[self::FEED_KEY]) ? $feeds[self::FEED_KEY] : null;
+        if (!is_array($feeds) || empty($feeds)) {
+            return null;
+        }
+        $first = reset($feeds);
+        return is_array($first) ? $first : null;
     }
 
     /**
-     * Persist the single feed entry. Always replaces the storage option with
-     * an array containing only this feed at FEED_KEY — never appends.
+     * Persist the feed entry.
      */
     public function save_feed(array $entry) {
-        update_option(self::OPTION_KEY, array(self::FEED_KEY => $entry));
+        update_option(self::OPTION_KEY, array($entry));
     }
 
     /**
@@ -153,9 +149,8 @@ class MyFeeds_Feed_Manager {
     public function render_feeds_page() {
         $feeds = get_option(self::OPTION_KEY, array());
 
-        // Free is a single-feed plugin. Option storage may still contain
-        // leftovers from a previous multi-feed install; we keep that data
-        // intact but never expose more than one feed in the UI.
+        // Defensive: option storage may contain legacy data from older
+        // installs; render the first entry consistently.
         if (count($feeds) > 1) {
             $first_key = array_key_first($feeds);
             $feeds = array($first_key => $feeds[$first_key]);
@@ -880,7 +875,7 @@ class MyFeeds_Feed_Manager {
                 $import_scheduled = false;
                 if ($action_label === 'created') {
                     $importer = new \MyFeeds_Batch_Importer();
-                    $import_scheduled = $importer->schedule_new_feed_import(self::FEED_KEY);
+                    $import_scheduled = $importer->schedule_new_feed_import(0);
                     if ($import_scheduled) {
                         $entry['status'] = 'importing';
                         $this->save_feed($entry);
@@ -900,7 +895,7 @@ class MyFeeds_Feed_Manager {
                     'action' => $action_label,
                     'status' => 'untested',
                     'import_scheduled' => $import_scheduled,
-                    'feed_key' => self::FEED_KEY,
+                    'feed_key' => 0,
                     'detected_network' => $detected_network,
                 ));
                 return;
@@ -945,7 +940,7 @@ class MyFeeds_Feed_Manager {
             $import_scheduled = false;
             if ($action_label === 'created') {
                 $importer = new \MyFeeds_Batch_Importer();
-                $import_scheduled = $importer->schedule_new_feed_import(self::FEED_KEY);
+                $import_scheduled = $importer->schedule_new_feed_import(0);
                 if ($import_scheduled) {
                     $entry['status'] = 'importing';
                     $this->save_feed($entry);
@@ -977,7 +972,7 @@ class MyFeeds_Feed_Manager {
                 'action' => $action_label,
                 'status' => 'active',
                 'import_scheduled' => $import_scheduled,
-                'feed_key' => self::FEED_KEY,
+                'feed_key' => 0,
                 'detected_network' => $detected_network,
             ));
 
@@ -1522,9 +1517,7 @@ class MyFeeds_Feed_Manager {
     }
     
     /**
-     * REST API: Report the plan label so the editor can render the upgrade
-     * link in the upsell card. The Pro plugin overrides this route with its
-     * own implementation.
+     * REST API: Report the plan label for the editor upsell card.
      */
     public function rest_get_plan_limits() {
         return rest_ensure_response(array(

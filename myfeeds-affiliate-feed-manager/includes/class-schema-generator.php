@@ -4,8 +4,6 @@
  *
  * Emits structured data for product cards so Google can recognise them
  * as a product list (rich snippets, listicle treatment in search).
- * Lives independently of HTML/CSS rendering: the Premium card-design
- * editor changes visuals, this module only describes semantics.
  *
  * @since 1.0.0
  */

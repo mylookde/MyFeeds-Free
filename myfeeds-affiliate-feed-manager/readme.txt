@@ -23,9 +23,9 @@ Pick products from your feed using the **MyFeeds – Product Picker** block in t
 3. Use the Product Picker block in any post or page to search the index and select products.
 4. Published pages render a responsive grid with prices, images, and affiliate links.
 
-= Free plugin features =
+= Features =
 
-* **One product feed** — Add and manage one affiliate product feed. The Free plugin is designed around a single-feed workflow.
+* **Affiliate product feed import** — Add an affiliate product feed and manage it from the WordPress admin.
 * **Universal feed import** — CSV, TSV, XML, and JSON feeds are detected and parsed automatically.
 * **Smart Mapping** — Automatic field detection (title, price, brand, image, affiliate link, …) with manual override if needed.
 * **Smart Search** — FULLTEXT search with synonym expansion, German stemming, umlaut normalisation, and gender-aware filtering.
@@ -35,13 +35,9 @@ Pick products from your feed using the **MyFeeds – Product Picker** block in t
 * **Local storage** — All product data lives in your WordPress database. No external calls on the frontend.
 * **Works with any block theme** — Compatible with any WordPress theme that supports the block editor.
 
-= Free / Pro / Premium =
+= Related paid plugins =
 
-MyFeeds is also available as paid Pro and Premium plugins from [myfeeds.site](https://myfeeds.site), which add multi-feed management, a carousel block, and a visual card design editor. The upgrade is entirely optional — the Free plugin is fully functional on its own.
-
-* **Free** (this plugin) — One feed, Gutenberg grid block, smart search, manual and automatic sync.
-* **Pro** — Up to five feeds and a carousel block.
-* **Premium** — Unlimited feeds, a visual card design editor with Google Fonts and custom font upload, and priority support.
+This plugin is fully functional on its own. Separate, independent paid plugins called **MyFeeds Pro** and **MyFeeds Premium** are available at [myfeeds.site](https://myfeeds.site) and ship with additional features such as a carousel block, a visual card design editor with Google Fonts, and an analytics dashboard. They are not required to use this plugin.
 
 == Installation ==
 

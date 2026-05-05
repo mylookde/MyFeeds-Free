@@ -14,7 +14,6 @@ if (!defined('ABSPATH')) {
 class MyFeeds_Settings_Manager {
     
     // Option keys for different settings groups
-    const OPTION_API_KEYS = 'myfeeds_api_keys';
     const OPTION_MAPPING_TEMPLATES = 'myfeeds_mapping_templates';
     const OPTION_GENERAL_SETTINGS = 'myfeeds_general_settings';
     const OPTION_CARD_DESIGN = 'myfeeds_card_design';
@@ -160,36 +159,6 @@ class MyFeeds_Settings_Manager {
     );
     
     /**
-     * Get API keys for current installation
-     */
-    public static function get_api_keys() {
-        $defaults = array(
-            'supabase_url' => '',
-            'supabase_anon_key' => '',
-            'supabase_service_key' => '',
-            'openai_api_key' => '',
-        );
-        
-        $keys = get_option(self::OPTION_API_KEYS, array());
-        return wp_parse_args($keys, $defaults);
-    }
-    
-    /**
-     * Save API keys for current installation
-     */
-    public static function save_api_keys($keys) {
-        // Sanitize all keys
-        $sanitized = array(
-            'supabase_url' => esc_url_raw($keys['supabase_url'] ?? ''),
-            'supabase_anon_key' => sanitize_text_field($keys['supabase_anon_key'] ?? ''),
-            'supabase_service_key' => sanitize_text_field($keys['supabase_service_key'] ?? ''),
-            'openai_api_key' => sanitize_text_field($keys['openai_api_key'] ?? ''),
-        );
-        
-        return update_option(self::OPTION_API_KEYS, $sanitized);
-    }
-    
-    /**
      * Get all mapping templates
      */
     public static function get_mapping_templates() {
@@ -295,14 +264,13 @@ class MyFeeds_Settings_Manager {
             'batch_size' => 100,
             'enable_background_import' => true,
             'auto_rebuild_interval' => 'daily',
-            'enable_pro_features' => false,
             'debug_mode' => false,
         );
-        
+
         $settings = get_option(self::OPTION_GENERAL_SETTINGS, array());
         return wp_parse_args($settings, $defaults);
     }
-    
+
     /**
      * Save general settings
      */
@@ -311,10 +279,9 @@ class MyFeeds_Settings_Manager {
             'batch_size' => intval($settings['batch_size'] ?? 100),
             'enable_background_import' => (bool) ($settings['enable_background_import'] ?? true),
             'auto_rebuild_interval' => sanitize_text_field($settings['auto_rebuild_interval'] ?? 'daily'),
-            'enable_pro_features' => (bool) ($settings['enable_pro_features'] ?? false),
             'debug_mode' => (bool) ($settings['debug_mode'] ?? false),
         );
-        
+
         return update_option(self::OPTION_GENERAL_SETTINGS, $sanitized);
     }
     
