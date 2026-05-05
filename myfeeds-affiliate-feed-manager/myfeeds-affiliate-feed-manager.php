@@ -296,7 +296,7 @@ function myfeeds_load_includes() {
         'class-network-handlers.php' => 'Network Handlers Class', 
         'class-feed-manager.php' => 'Feed Manager Class',
         'class-contact-page.php' => 'Custom Contact Page',
-        'class-upsell.php'       => 'Free-to-Pro Upsell Surfaces',
+        'class-upsell.php'       => 'Informational Upsell Banner',
         'class-schema-generator.php' => 'Schema.org JSON-LD Generator',
         'class-product-picker.php' => 'Product Picker Class',
         'class-product-resolver.php' => 'Product Resolver (Multi-Source Fallback)',
@@ -406,7 +406,7 @@ class MyFeeds_Affiliate_Product_Picker {
                 myfeeds_log("Custom Contact Page initialized");
             }
             
-            // Initialize Free-to-Pro Upsell Surfaces
+            // Initialize informational upsell banner
             if (class_exists('MyFeeds_Upsell')) {
                 $upsell = new MyFeeds_Upsell();
                 $upsell->init();

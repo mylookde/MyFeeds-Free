@@ -352,24 +352,13 @@ class MyFeeds_Universal_Mapper_UI {
     }
     
     /**
-     * Render settings page with API keys
+     * Render settings page.
      */
     public function render_settings_page() {
-        $api_keys = MyFeeds_Settings_Manager::get_api_keys();
         $general_settings = MyFeeds_Settings_Manager::get_general_settings();
-        
+
         // Handle form submission
         if (isset($_POST['myfeeds_save_settings']) && isset($_POST['_wpnonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'myfeeds_settings')) {
-            // Save API keys
-            $new_keys = array(
-                'supabase_url' => sanitize_text_field(wp_unslash($_POST['supabase_url'] ?? '')),
-                'supabase_anon_key' => sanitize_text_field(wp_unslash($_POST['supabase_anon_key'] ?? '')),
-                'supabase_service_key' => sanitize_text_field(wp_unslash($_POST['supabase_service_key'] ?? '')),
-                'openai_api_key' => sanitize_text_field(wp_unslash($_POST['openai_api_key'] ?? '')),
-            );
-            MyFeeds_Settings_Manager::save_api_keys($new_keys);
-            $api_keys = $new_keys;
-            
             // Save general settings
             $new_settings = array(
                 'batch_size' => intval($_POST['batch_size'] ?? 100),
@@ -378,18 +367,16 @@ class MyFeeds_Universal_Mapper_UI {
             );
             MyFeeds_Settings_Manager::save_general_settings($new_settings);
             $general_settings = $new_settings;
-            
+
             // Save log level
             $log_level = sanitize_text_field(wp_unslash($_POST['myfeeds_log_level'] ?? 'info'));
             if (in_array($log_level, array('error', 'info', 'debug'), true)) {
                 update_option('myfeeds_log_level', $log_level);
             }
-            
+
             echo '<div class="notice notice-success"><p>' . esc_html__('Settings saved!', 'myfeeds-affiliate-feed-manager') . '</p></div>';
         }
-        
-        // Free plugin: Pro-gated API key fields stay disabled.
-        $is_pro = false;
+
         $current_log_level = get_option('myfeeds_log_level', 'info');
         
         ?>
@@ -462,58 +449,7 @@ class MyFeeds_Universal_Mapper_UI {
                         </tr>
                     </table>
                 </div>
-                
-                <!-- Pro Features: API Keys -->
-                <div class="myfeeds-settings-section">
-                    <h2>
-                        <?php esc_html_e('Pro Features: API Keys', 'myfeeds-affiliate-feed-manager'); ?>
-                        <?php if (!$is_pro): ?>
-                            <span class="myfeeds-pro-badge"><?php esc_html_e('PRO', 'myfeeds-affiliate-feed-manager'); ?></span>
-                        <?php endif; ?>
-                    </h2>
-                    
-                    <?php if (!$is_pro): ?>
-                        <div class="notice notice-warning inline">
-                            <p><?php esc_html_e('These features require a Pro license. Upgrade to unlock Supabase sync and AI-powered search.', 'myfeeds-affiliate-feed-manager'); ?></p>
-                        </div>
-                    <?php endif; ?>
-                    
-                    <table class="form-table">
-                        <tr>
-                            <th scope="row"><?php esc_html_e('Supabase URL', 'myfeeds-affiliate-feed-manager'); ?></th>
-                            <td>
-                                <input type="url" name="supabase_url" value="<?php echo esc_attr($api_keys['supabase_url']); ?>" 
-                                       class="regular-text" placeholder="https://xxxxx.supabase.co" <?php disabled(!$is_pro); ?>>
-                                <p class="description"><?php esc_html_e('Your Supabase project URL', 'myfeeds-affiliate-feed-manager'); ?></p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row"><?php esc_html_e('Supabase Anon Key', 'myfeeds-affiliate-feed-manager'); ?></th>
-                            <td>
-                                <input type="password" name="supabase_anon_key" value="<?php echo esc_attr($api_keys['supabase_anon_key']); ?>" 
-                                       class="regular-text" <?php disabled(!$is_pro); ?>>
-                                <p class="description"><?php esc_html_e('Public anonymous key (safe for frontend)', 'myfeeds-affiliate-feed-manager'); ?></p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row"><?php esc_html_e('Supabase Service Key', 'myfeeds-affiliate-feed-manager'); ?></th>
-                            <td>
-                                <input type="password" name="supabase_service_key" value="<?php echo esc_attr($api_keys['supabase_service_key']); ?>" 
-                                       class="regular-text" <?php disabled(!$is_pro); ?>>
-                                <p class="description"><?php esc_html_e('Service role key (keep secret, backend only)', 'myfeeds-affiliate-feed-manager'); ?></p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row"><?php esc_html_e('OpenAI API Key', 'myfeeds-affiliate-feed-manager'); ?></th>
-                            <td>
-                                <input type="password" name="openai_api_key" value="<?php echo esc_attr($api_keys['openai_api_key']); ?>" 
-                                       class="regular-text" placeholder="sk-..." <?php disabled(!$is_pro); ?>>
-                                <p class="description"><?php esc_html_e('Required for AI-powered vector search and image search', 'myfeeds-affiliate-feed-manager'); ?></p>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
-                
+
                 <p class="submit">
                     <input type="submit" name="myfeeds_save_settings" class="button button-primary" value="<?php esc_attr_e('Save Settings', 'myfeeds-affiliate-feed-manager'); ?>">
                 </p>

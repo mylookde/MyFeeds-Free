@@ -443,8 +443,7 @@ class MyFeeds_Product_Picker {
             $price = $sale_price;
         }
         
-        $currency = esc_html($product['currency'] ?? 'EUR');
-        $currency_symbol = $this->get_currency_symbol($currency);
+        $currency_symbol = $this->get_currency_symbol($product['currency'] ?? 'EUR');
         
         // Discount calculation - prefer pre-calculated discount from Smart Mapper
         $discount_percent = 0;
@@ -479,8 +478,6 @@ class MyFeeds_Product_Picker {
         // Product details — rendered in user-defined order
         $card_html .= '<div class="myfeeds-product-details">';
 
-        // Element order customization belongs to the Premium Card Design
-        // Editor; Free ships with the default order.
         $element_order = array('brand', 'title', 'price', 'shipping', 'merchant');
 
         // Render elements in saved order
@@ -530,7 +527,8 @@ class MyFeeds_Product_Picker {
     }
     
     /**
-     * Get currency symbol
+     * Get currency symbol. Always returns an escaped string suitable for
+     * direct concatenation into HTML.
      */
     private function get_currency_symbol($currency_code) {
         $symbols = [
@@ -542,15 +540,17 @@ class MyFeeds_Product_Picker {
             'CAD' => 'C$',
             'AUD' => 'A$',
         ];
-        
-        return $symbols[strtoupper($currency_code)] ?? $currency_code;
+
+        $symbol = $symbols[strtoupper((string) $currency_code)] ?? (string) $currency_code;
+        return esc_html($symbol);
     }
-    
+
     /**
-     * Format price with currency
+     * Format price with currency. Returns an escaped string suitable for
+     * direct concatenation into HTML.
      */
     private function format_price($amount, $symbol) {
-        return number_format($amount, 2, ',', '.') . ' ' . $symbol;
+        return esc_html(number_format((float) $amount, 2, ',', '.')) . ' ' . $symbol;
     }
     
     /**
@@ -567,7 +567,7 @@ class MyFeeds_Product_Picker {
             $shipping_val = floatval($shipping_raw);
             return $shipping_val > 0
                 /* translators: %s: formatted shipping cost with currency */
-                ? sprintf(esc_html__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), esc_html($this->format_price($shipping_val, $currency_symbol)))
+                ? sprintf(esc_html__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), $this->format_price($shipping_val, $currency_symbol))
                 : esc_html__('Free Shipping', 'myfeeds-affiliate-feed-manager');
         }
 
@@ -580,7 +580,7 @@ class MyFeeds_Product_Picker {
                 $val = floatval($matches[1]);
                 return $val > 0
                     /* translators: %s: formatted shipping cost with currency */
-                    ? sprintf(esc_html__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), esc_html($this->format_price($val, $currency_symbol)))
+                    ? sprintf(esc_html__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), $this->format_price($val, $currency_symbol))
                     : esc_html__('Free Shipping', 'myfeeds-affiliate-feed-manager');
             }
         }

@@ -1,11 +1,11 @@
 <?php
 /**
- * Free-to-Pro upsell surfaces.
+ * Informational links to myfeeds.site.
  *
- * Renders the small, dismissible info banner that sits at the top of the
- * MyFeeds admin pages and adds a "Go Pro" entry to the MyFeeds submenu.
- * Both are informational links to myfeeds.site — the plugin itself
- * contains no gated or locked UI (wp.org Guideline 5).
+ * Renders a small, dismissible info banner on the main MyFeeds admin
+ * page and adds a "More features" entry to the MyFeeds submenu, both
+ * pointing to separate paid plugins available at myfeeds.site. This
+ * plugin itself is fully functional with no gated UI.
  */
 
 if (!defined('ABSPATH')) {
@@ -31,7 +31,7 @@ class MyFeeds_Upsell {
             return;
         }
         $submenu['myfeeds-feeds'][] = array(
-            __('Go Pro ↗', 'myfeeds-affiliate-feed-manager'),
+            __('More features ↗', 'myfeeds-affiliate-feed-manager'),
             'manage_options',
             esc_url(self::PRICING_URL),
         );
@@ -39,7 +39,7 @@ class MyFeeds_Upsell {
 
     /**
      * WP admin renders submenu anchors without a target attribute and there
-     * is no filter to change that. Tag the Go Pro link via JS so it opens
+     * is no filter to change that. Tag the external link via JS so it opens
      * in a new tab. Tiny inline script, runs on every admin page because
      * the sidebar menu is always present.
      */
@@ -83,10 +83,9 @@ class MyFeeds_Upsell {
         ?>
         <div class="notice notice-info is-dismissible myfeeds-upsell-banner">
             <p>
-                <strong><?php esc_html_e('Need more than one feed?', 'myfeeds-affiliate-feed-manager'); ?></strong>
-                <?php esc_html_e('Pro adds multi-feed management and a carousel block. Premium adds an analytics dashboard and the visual card design editor.', 'myfeeds-affiliate-feed-manager'); ?>
+                <?php esc_html_e('MyFeeds Pro and MyFeeds Premium are separate paid plugins available at myfeeds.site, with additional features such as multi-feed management, a carousel block, an analytics dashboard, and a visual card design editor.', 'myfeeds-affiliate-feed-manager'); ?>
                 <a href="<?php echo esc_url(self::PRICING_URL); ?>" target="_blank" rel="noopener">
-                    <?php esc_html_e('See plans →', 'myfeeds-affiliate-feed-manager'); ?>
+                    <?php esc_html_e('Learn more →', 'myfeeds-affiliate-feed-manager'); ?>
                 </a>
             </p>
         </div>
