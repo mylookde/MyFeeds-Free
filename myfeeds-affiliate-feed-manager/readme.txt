@@ -133,7 +133,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Screenshots ==
 
-1. Feed Manager — configure one affiliate product feed with status, product count, and mapping quality.
+1. Feed Manager — configure your affiliate product feed with status, product count, and mapping quality.
 2. Background Import — imports run in the background with a real-time progress bar. Continue working while products are imported.
 3. Smart Mapping — automatic field detection with manual override. Maps any CSV/TSV/XML/JSON feed to product fields.
 4. MyFeeds – Product Picker block — search the local product index and select products inline in the editor.
@@ -143,7 +143,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 = 1.0.0 =
 * Initial release on WordPress.org.
-* Single-feed architecture with universal CSV, TSV, XML, and JSON feed parser.
+* Universal CSV, TSV, XML, and JSON feed parser.
 * Smart Mapping with automatic field detection and manual override.
 * Smart Search with FULLTEXT indexing, synonym expansion, and German-language handling.
 * MyFeeds – Product Picker Gutenberg block with a responsive grid layout.
