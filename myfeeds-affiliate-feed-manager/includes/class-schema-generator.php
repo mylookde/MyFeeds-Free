@@ -48,7 +48,19 @@ class MyFeeds_Schema_Generator {
             'itemListElement' => $items,
         );
         $payload = apply_filters('myfeeds_schema_itemlist', $payload, $products);
-        $json = wp_json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        // Encode with flags that prevent the JSON payload from breaking
+        // out of the surrounding <script> block. JSON_HEX_TAG escapes
+        // every < and > to its \u00XX form, so a "</script>" sequence
+        // inside any product field cannot terminate the script element.
+        // JSON_HEX_AMP escapes ampersands to keep them inert if the
+        // markup is later filtered as HTML. JSON_UNESCAPED_SLASHES is
+        // intentionally NOT used: forward slashes are escaped to "\/",
+        // which is permitted by the JSON-LD spec and adds another layer
+        // of defence against "</script>" sequences.
+        $json = wp_json_encode(
+            $payload,
+            JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP
+        );
         if ($json === false) {
             return '';
         }
