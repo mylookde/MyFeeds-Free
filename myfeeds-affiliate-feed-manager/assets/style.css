@@ -14,15 +14,22 @@ html body .myfeeds-product-grid {
     display: flex !important;
     flex-wrap: wrap !important;
     justify-content: center !important;
-    gap: 16px !important;
-    padding: 24px 0 !important;
+    /* gap + vertical padding read CSS vars so the Pro card-design
+       editor can drive them. Free has no UI to change them yet, but
+       the fallback values match the legacy hardcoded defaults so
+       free-only installs look identical to before. */
+    gap: var(--myfeeds-grid-gap, 16px) !important;
+    padding: var(--myfeeds-grid-padding-y, 24px) 0 !important;
     max-width: 1200px !important;
     margin: 0 auto !important;
     box-sizing: border-box !important;
 }
 
+/* Card widths derived from the gap variable so the row stays flush
+   regardless of the chosen gap. Math: card_width = (row - (cols-1)
+   * gap) / cols. */
 html body .myfeeds-product-grid .myfeeds-product-card {
-    width: calc(25% - 12px) !important;
+    width: calc((100% - 3 * var(--myfeeds-grid-gap, 16px)) / 4) !important;
     min-width: var(--myfeeds-card-min-w, 200px) !important;
     max-width: var(--myfeeds-card-max-w, 280px) !important;
 }
@@ -32,7 +39,7 @@ html body .myfeeds-product-grid .myfeeds-product-card {
         justify-content: flex-start !important;
     }
     html body .myfeeds-product-grid .myfeeds-product-card {
-        width: calc(50% - 8px) !important;
+        width: calc((100% - var(--myfeeds-grid-gap, 16px)) / 2) !important;
     }
 }
 
