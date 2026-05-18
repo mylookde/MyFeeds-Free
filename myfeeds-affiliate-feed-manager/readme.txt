@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 6.9
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -160,6 +160,18 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.2 =
+* Mapping Editor: new pill-style mapping quality bar with three buckets (>=90 green, >=70 orange, <70 red) - same palette as the feed-status badges.
+* Mapping Editor: click the quality bar to open a detail modal that lists every standard field with its actual source column from the feed (`<source_column>` to `<db_column>`) plus per-field tier and missing-row counts. Makes it obvious when the mapper picked the wrong source slot.
+* Mapping Editor: fixed a stale "Select a feed" dropdown bug - entries left behind from older multi-feed installs are now filtered out and the option is self-healed on first render.
+* Mapping Editor: long feed column names like `merchant_product_category_path` no longer push selects out of their card. Field rows now shrink correctly inside the grid.
+* Mapping Editor: bigger help icons with an instant on-hover tooltip that shows the field description (no more 1 second browser delay).
+* Mapping Editor: redesigned with the plugin's brand styling - cleaner cards, brand-accent panel titles, draggable pill-style column tags, focus rings, brand-gradient primary CTA.
+* Plugins screen: added an Upgrade action link on the plugin row that points at myfeeds.site.
+* New marketing preview pages for the Shop, Card Design and Analytics features - opened from the MyFeeds submenu, each shows a benefits overview and screenshots from the paid plugins.
+* Cleanup: removed the legacy dismissible top banner and the in-plugin Contact Us page (use the wp.org support forum or myfeeds.site/contact instead).
+* Internal: stripped emoji prefixes from debug-log lines.
+
 = 1.0.1 =
 * Importer: detect feed format from the URL (AWIN `format/csv` path, query strings like `?format=csv`, file extensions) so large AWIN datafeeds with 80+ columns no longer get misclassified.
 * Importer: format detection now reads 32 KB instead of 4 KB and walks the first unquoted line, so commas inside quoted product descriptions stop fooling the delimiter vote.
@@ -182,6 +194,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * AWIN Publisher API integration for credential and feed-URL resolution.
 
 == Upgrade Notice ==
+
+= 1.0.2 =
+Mapping Editor overhaul: redesigned with the plugin's brand, a new pill-style quality bar that opens a detail modal showing the actual source column for every field, plus fixes for stale dropdown entries and select-overflow with long column names.
 
 = 1.0.1 =
 Bug-fix release. Importer reliability for large AWIN datafeeds, faithful currency handling (no more silent EUR default), better category mapping for merchants that use breadcrumb paths, and card-display fixes against sticky theme headers and mobile typography overrides.
