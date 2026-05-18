@@ -63,7 +63,7 @@ The next day the nightly sync refreshes what changed. The week after, a full imp
 
 = Related paid plugins =
 
-This plugin is fully functional on its own. Separate, independent paid plugins called **MyFeeds Pro** and **MyFeeds Business** are available at [myfeeds.site](https://myfeeds.site) — they add things like a carousel block, a visual card designer with Google Fonts, click and conversion analytics, and a full multi-feed storefront system. They are not required to use this plugin.
+This plugin is fully functional on its own. Separate, independent paid plugins called **MyFeeds Pro** and **MyFeeds Business** are available at [myfeeds.site](https://myfeeds.site) — they add things like a carousel block, a visual card designer with Google Fonts, click and conversion analytics, and a full multi-feed shop system. They are not required to use this plugin.
 
 == Installation ==
 
