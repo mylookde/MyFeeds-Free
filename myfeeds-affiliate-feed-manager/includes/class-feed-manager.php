@@ -162,7 +162,10 @@ class MyFeeds_Feed_Manager {
         ?>
         <div class="wrap">
             <h1><?php esc_html_e('MyFeeds – Affiliate Feed Manager', 'myfeeds-affiliate-feed-manager'); ?></h1>
-            
+
+            <div class="myfeeds-page-layout">
+            <div class="myfeeds-page-main">
+
             <div class="myfeeds-intro-banner">
                 <h2><?php esc_html_e('Affiliate Feed Manager', 'myfeeds-affiliate-feed-manager'); ?></h2>
                 <p><?php esc_html_e('Import and manage affiliate product feeds from any network. Our smart mapping system automatically detects and maps all product fields.', 'myfeeds-affiliate-feed-manager'); ?></p>
@@ -262,6 +265,21 @@ class MyFeeds_Feed_Manager {
                 <!-- Auto-Sync Schedule Info -->
                 <?php $this->render_auto_sync_info_compact(); ?>
             </div>
+
+            </div><!-- /.myfeeds-page-main -->
+
+            <aside class="myfeeds-upsell-sidebar">
+                <?php
+                /**
+                 * Settings-sidebar hook. Upsell card and any future
+                 * sidebar widgets (docs link, support, recent posts)
+                 * attach here.
+                 */
+                do_action('myfeeds_settings_sidebar');
+                ?>
+            </aside>
+
+            </div><!-- /.myfeeds-page-layout -->
         </div>
         <?php
     }
