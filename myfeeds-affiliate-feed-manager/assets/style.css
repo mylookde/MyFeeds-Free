@@ -73,7 +73,10 @@ html body .myfeeds-product-grid .myfeeds-product-card:hover {
     transform: scale(var(--myfeeds-card-hover-scale, 1.02)) !important;
     box-shadow: var(--myfeeds-card-hover-shadow, 0 4px 16px rgba(0,0,0,0.12)) !important;
     border-radius: var(--myfeeds-card-hover-radius, 4px) !important;
-    z-index: 10 !important;
+    /* z-index 2 is enough to clear sibling tiles when the scaled hover
+       card grows past their borders — 10 used to leak through theme
+       overlays that lived on lower z-indexes. */
+    z-index: 2 !important;
 }
 
 /* Mobile Touch-Effekt */
@@ -84,7 +87,7 @@ html body .myfeeds-product-grid .myfeeds-product-card:hover {
         transform: scale(var(--myfeeds-card-hover-scale, 1.02)) !important;
         box-shadow: var(--myfeeds-card-hover-shadow, 0 4px 16px rgba(0,0,0,0.12)) !important;
         border-radius: var(--myfeeds-card-hover-radius, 4px) !important;
-        z-index: 10 !important;
+        z-index: 2 !important;
     }
 }
 
@@ -102,7 +105,12 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image .my
     border-radius: var(--myfeeds-badge-radius, 20px) !important;
     font-size: var(--myfeeds-badge-size, 13px) !important;
     font-weight: var(--myfeeds-badge-weight, 700) !important;
-    z-index: 100 !important;
+    /* Only needs to clear the sibling product image inside the same
+       .myfeeds-product-image wrapper — z-index 2 wins that local
+       stacking context. The previous value of 100 punched through
+       sticky theme headers (e.g. Elementor Pro at z-index 99) so the
+       pill slid over the host header during scroll. */
+    z-index: 2 !important;
     letter-spacing: -0.3px !important;
     box-shadow: 0 3px 10px rgba(0,0,0,0.2) !important;
     display: var(--myfeeds-badge-display, block) !important;
