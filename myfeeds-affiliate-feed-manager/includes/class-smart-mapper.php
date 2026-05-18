@@ -191,7 +191,16 @@ class MyFeeds_Smart_Mapper {
                     'image_url' => ['aw_image_url', 'merchant_image_url'],
                     'affiliate_link' => 'aw_deep_link',
                     'description' => ['product_short_description', 'description'],
-                    'category' => 'category_name',
+                    // AWIN merchants are inconsistent about which category
+                    // column they populate. Awin's normalised
+                    // `category_name` is left empty by a lot of fashion
+                    // merchants (Kickz UK among them) who only fill their
+                    // own taxonomy in `merchant_product_category_path`
+                    // (breadcrumb: "Sportswear > Training Jackets > Nike").
+                    // Probe the canonical Awin column first, then walk the
+                    // merchant slots before falling back to product_type
+                    // and the Fashion-feed key.
+                    'category' => ['category_name', 'merchant_product_category_path', 'merchant_category', 'product_type', 'Fashion:category', 'merchant_product_second_category'],
                     'currency' => 'currency',
                     'shipping' => 'delivery_cost',
                     'availability' => ['in_stock', 'stock_status'],
