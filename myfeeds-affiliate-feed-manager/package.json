@@ -1,6 +1,6 @@
 {
   "name": "myfeeds-affiliate-feed-manager",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Build pipeline for the MyFeeds Gutenberg block editor bundle.",
   "license": "GPL-2.0-or-later",

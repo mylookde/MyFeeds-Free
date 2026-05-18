@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, product feeds, gutenberg, product picker, awin
 Requires at least: 5.8
 Tested up to: 6.9
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -12,9 +12,9 @@ Import an affiliate product feed, search it locally, and showcase products in yo
 
 == Description ==
 
-**MyFeeds — Affiliate Product Feed Manager** turns an affiliate product feed into a locally searchable product index inside your WordPress site. All product data is imported into your own database, so the frontend makes no external calls when a visitor loads a page.
+Write affiliate posts without copy-paste. Prices stay up to date automatically. **MyFeeds — Affiliate Product Feed Manager** imports your affiliate product feed into your WordPress database, so you can drop product cards into any post or page from the block editor — no external calls when a visitor loads your page.
 
-Pick products from your feed using the **MyFeeds – Product Picker** block in the Gutenberg editor. Search by name, brand, or category with a smart search that understands synonyms and German umlauts. Products are displayed in a responsive grid with live prices, images, and your affiliate links.
+Insert product cards directly in Gutenberg with the **MyFeeds – Product Picker** block. Search your feed by name, brand, or category — the smart search understands synonyms and German umlauts. Products render in a responsive grid with live prices, images, and your affiliate links.
 
 = How it works =
 
@@ -53,10 +53,6 @@ This plugin is fully functional on its own. Separate, independent paid plugins c
 Sign up with an affiliate network (such as AWIN, CJ, or Tradedoubler), navigate to the product feed section — usually labelled "Create a feed" or "Product feeds" — and copy the feed URL.
 
 == Frequently Asked Questions ==
-
-= How do I add products to a blog post? =
-
-In the block editor, insert a **MyFeeds – Product Picker** block. Use the search bar to find products by name, brand, or category, then click to select the ones you want to display.
 
 = How long does an import take? =
 
@@ -123,9 +119,8 @@ No data is sent to any other external service. The plugin stores imported produc
 
 == Source Code ==
 
-The full source for this plugin is hosted on GitHub:
+The full source for this plugin is open-source. See <https://myfeeds.site> for the project homepage and links to the public repository.
 
-* Repository: <https://github.com/mylookde/MyFeeds-Free>
 * Block editor source: `src/index.js`
 * Build tool: terser via `npm run build` (configuration in `package.json`)
 
@@ -141,6 +136,17 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.1 =
+* Importer: detect feed format from the URL (AWIN `format/csv` path, query strings like `?format=csv`, file extensions) so large AWIN datafeeds with 80+ columns no longer get misclassified.
+* Importer: format detection now reads 32 KB instead of 4 KB and walks the first unquoted line, so commas inside quoted product descriptions stop fooling the delimiter vote.
+* Importer: network-agnostic product-id detection covers AWIN, CJ, ShareASale, Belboon, Impact, Webgains, Tradedoubler, Adcell, Daisycon, and standard EAN/GTIN/UPC/MPN keys out of the box.
+* Importer: stop dropping `original_price` when the feed's rrp/list price equals the current price. The mapping is preserved; the strike-through display still only kicks in when there is a real discount.
+* Importer: stop defaulting `currency` to EUR when the feed has no currency column. Empty stays empty so a USD merchant never shows "€" on cards that link to a USD checkout.
+* Smart Mapper: AWIN category mapping now probes `category_name`, `merchant_product_category_path`, `merchant_category`, `product_type`, and the Fashion-feed taxonomy in order, so merchants that only fill the breadcrumb path get categorised correctly.
+* Card display: cap product-card z-indexes so they no longer punch through sticky theme headers.
+* Card display: drive grid gap and padding from CSS variables (no visible change with defaults).
+* Card display: remove mobile typography hardcodes that overrode user font-size settings; lock card line-height against host themes so prices stop inheriting oversized body line-heights.
+
 = 1.0.0 =
 * Initial release on WordPress.org.
 * Universal CSV, TSV, XML, and JSON feed parser.
@@ -152,6 +158,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * AWIN Publisher API integration for credential and feed-URL resolution.
 
 == Upgrade Notice ==
+
+= 1.0.1 =
+Bug-fix release. Importer reliability for large AWIN datafeeds, faithful currency handling (no more silent EUR default), better category mapping for merchants that use breadcrumb paths, and card-display fixes against sticky theme headers and mobile typography overrides.
 
 = 1.0.0 =
 Welcome to MyFeeds. Import your first affiliate product feed and start showcasing products in your posts.
