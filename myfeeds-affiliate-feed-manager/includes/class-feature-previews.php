@@ -234,8 +234,7 @@ class MyFeeds_Feature_Previews {
             <div class="myfeeds-preview-hero">
                 <div class="myfeeds-preview-hero-text">
                     <div class="myfeeds-preview-eyebrow">
-                        <span class="myfeeds-tier-badge"><?php echo esc_html($config['tier']); ?></span>
-                        <span class="myfeeds-preview-eyebrow-text"><?php echo esc_html($config['eyebrow']); ?></span>
+                        <span class="myfeeds-tier-badge myfeeds-tier-badge-hero"><?php echo esc_html($config['tier']); ?> <?php esc_html_e('feature', 'myfeeds-affiliate-feed-manager'); ?></span>
                     </div>
                     <h1><?php echo esc_html($config['title']); ?></h1>
                     <p class="myfeeds-preview-subtitle"><?php echo esc_html($config['subtitle']); ?></p>
