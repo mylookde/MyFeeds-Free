@@ -23,6 +23,28 @@ class MyFeeds_Upsell {
         add_action('admin_notices', array($this, 'render_dismissible_banner'));
         add_action('wp_ajax_myfeeds_dismiss_upsell', array($this, 'ajax_dismiss'));
         add_action('admin_footer', array($this, 'open_go_pro_in_new_tab'));
+
+        if (defined('MYFEEDS_PLUGIN_FILE')) {
+            $basename = plugin_basename(MYFEEDS_PLUGIN_FILE);
+            add_filter("plugin_action_links_{$basename}", array($this, 'add_upgrade_action_link'));
+        }
+    }
+
+    /**
+     * Append a small "Upgrade" link to the plugin's row on the Plugins
+     * screen. Conventional pattern (Yoast, RankMath, WPForms all use it)
+     * and the most-visited Pro-discovery surface for users who installed
+     * MyFeeds and only see the plugin row, not the settings page.
+     */
+    public function add_upgrade_action_link($links) {
+        $url = self::PRICING_URL . '&utm_term=plugins-list';
+        $upgrade = sprintf(
+            '<a href="%s" target="_blank" rel="noopener noreferrer" style="color:#667eea;font-weight:600;">%s</a>',
+            esc_url($url),
+            esc_html__('Upgrade', 'myfeeds-affiliate-feed-manager')
+        );
+        array_unshift($links, $upgrade);
+        return $links;
     }
 
     public function add_go_pro_submenu() {
