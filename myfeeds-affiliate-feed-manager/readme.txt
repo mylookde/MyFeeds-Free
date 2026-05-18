@@ -8,60 +8,62 @@ Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-WordPress affiliate plugin for AWIN, CJ Affiliate, Rakuten & more: import product feeds, insert product cards from the Gutenberg block editor.
+Stop pasting affiliate links by hand. Your network's product feed becomes a searchable catalog inside WordPress — insert cards from the block editor.
 
 == Description ==
 
 **Stop copy-pasting affiliate products. Stop fixing dead links by hand. Start writing.**
 
-MyFeeds — Affiliate Product Feed Manager turns your affiliate network's product feed into a locally searchable product catalog inside WordPress. Drop product cards into any blog post or page from the Gutenberg block editor — prices, images, brands and affiliate links stay current on every sync, and your visitors never wait on an external API.
+You write about products you recommend. You drop them into your posts. A few weeks pass, and half the prices are off, a couple of products went out of stock without telling you, and one merchant quietly disappeared from your network. Every roundup, every gift guide, every product page tells the same story — slowly going stale while you write the next one.
 
-Built for **fashion bloggers**, **tech reviewers**, **deal sites** and anyone running affiliate marketing on WordPress. Pick products in the editor, publish, move on. No CSV downloads, no FTP juggling, no admin overhead.
+MyFeeds takes your affiliate program's product feed and quietly keeps it in sync with your site. You pick a product inside the block editor the way you'd pick an image, hit publish, and move on. The next morning the prices are still right. The dead products are flagged. Your readers see what the merchant is actually selling today.
 
-= Why MyFeeds? =
+You get to stay where the value is — writing — instead of pasting URLs at midnight.
 
-Existing WordPress affiliate plugins force a choice between **Amazon-only convenience** and **manual link-rotation tools**. MyFeeds covers the middle ground: any affiliate network with a product feed, fully imported into your own database, surfaced through a native block editor block.
+= Who is this for =
 
-* **Any affiliate network with a feed** — AWIN, CJ Affiliate, Tradedoubler, Webgains, Rakuten, Admitad, Impact, ShareASale, and any other network that exports a CSV, TSV, XML or JSON product feed.
-* **Self-hosted product data** — every imported product lives in your WordPress database. The frontend never calls an external service when a visitor loads a page. Faster pages, GDPR-friendly, no third-party tracking on render.
-* **Native Gutenberg block** — search by name, brand or category inside the editor and insert product cards inline. Not a shortcode wrapper.
-* **Smart auto-mapping** — the importer recognises the column structure of major networks out of the box (AWIN's `aw_product_id`, CJ's `advertiser_sku`, Tradedoubler's `TDProductId`, and many more). Manual override for the rest.
-* **Smart search with German support** — FULLTEXT index with synonyms, German stemming, umlaut normalisation, gender-aware filtering. Searches like "schuhe", "Schuh" and "shoes" all return the same products.
-* **Truthful pricing** — no silent EUR defaults, no fake discount markers. What the feed publishes is what visitors see.
-* **Built for large feeds** — background imports via Action Scheduler, 32 KB delimiter sniffing for messy CSV headers, RFC4180-aware quote handling. 80-column AWIN feeds with quoted descriptions parse correctly out of the box.
+Anyone earning a cut when readers click and buy. Whatever you cover — clothing, gear, books, beauty, supplements, tools, baby, garden, hobbies, niche electronics, deals — if there's an affiliate program for it, there's a product feed somewhere, and MyFeeds can read it.
+
+The block editor stays your block editor. The plugin works in the background.
+
+= What changes for you =
+
+* **Your prices stop lying.** The price your reader sees today is the price on the merchant's checkout right now.
+* **Your posts stop rotting.** Dead products surface so you can replace them. Stock that comes back lights up again. Nothing decays silently.
+* **You publish faster.** Two letters in the editor, the product appears, you click, the card is in. No new tab, no copy, no paste.
+* **Your site stays yours.** Products live in your own WordPress database. Visitors don't wait on a third-party server, and nothing about them is sent off-site when a page loads.
+* **No translation tax.** Whatever your program sends you, MyFeeds reads it and figures out which column is the price, which is the image, which is the link. You don't have to learn the format.
 
 = How it works =
 
-1. Paste your **affiliate product feed URL** from your network (AWIN, CJ, Tradedoubler, Rakuten, Webgains, Admitad, Impact, ShareASale, or any other CSV/TSV/XML/JSON exporter).
-2. MyFeeds imports and indexes every product locally in your **WordPress database**.
-3. In any post or page, add the **MyFeeds – Product Picker** block, search by name, brand or category, and click to insert.
-4. The published page renders a **responsive product grid** with live prices, images, brands, shipping info, and your affiliate links — straight from your database. No frontend external calls.
+1. Drop your **affiliate product feed URL** into MyFeeds.
+2. Every product is imported and stored locally in your WordPress database. The plugin figures out the column structure on its own.
+3. In any post or page, add the **MyFeeds Product Picker** block. Search by name, brand, or category. Click to insert.
+4. The published page renders a responsive product card with the current price, image, brand, shipping, and your affiliate link — direct from your database, no external call on render.
 
-= Use cases =
+The next day the nightly sync refreshes what changed. The week after, a full import catches everything else. You don't think about it.
 
-* **Affiliate roundup posts** — "20 best running shoes 2026", "Top 10 sustainable fashion brands" — replace dozens of hand-coded product blocks with a single Product Picker.
-* **Fashion and lifestyle blogs** — pick today's outfit recommendations in the editor, let the nightly sync keep prices in line with the merchant store.
-* **Tech review sites** — link to current product variants without rewriting old posts when SKUs change.
-* **Deal aggregators** — search a multi-network catalog for matching deals and surface them inside long-form content.
-* **Niche review sites** — multi-network catalog instead of being locked into one affiliate program.
+= What's in the box =
 
-= Features =
+* Universal feed import — almost any format your program hands you, detected automatically.
+* Smart Mapping — automatic recognition of common feed structures, with a manual editor for anything custom.
+* Smart Search inside the block editor with synonym handling and multi-language support.
+* Native Gutenberg **Product Picker** block with live in-editor search.
+* Responsive product grid with prices, brands, shipping, and your affiliate links.
+* Background imports — large feeds process without locking your admin.
+* Nightly auto-sync and weekly full re-import, scheduled and quiet.
+* Honest pricing — what the feed publishes is what visitors see. No silent currency assumptions.
+* Works with any WordPress theme that supports the block editor.
 
-* Universal feed import — CSV, TSV, XML, JSON and gzipped variants, all detected automatically from the URL
-* Smart Mapping — network-aware automatic field detection for AWIN, CJ, Tradedoubler, Webgains, Rakuten, Impact, ShareASale, Belboon, Adcell and more
-* Smart Search — FULLTEXT index with synonyms, German stemming, umlaut normalisation, gender-aware filtering
-* Native Gutenberg **Product Picker** block with live in-editor search and multi-select
-* Responsive product grid with prices, brands, shipping info and configurable affiliate links
-* Background imports via Action Scheduler — no admin lock-up on large feeds
-* Nightly quick sync (active products) plus weekly full re-import via WP-Cron
-* AWIN Publisher API integration — verify credentials and resolve feed URLs without leaving WordPress
-* Truthful currency handling — no hardcoded EUR fallback
-* Works with any block-editor compatible WordPress theme (5.8+)
-* Self-hosted, no frontend external calls — products render from your own database
+= A few things worth saying out loud =
+
+* No CSV downloads, no FTP, no spreadsheet uploads, no manual price updates.
+* Self-hosted. The frontend never contacts an external service to render a product.
+* If your program publishes a feed file you can download, MyFeeds will almost certainly import it.
 
 = Related paid plugins =
 
-This plugin is fully functional on its own. Separate, independent paid plugins called **MyFeeds Pro** and **MyFeeds Business** are available at [myfeeds.site](https://myfeeds.site) and ship with additional features such as a carousel block, a visual card design editor with Google Fonts, click and conversion analytics, and a full multi-feed storefront system. They are not required to use this plugin.
+This plugin is fully functional on its own. Separate, independent paid plugins called **MyFeeds Pro** and **MyFeeds Business** are available at [myfeeds.site](https://myfeeds.site) — they add things like a carousel block, a visual card designer with Google Fonts, click and conversion analytics, and a full multi-feed storefront system. They are not required to use this plugin.
 
 == Installation ==
 
@@ -100,7 +102,7 @@ No. MyFeeds requires the block editor.
 
 = Which affiliate networks are supported? =
 
-MyFeeds works with any affiliate network that provides a product feed URL in CSV, TSV, XML, or JSON format. Smart Mapping recognises the column structure of major networks out of the box — including AWIN, CJ Affiliate, Rakuten, Impact, Tradedoubler, Webgains, Pepperjam, FlexOffers, Admitad, and Google Shopping — and a manual mapping editor handles anything custom.
+If your affiliate program hands you a product feed URL you can download, MyFeeds will almost certainly read it. The plugin handles the common feed formats automatically and recognises the field structure that most networks use. For everything custom there's a manual mapping editor inside the plugin.
 
 = Does the plugin make any external requests? =
 
