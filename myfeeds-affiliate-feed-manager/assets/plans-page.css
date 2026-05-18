@@ -1,0 +1,200 @@
+/**
+ * MyFeeds Plans & Pricing admin page.
+ *
+ * Side-by-side cards with brand identity (Indigo→Purple gradient,
+ * Accent-Green check icons). Right card is "featured" with a darker
+ * card background and the brand gradient on its CTA so the higher
+ * tier reads as the visually richer option without depending on a
+ * "most popular" sticker.
+ */
+
+.myfeeds-plans-wrap {
+    max-width: 1080px;
+}
+
+.myfeeds-plans-wrap h1 {
+    margin-bottom: 8px;
+}
+
+.myfeeds-plans-intro {
+    max-width: 760px;
+    margin: 0 0 32px 0;
+    color: #50575e;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.myfeeds-plans-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: stretch;
+}
+
+@media (max-width: 900px) {
+    .myfeeds-plans-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.myfeeds-plan-card {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 12px;
+    padding: 32px 28px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.myfeeds-plan-card:hover {
+    box-shadow: 0 8px 32px rgba(102, 126, 234, 0.12);
+    transform: translateY(-2px);
+}
+
+.myfeeds-plan-card-featured {
+    background: linear-gradient(180deg, #faf8ff 0%, #ffffff 100%);
+    border-color: #c4b5fd;
+    box-shadow: 0 4px 24px rgba(102, 126, 234, 0.10);
+}
+
+.myfeeds-plan-ribbon {
+    position: absolute;
+    top: -10px;
+    right: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 5px 12px;
+    border-radius: 999px;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.myfeeds-plan-header {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #f0f0f1;
+}
+
+.myfeeds-plan-header h2 {
+    margin: 0 0 12px 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: #1d2327;
+}
+
+.myfeeds-plan-price {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.myfeeds-plan-price-main {
+    font-size: 36px;
+    font-weight: 800;
+    color: #1d2327;
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+
+.myfeeds-plan-price-unit {
+    color: #646970;
+    font-size: 14px;
+}
+
+.myfeeds-plan-price-alt {
+    margin: 6px 0 0 0;
+    color: #646970;
+    font-size: 12px;
+}
+
+.myfeeds-plan-includes-note {
+    margin: 0 0 8px 0;
+    color: #50575e;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.myfeeds-plan-features {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 28px 0;
+    flex: 1;
+}
+
+.myfeeds-plan-features li {
+    padding: 8px 0 8px 26px;
+    position: relative;
+    color: #1d2327;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.myfeeds-plan-features li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 12px;
+    width: 16px;
+    height: 16px;
+    background-color: #34d399;
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") no-repeat center / contain;
+    mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") no-repeat center / contain;
+}
+
+.myfeeds-plan-cta {
+    display: block;
+    text-align: center;
+    padding: 14px 20px;
+    border-radius: 8px;
+    background: #1d2327;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 14px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.myfeeds-plan-cta:hover,
+.myfeeds-plan-cta:focus {
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.myfeeds-plan-cta-featured {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.25);
+}
+
+.myfeeds-plan-cta-featured:hover,
+.myfeeds-plan-cta-featured:focus {
+    box-shadow: 0 6px 24px rgba(102, 126, 234, 0.4);
+}
+
+.myfeeds-plan-cta-note {
+    text-align: center;
+    margin: 10px 0 0 0;
+    color: #646970;
+    font-size: 12px;
+}
+
+.myfeeds-plans-footer {
+    margin-top: 32px;
+    text-align: center;
+    color: #646970;
+}
+
+.myfeeds-plans-footer a {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.myfeeds-plans-footer a:hover {
+    text-decoration: underline;
+}
