@@ -7,7 +7,7 @@
 
 .myfeeds-preview-wrap {
     max-width: 1100px;
-    margin: 24px 0;
+    margin: 24px auto;
 }
 
 /* ---------- HERO ---------- */
@@ -16,9 +16,10 @@
     background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
     border: 1px solid rgba(118, 75, 162, 0.18);
     border-radius: 14px;
-    padding: 40px 44px;
+    padding: 48px 44px 44px;
     position: relative;
     overflow: hidden;
+    text-align: center;
 }
 
 .myfeeds-preview-hero::before {
@@ -35,14 +36,16 @@
 .myfeeds-preview-hero-text {
     position: relative;
     z-index: 1;
-    max-width: 720px;
+    max-width: 760px;
+    margin: 0 auto;
 }
 
 .myfeeds-preview-eyebrow {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 10px;
-    margin-bottom: 16px;
+    margin-bottom: 18px;
 }
 
 .myfeeds-preview-eyebrow-text {
@@ -64,9 +67,9 @@
 }
 
 .myfeeds-preview-subtitle {
-    margin: 0 0 28px 0;
+    margin: 0 auto 32px;
     color: #50575e;
-    font-size: 15px;
+    font-size: 16px;
     line-height: 1.6;
     max-width: 640px;
 }
@@ -74,10 +77,12 @@
 .myfeeds-preview-benefits {
     list-style: none;
     padding: 0;
-    margin: 0 0 32px 0;
+    margin: 0 auto 36px;
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px 24px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 32px;
+    max-width: 720px;
+    text-align: left;
 }
 
 @media (max-width: 720px) {
@@ -111,6 +116,7 @@
 .myfeeds-preview-cta-row {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 16px;
     flex-wrap: wrap;
 }
@@ -168,6 +174,29 @@
     margin: 0;
 }
 
+.myfeeds-preview-zoom-trigger {
+    display: block;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    cursor: zoom-in;
+    border-radius: 10px;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.myfeeds-preview-zoom-trigger:hover,
+.myfeeds-preview-zoom-trigger:focus {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 32px rgba(102, 126, 234, 0.18);
+    outline: none;
+}
+
+.myfeeds-preview-zoom-trigger:focus-visible {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px #764ba2;
+}
+
 .myfeeds-preview-screenshot img {
     display: block;
     width: 100%;
@@ -219,4 +248,105 @@
     color: #646970;
     font-size: 12px;
     line-height: 1.6;
+    text-align: center;
+}
+
+.myfeeds-preview-disclaimer a {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.myfeeds-preview-disclaimer a:hover {
+    text-decoration: underline;
+}
+
+/* ---------- LIGHTBOX ---------- */
+
+.myfeeds-preview-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 56px 24px 24px;
+    background: rgba(10, 10, 18, 0.62);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.22s ease, visibility 0s linear 0.22s;
+    cursor: zoom-out;
+}
+
+.myfeeds-preview-lightbox.is-visible {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.22s ease, visibility 0s linear 0s;
+}
+
+.myfeeds-preview-lightbox-figure {
+    margin: 0;
+    max-width: min(92vw, 1400px);
+    max-height: calc(100vh - 80px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    transform: scale(0.96);
+    transition: transform 0.22s cubic-bezier(0.2, 0.7, 0.3, 1);
+    cursor: default;
+}
+
+.myfeeds-preview-lightbox.is-visible .myfeeds-preview-lightbox-figure {
+    transform: scale(1);
+}
+
+.myfeeds-preview-lightbox-image {
+    display: block;
+    max-width: 100%;
+    max-height: calc(100vh - 140px);
+    width: auto;
+    height: auto;
+    border-radius: 12px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+}
+
+.myfeeds-preview-lightbox-caption {
+    color: rgba(255, 255, 255, 0.86);
+    font-size: 13px;
+    line-height: 1.5;
+    text-align: center;
+    max-width: 720px;
+}
+
+.myfeeds-preview-lightbox-close {
+    position: fixed;
+    top: 18px;
+    right: 22px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.myfeeds-preview-lightbox-close:hover,
+.myfeeds-preview-lightbox-close:focus {
+    color: #fff;
+    transform: scale(1.08);
+    outline: none;
+}
+
+/* Lock background scroll while the lightbox is open. */
+body.myfeeds-preview-lightbox-open {
+    overflow: hidden;
 }

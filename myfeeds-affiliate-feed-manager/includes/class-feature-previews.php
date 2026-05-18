@@ -51,11 +51,19 @@ class MyFeeds_Feature_Previews {
         if (!in_array($hook, $allowed, true)) {
             return;
         }
+        $version = defined('MYFEEDS_VERSION') ? MYFEEDS_VERSION : null;
         wp_enqueue_style(
             'myfeeds-feature-previews',
             plugins_url('../assets/feature-previews.css', __FILE__),
             array(),
-            defined('MYFEEDS_VERSION') ? MYFEEDS_VERSION : null
+            $version
+        );
+        wp_enqueue_script(
+            'myfeeds-feature-previews',
+            plugins_url('../assets/feature-previews.js', __FILE__),
+            array(),
+            $version,
+            true
         );
     }
 
@@ -125,8 +133,8 @@ class MyFeeds_Feature_Previews {
         $this->render_preview(array(
             'eyebrow'    => __('Business feature', 'myfeeds-affiliate-feed-manager'),
             'tier'       => 'BUSINESS',
-            'title'      => __('Affiliate Storefront System', 'myfeeds-affiliate-feed-manager'),
-            'subtitle'   => __('Turn your blog into a full affiliate shop. Storefront, category taxonomy, advanced filters, SEO engine — all driven by the same product feeds you already import.', 'myfeeds-affiliate-feed-manager'),
+            'title'      => __('Turn your blog into an affiliate shop.', 'myfeeds-affiliate-feed-manager'),
+            'subtitle'   => __('A blog post earns once. A shop earns every day. Every product you already import becomes a browsable storefront on your own domain — visitors browse, filter, return; Google indexes it.', 'myfeeds-affiliate-feed-manager'),
             'cta_label'  => __('Start 14-day free trial', 'myfeeds-affiliate-feed-manager'),
             'cta_url'    => self::CHECKOUT_BUSINESS_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=shop',
             'cta_note'   => __('No commitment, cancel any time', 'myfeeds-affiliate-feed-manager'),
@@ -134,20 +142,21 @@ class MyFeeds_Feature_Previews {
                 array(
                     'image'       => $this->preview_image_url('shop-storefront.png'),
                     'placeholder' => __('Storefront grid', 'myfeeds-affiliate-feed-manager'),
-                    'caption'     => __('A full product grid on your own domain — no WooCommerce required.', 'myfeeds-affiliate-feed-manager'),
+                    'caption'     => __('A real product grid your visitors browse and filter — on your domain, no WooCommerce.', 'myfeeds-affiliate-feed-manager'),
                 ),
                 array(
                     'image'       => $this->preview_image_url('shop-categories.png'),
                     'placeholder' => __('Category taxonomy', 'myfeeds-affiliate-feed-manager'),
-                    'caption'     => __('Nested categories with smart product matching from your feeds.', 'myfeeds-affiliate-feed-manager'),
+                    'caption'     => __('Nested categories that Google indexes as SEO-friendly URLs (/shop/men/jackets/).', 'myfeeds-affiliate-feed-manager'),
                 ),
             ),
             'benefits' => array(
-                __('Affiliate shop on your own domain, indexed by Google', 'myfeeds-affiliate-feed-manager'),
-                __('Nested category URLs (/shop/men/jackets/) with redirects', 'myfeeds-affiliate-feed-manager'),
-                __('Sidebar filters: color, brand, size, attribute, merchant', 'myfeeds-affiliate-feed-manager'),
-                __('Built-in SEO engine: meta, schema, OG tags, sitemap', 'myfeeds-affiliate-feed-manager'),
-                __('Click-driven product sorting (your best-converters first)', 'myfeeds-affiliate-feed-manager'),
+                __('A real storefront on your own domain — no WooCommerce, no checkout to maintain', 'myfeeds-affiliate-feed-manager'),
+                __('Nested SEO category URLs (/shop/men/jackets/) Google indexes for you', 'myfeeds-affiliate-feed-manager'),
+                __('Sidebar filters by brand, color, size and merchant out of the box', 'myfeeds-affiliate-feed-manager'),
+                __('Built-in SEO: meta tags, schema, OpenGraph, sitemap, robots.txt', 'myfeeds-affiliate-feed-manager'),
+                __('Best-converting products surface first, automatically', 'myfeeds-affiliate-feed-manager'),
+                __('Driven by the same feeds you already import — zero new setup', 'myfeeds-affiliate-feed-manager'),
             ),
         ));
     }
@@ -156,8 +165,8 @@ class MyFeeds_Feature_Previews {
         $this->render_preview(array(
             'eyebrow'    => __('Pro feature', 'myfeeds-affiliate-feed-manager'),
             'tier'       => 'PRO',
-            'title'      => __('Visual Card Design Editor', 'myfeeds-affiliate-feed-manager'),
-            'subtitle'   => __('Match the product cards to your brand without writing CSS. Pick colours, spacing, shadows and corner radii from a visual editor, and preview the result on real product data live.', 'myfeeds-affiliate-feed-manager'),
+            'title'      => __('Make product cards look like your brand.', 'myfeeds-affiliate-feed-manager'),
+            'subtitle'   => __('Generic plugin cards kill conversions. Pick colours, fonts, spacing and shadows in a visual editor — see every change live on real product data. No CSS, no theme overrides, no broken mobile layouts.', 'myfeeds-affiliate-feed-manager'),
             'cta_label'  => __('Start 7-day free trial', 'myfeeds-affiliate-feed-manager'),
             'cta_url'    => self::CHECKOUT_PRO_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=card-design',
             'cta_note'   => __('No commitment, cancel any time', 'myfeeds-affiliate-feed-manager'),
@@ -165,15 +174,16 @@ class MyFeeds_Feature_Previews {
                 array(
                     'image'       => $this->preview_image_url('card-design.png'),
                     'placeholder' => __('Card design editor with live preview', 'myfeeds-affiliate-feed-manager'),
-                    'caption'     => __('Visual sliders on the left, live product-card preview on the right — change a value, see it instantly.', 'myfeeds-affiliate-feed-manager'),
+                    'caption'     => __('Move a slider on the left, the card on the right updates instantly. No save-and-reload loop.', 'myfeeds-affiliate-feed-manager'),
                 ),
             ),
             'benefits' => array(
-                __('Live preview on real product data — no save-and-reload loop', 'myfeeds-affiliate-feed-manager'),
-                __('Custom colours for brand, title, price, discount, button', 'myfeeds-affiliate-feed-manager'),
-                __('Full Google Fonts catalog, plus system fonts', 'myfeeds-affiliate-feed-manager'),
-                __('Spacing, padding, corner-radius, image-aspect controls', 'myfeeds-affiliate-feed-manager'),
-                __('Mobile + desktop variants in the same editor', 'myfeeds-affiliate-feed-manager'),
+                __('Live preview on real product data — see every change instantly', 'myfeeds-affiliate-feed-manager'),
+                __('Colours for card, title, price, discount badge and button', 'myfeeds-affiliate-feed-manager'),
+                __('Full Google Fonts catalog plus system fonts', 'myfeeds-affiliate-feed-manager'),
+                __('Sliders for spacing, padding, corner radius and shadow', 'myfeeds-affiliate-feed-manager'),
+                __('Mobile and desktop variants in the same editor', 'myfeeds-affiliate-feed-manager'),
+                __('Save once, applies to every product card on your site', 'myfeeds-affiliate-feed-manager'),
             ),
         ));
     }
@@ -182,8 +192,8 @@ class MyFeeds_Feature_Previews {
         $this->render_preview(array(
             'eyebrow'    => __('Pro feature', 'myfeeds-affiliate-feed-manager'),
             'tier'       => 'PRO',
-            'title'      => __('Click + Conversion Analytics', 'myfeeds-affiliate-feed-manager'),
-            'subtitle'   => __('Stop guessing which products earn. See clicks, conversions and earnings per post, per product, per brand, per network — synced nightly from AWIN, CJ, Tradedoubler, Rakuten, Impact and more.', 'myfeeds-affiliate-feed-manager'),
+            'title'      => __('See which products actually pay you.', 'myfeeds-affiliate-feed-manager'),
+            'subtitle'   => __('Stop guessing. Server-side click tracking plus nightly conversion sync from 8 affiliate networks — know exactly which post earns, which product converts, which brand pays best, in one dashboard.', 'myfeeds-affiliate-feed-manager'),
             'cta_label'  => __('Start 7-day free trial', 'myfeeds-affiliate-feed-manager'),
             'cta_url'    => self::CHECKOUT_PRO_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=analytics',
             'cta_note'   => __('No commitment, cancel any time', 'myfeeds-affiliate-feed-manager'),
@@ -191,20 +201,21 @@ class MyFeeds_Feature_Previews {
                 array(
                     'image'       => $this->preview_image_url('analytics-overview.png'),
                     'placeholder' => __('Analytics overview', 'myfeeds-affiliate-feed-manager'),
-                    'caption'     => __('Total clicks, earnings, EPC and daily-click chart at a glance.', 'myfeeds-affiliate-feed-manager'),
+                    'caption'     => __('Total clicks, earnings and EPC at a glance — broken down by post, product, brand and network.', 'myfeeds-affiliate-feed-manager'),
                 ),
                 array(
                     'image'       => $this->preview_image_url('analytics-insights.png'),
                     'placeholder' => __('Insight cards', 'myfeeds-affiliate-feed-manager'),
-                    'caption'     => __('Top earning posts, top-performing brands, dead products, posts with no clicks — every signal in one place.', 'myfeeds-affiliate-feed-manager'),
+                    'caption'     => __('Action cards surface what to do next: top earners to amplify, dead products to swap, posts with no clicks to revisit.', 'myfeeds-affiliate-feed-manager'),
                 ),
             ),
             'benefits' => array(
-                __('Server-side click tracking with self-click exclusion', 'myfeeds-affiliate-feed-manager'),
-                __('Nightly conversion sync from 8 affiliate networks', 'myfeeds-affiliate-feed-manager'),
-                __('Earnings + EPC per post, product, brand, network', 'myfeeds-affiliate-feed-manager'),
-                __('Top performers, dead products, inactive posts surfaced', 'myfeeds-affiliate-feed-manager'),
-                __('Optional Google Analytics 4 event push', 'myfeeds-affiliate-feed-manager'),
+                __('Earnings + EPC per post, product, brand and network', 'myfeeds-affiliate-feed-manager'),
+                __('Nightly sync from AWIN, CJ, Tradedoubler, Rakuten, Impact, Pepperjam, FlexOffers, Sovrn', 'myfeeds-affiliate-feed-manager'),
+                __('Top performers and dead products surfaced as action items', 'myfeeds-affiliate-feed-manager'),
+                __('Server-side tracking with self-click exclusion — clean numbers', 'myfeeds-affiliate-feed-manager'),
+                __('Day-over-day deltas to spot what is rising and what is falling', 'myfeeds-affiliate-feed-manager'),
+                __('Optional Google Analytics 4 event push for your own stack', 'myfeeds-affiliate-feed-manager'),
             ),
         ));
     }
@@ -249,7 +260,13 @@ class MyFeeds_Feature_Previews {
                     <?php foreach ($config['screenshots'] as $shot) : ?>
                         <figure class="myfeeds-preview-screenshot">
                             <?php if (!empty($shot['image'])) : ?>
-                                <img src="<?php echo esc_url($shot['image']); ?>" alt="<?php echo esc_attr($shot['placeholder']); ?>">
+                                <button type="button"
+                                        class="myfeeds-preview-zoom-trigger"
+                                        data-myfeeds-zoom-src="<?php echo esc_url($shot['image']); ?>"
+                                        data-myfeeds-zoom-caption="<?php echo esc_attr($shot['caption'] ?? ''); ?>"
+                                        aria-label="<?php echo esc_attr__('Open larger view', 'myfeeds-affiliate-feed-manager'); ?>">
+                                    <img src="<?php echo esc_url($shot['image']); ?>" alt="<?php echo esc_attr($shot['placeholder']); ?>">
+                                </button>
                             <?php else : ?>
                                 <div class="myfeeds-preview-screenshot-placeholder">
                                     <span><?php echo esc_html($shot['placeholder']); ?></span>
@@ -265,9 +282,25 @@ class MyFeeds_Feature_Previews {
 
             <div class="myfeeds-preview-footer">
                 <p class="myfeeds-preview-disclaimer">
-                    <?php esc_html_e('MyFeeds Pro and MyFeeds Business are separate paid plugins available at myfeeds.site. Activating a license unlocks the feature on this site.', 'myfeeds-affiliate-feed-manager'); ?>
+                    <?php
+                    printf(
+                        /* translators: %s is an anchor tag wrapping the text "myfeeds.site" */
+                        esc_html__('MyFeeds Pro and MyFeeds Business are separate paid plugins available at %s. Activating a license unlocks the feature on this site.', 'myfeeds-affiliate-feed-manager'),
+                        '<a href="https://myfeeds.site/?utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=disclaimer" target="_blank" rel="noopener noreferrer">myfeeds.site</a>'
+                    );
+                    ?>
                 </p>
             </div>
+        </div>
+
+        <div class="myfeeds-preview-lightbox" aria-hidden="true" role="dialog" aria-modal="true" aria-label="<?php echo esc_attr__('Screenshot zoom view', 'myfeeds-affiliate-feed-manager'); ?>">
+            <button type="button" class="myfeeds-preview-lightbox-close" aria-label="<?php echo esc_attr__('Close', 'myfeeds-affiliate-feed-manager'); ?>">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
+            </button>
+            <figure class="myfeeds-preview-lightbox-figure">
+                <img class="myfeeds-preview-lightbox-image" src="" alt="">
+                <figcaption class="myfeeds-preview-lightbox-caption"></figcaption>
+            </figure>
         </div>
         <?php
     }
