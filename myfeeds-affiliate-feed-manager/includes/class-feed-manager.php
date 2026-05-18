@@ -419,6 +419,23 @@ class MyFeeds_Feed_Manager {
     }
     
     /**
+     * Map a mapping-quality percentage to a bucket class for CSS styling.
+     *
+     *   >= 90  high  green   identical palette to feed-status-active
+     *   >= 70  mid   orange  identical palette to feed-status-importing
+     *   <  70  low   red     identical palette to feed-status-failed
+     *
+     * Mirrored in the inline JS bucket helper so dynamic updates from
+     * polling / reimport flows land in the same bucket as the initial render.
+     */
+    public static function quality_bucket_class($percent) {
+        $p = (float) $percent;
+        if ($p >= 90) return 'high';
+        if ($p >= 70) return 'mid';
+        return 'low';
+    }
+
+    /**
      * Get human-readable label for sync type (Fix 8)
      */
     private static function get_sync_type_label($last_sync) {
@@ -638,7 +655,8 @@ class MyFeeds_Feed_Manager {
                             </td>
                             <td>
                                 <?php if ($mapping_confidence > 0): ?>
-                                    <div class="myfeeds-confidence-bar myfeeds-quality-clickable" 
+                                    <?php $bucket_class = self::quality_bucket_class($mapping_confidence); ?>
+                                    <div class="myfeeds-confidence-bar myfeeds-quality-clickable myfeeds-confidence-bar--<?php echo esc_attr($bucket_class); ?>"
                                          data-feed-name="<?php echo esc_attr($feed['name']); ?>"
                                          data-testid="mapping-quality-<?php echo esc_attr($key); ?>"
                                          title="Click for details"

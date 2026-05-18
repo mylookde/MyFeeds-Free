@@ -323,32 +323,35 @@ tr.myfeeds-feed-inactive .button-link-delete {
 .myfeeds-network-badge.auto-detected { background: #27ae60; }
 
 .myfeeds-confidence-bar {
-    width: 80px;
-    height: 16px;
-    background: #eee;
-    border-radius: 8px;
-    position: relative;
-    overflow: hidden;
-}
-
-.myfeeds-confidence-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #e74c3c 0%, #f39c12 50%, #27ae60 100%);
-    transition: width 0.3s ease;
-}
-
-.myfeeds-confidence-text {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
-    font-weight: bold;
-    color: #333;
+    padding: 3px 12px;
+    min-width: 56px;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    background: #f0f0f0;
+    color: #50575e;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    position: static;
+    overflow: visible;
+    width: auto;
+}
+.myfeeds-confidence-fill { display: none; }
+.myfeeds-confidence-bar--high { background: #e6f7e6; color: #00a32a; border-color: #b8e6b8; }
+.myfeeds-confidence-bar--mid  { background: #fff3e0; color: #e65100; border-color: #ffab40; }
+.myfeeds-confidence-bar--low  { background: #fde7e7; color: #d63638; border-color: #f5b5b5; }
+
+.myfeeds-confidence-text {
+    position: static;
+    display: inline;
+    font-weight: 600;
+    color: inherit;
+    text-shadow: none;
 }
 
 .myfeeds-confidence-unknown {
@@ -409,6 +412,19 @@ tr.myfeeds-feed-inactive .button-link-delete {
 .myfeeds-quality-field-name { font-weight: 500; }
 .myfeeds-quality-field-missing { color: #d63638; }
 .myfeeds-quality-field-ok { color: #00a32a; }
+.myfeeds-quality-field-unmapped { color: #888; font-style: italic; }
+.myfeeds-quality-source {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 12px;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: #1d2327;
+}
+.myfeeds-quality-source--missing { background: transparent; border-color: transparent; color: #888; font-family: inherit; padding: 0; }
+.myfeeds-quality-arrow { color: #888; margin: 0 2px; }
+.myfeeds-quality-dest { color: #50575e; font-size: 13px; }
 .myfeeds-quality-field-label {
     font-size: 11px;
     color: #888;

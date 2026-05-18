@@ -216,7 +216,9 @@
                         var $row = $('tr[data-feed-name="' + feedName + '"]');
                         if ($row.length && quality > 0) {
                             var $qualityCell = $row.find('td').eq(5);
-                            $qualityCell.html('<div class="myfeeds-confidence-bar myfeeds-quality-clickable" data-feed-name="' + feedName + '" title="Click for details" style="cursor:pointer;">' +
+                            // Mirror PHP MyFeeds_Feed_Manager::quality_bucket_class()
+                            var bucket = quality >= 90 ? 'high' : (quality >= 70 ? 'mid' : 'low');
+                            $qualityCell.html('<div class="myfeeds-confidence-bar myfeeds-quality-clickable myfeeds-confidence-bar--' + bucket + '" data-feed-name="' + feedName + '" title="Click for details" style="cursor:pointer;">' +
                                 '<div class="myfeeds-confidence-fill" style="width:' + quality + '%"></div>' +
                                 '<span class="myfeeds-confidence-text">' + Math.round(quality) + '%</span></div>');
                         }
@@ -519,20 +521,45 @@
                     }
                 });
                 
-                // Render each tier
+                // Render each tier - title line shows the feed's actual
+                // source column → the destination column the importer fills.
+                function escHtml(s) {
+                    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                }
                 $.each(['required', 'important', 'optional'], function(i, tier) {
                     if (tiers[tier].length === 0) return;
-                    
+
                     var tierTitle = tier === 'required' ? 'Required Fields' : tier === 'important' ? 'Important Fields' : 'Optional Fields';
                     html += '<h4 style="margin:16px 0 6px; font-size:13px; color:#444;">' + tierTitle + '</h4>';
-                    
+
                     $.each(tiers[tier], function(j, field) {
                         var label = tierLabels[tier] || '';
-                        var status = field.info.missing > 0 
-                            ? '<span class="myfeeds-quality-field-missing">' + field.info.missing.toLocaleString() + ' missing</span>'
-                            : '<span class="myfeeds-quality-field-ok">All filled</span>';
+                        var source = field.info.source_field || null;
+                        // Three states: not mapped (grey), missing rows (red), all filled (green).
+                        var status;
+                        if (source === null) {
+                            status = '<span class="myfeeds-quality-field-unmapped">Not mapped</span>';
+                        } else if (field.info.missing > 0) {
+                            status = '<span class="myfeeds-quality-field-missing">' + field.info.missing.toLocaleString() + ' missing</span>';
+                        } else {
+                            status = '<span class="myfeeds-quality-field-ok">All filled</span>';
+                        }
+
+                        var nameHtml;
+                        if (source !== null) {
+                            nameHtml = '<code class="myfeeds-quality-source">' + escHtml(source) + '</code>'
+                                     + '<span class="myfeeds-quality-arrow"> → </span>'
+                                     + '<span class="myfeeds-quality-dest">' + escHtml(field.name) + '</span>'
+                                     + ' ' + label;
+                        } else {
+                            nameHtml = '<span class="myfeeds-quality-source myfeeds-quality-source--missing">—</span>'
+                                     + '<span class="myfeeds-quality-arrow"> → </span>'
+                                     + '<span class="myfeeds-quality-dest">' + escHtml(field.name) + '</span>'
+                                     + ' ' + label;
+                        }
+
                         html += '<div class="myfeeds-quality-field-row">';
-                        html += '<span class="myfeeds-quality-field-name">' + field.name + ' ' + label + '</span>';
+                        html += '<span class="myfeeds-quality-field-name">' + nameHtml + '</span>';
                         html += status;
                         html += '</div>';
                     });

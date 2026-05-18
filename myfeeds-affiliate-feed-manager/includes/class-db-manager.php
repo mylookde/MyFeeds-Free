@@ -525,24 +525,65 @@ class MyFeeds_DB_Manager {
         $missing_in_stock       = (int) $row['missing_in_stock'];
 
         $quality = round(($complete / $total) * 100);
-        
+
+        // Pull the persisted feed mapping so the modal can show WHICH
+        // source column from the feed is feeding each DB column. Without
+        // this the user sees "original_price - 8136 missing" and assumes
+        // the feed is broken, when in fact the mapper picked the wrong
+        // source slot. The source column name is the only signal that
+        // points them at the right fix in the mapping editor.
+        $feed_mapping = array();
+        $feeds = get_option('myfeeds_feeds', array());
+        if (is_array($feeds)) {
+            foreach ($feeds as $f) {
+                if (is_array($f) && ($f['name'] ?? '') === $feed_name) {
+                    $feed_mapping = is_array($f['mapping'] ?? null) ? $f['mapping'] : array();
+                    break;
+                }
+            }
+        }
+
+        $col_to_standard = array(
+            'product_name'   => 'title',
+            'price'          => 'price',
+            'image_url'      => 'image_url',
+            'affiliate_link' => 'affiliate_link',
+            'brand'          => 'brand',
+            'original_price' => 'old_price',
+            'category'       => 'category',
+            'currency'       => 'currency',
+            'in_stock'       => 'availability',
+        );
+
+        $resolve_source = function ($col) use ($col_to_standard, $feed_mapping) {
+            $standard = $col_to_standard[$col] ?? null;
+            if ($standard === null) {
+                return null;
+            }
+            $src = $feed_mapping[$standard] ?? null;
+            if (is_string($src) && $src !== '') {
+                return $src;
+            }
+            return null;
+        };
+
         return array(
             'quality' => $quality,
             'total' => $total,
             'complete' => $complete,
             'fields' => array(
                 // Required
-                'product_name'   => array('tier' => 'required',  'missing' => $missing_product_name),
-                'price'          => array('tier' => 'required',  'missing' => $missing_price),
-                'image_url'      => array('tier' => 'required',  'missing' => $missing_image),
-                'affiliate_link' => array('tier' => 'required',  'missing' => $missing_link),
+                'product_name'   => array('tier' => 'required',  'missing' => $missing_product_name,   'source_field' => $resolve_source('product_name')),
+                'price'          => array('tier' => 'required',  'missing' => $missing_price,          'source_field' => $resolve_source('price')),
+                'image_url'      => array('tier' => 'required',  'missing' => $missing_image,          'source_field' => $resolve_source('image_url')),
+                'affiliate_link' => array('tier' => 'required',  'missing' => $missing_link,           'source_field' => $resolve_source('affiliate_link')),
                 // Important
-                'brand'          => array('tier' => 'important', 'missing' => $missing_brand),
-                'original_price' => array('tier' => 'important', 'missing' => $missing_original_price),
+                'brand'          => array('tier' => 'important', 'missing' => $missing_brand,          'source_field' => $resolve_source('brand')),
+                'original_price' => array('tier' => 'important', 'missing' => $missing_original_price, 'source_field' => $resolve_source('original_price')),
                 // Optional
-                'category'       => array('tier' => 'optional',  'missing' => $missing_category),
-                'currency'       => array('tier' => 'optional',  'missing' => $missing_currency),
-                'in_stock'       => array('tier' => 'optional',  'missing' => $missing_in_stock),
+                'category'       => array('tier' => 'optional',  'missing' => $missing_category,       'source_field' => $resolve_source('category')),
+                'currency'       => array('tier' => 'optional',  'missing' => $missing_currency,       'source_field' => $resolve_source('currency')),
+                'in_stock'       => array('tier' => 'optional',  'missing' => $missing_in_stock,       'source_field' => $resolve_source('in_stock')),
             ),
         );
     }
