@@ -47,6 +47,36 @@ class MyFeeds_Feed_Manager {
     public function delete_feed() {
         update_option(self::OPTION_KEY, array());
     }
+
+    /**
+     * Return feeds that should be visible in editor/list UIs.
+     * Drops stale entries (empty name or url) and self-heals the option
+     * so the next read is consistent. In Free, single-feed, the option
+     * is also trimmed to at most one entry so legacy multi-feed leftovers
+     * from earlier installs cannot pollute the mapping editor dropdown.
+     */
+    public static function get_displayable_feeds() {
+        $raw = get_option(self::OPTION_KEY, array());
+        if (!is_array($raw)) {
+            return array();
+        }
+        $valid = array();
+        foreach ($raw as $entry) {
+            if (!is_array($entry)) continue;
+            $name = isset($entry['name']) ? trim((string) $entry['name']) : '';
+            $url  = isset($entry['url'])  ? trim((string) $entry['url'])  : '';
+            if ($name === '' || $url === '') continue;
+            $valid[] = $entry;
+        }
+        if (count($valid) > 1) {
+            $valid = array_slice($valid, 0, 1);
+        }
+        $valid = array_values($valid);
+        if (count($valid) !== count($raw)) {
+            update_option(self::OPTION_KEY, $valid);
+        }
+        return $valid;
+    }
     
     public function init() {
         // Admin hooks

@@ -138,7 +138,10 @@ class MyFeeds_Universal_Mapper_UI {
     private function render_mapping_editor_content() {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $feed_key = isset($_GET['feed_key']) ? intval(wp_unslash($_GET['feed_key'])) : null;
-        $feeds = get_option('myfeeds_feeds', array());
+        // Use the displayable-feeds helper so the dropdown never lists
+        // stale entries that were left behind by an old multi-feed install
+        // or a half-finished delete. The helper also self-heals the option.
+        $feeds = MyFeeds_Feed_Manager::get_displayable_feeds();
         $templates = MyFeeds_Settings_Manager::get_mapping_templates();
         $standard_fields = MyFeeds_Settings_Manager::$standard_fields;
         $field_groups = MyFeeds_Settings_Manager::get_field_groups();

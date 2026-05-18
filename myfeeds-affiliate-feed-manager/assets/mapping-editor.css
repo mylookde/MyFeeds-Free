@@ -1,166 +1,281 @@
-.myfeeds-mapping-editor { max-width: 1400px; }
-
-.myfeeds-panel {
-    background: #fff;
-    padding: 20px;
-    margin: 20px 0;
-    border: 1px solid #ccd0d4;
-    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+/* Mapping Editor - Brand-aligned design (Indigo/Purple) */
+.myfeeds-mapping-editor {
+    max-width: 1400px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif;
 }
 
+/* Panel cards - elevated white with subtle indigo accent */
+.myfeeds-panel {
+    background: #fff;
+    padding: 24px 28px;
+    margin: 20px 0;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.04);
+    position: relative;
+}
+.myfeeds-panel h2 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1d2327;
+    letter-spacing: -0.01em;
+    position: relative;
+    padding-left: 14px;
+}
+.myfeeds-panel h2::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 2px; bottom: 2px;
+    width: 4px;
+    border-radius: 2px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* Large select - cleaner border, focus ring */
 .myfeeds-select-large {
     width: 100%;
     max-width: 500px;
-    padding: 10px;
+    padding: 9px 12px;
     font-size: 14px;
+    border: 1px solid #d4d4d8;
+    border-radius: 6px;
+    background: #fff;
+    color: #1d2327;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.myfeeds-select-large:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
 }
 
+/* Template-apply row */
+.myfeeds-template-apply {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.myfeeds-template-apply label {
+    font-weight: 500;
+    color: #4a4a55;
+}
+.myfeeds-template-apply .myfeeds-select {
+    padding: 8px 12px;
+    border: 1px solid #d4d4d8;
+    border-radius: 6px;
+    font-size: 14px;
+    background: #fff;
+    min-width: 200px;
+}
+
+/* Feed columns area - brand-light background */
 .myfeeds-columns-panel {
-    background: #f5f5f5;
-    padding: 15px;
-    margin: 15px 0;
-    border-radius: 4px;
+    background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+    padding: 18px;
+    margin: 16px 0;
+    border-radius: 8px;
+    border: 1px solid rgba(102, 126, 234, 0.12);
 }
-
+.myfeeds-columns-panel h3 {
+    margin: 0 0 12px 0;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #5b21b6;
+}
 .myfeeds-column-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
 }
-
 .myfeeds-column-tag {
     background: #fff;
-    border: 1px solid #ddd;
+    border: 1px solid #ddd6fe;
     padding: 5px 10px;
-    border-radius: 3px;
-    font-family: monospace;
+    border-radius: 999px;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
     font-size: 12px;
-    cursor: pointer;
+    color: #4338ca;
+    cursor: grab;
+    transition: all 0.15s;
 }
-
 .myfeeds-column-tag:hover {
-    background: #e7f3ff;
-    border-color: #2271b1;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border-color: transparent;
+    transform: translateY(-1px);
+}
+.myfeeds-column-tag:active {
+    cursor: grabbing;
+    transform: translateY(0);
 }
 
+/* Mapping grid */
 .myfeeds-mapping-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: 16px;
     margin: 20px 0;
 }
-
 .myfeeds-field-group {
-    background: #fafafa;
-    padding: 15px;
-    border: 1px solid #eee;
-    border-radius: 4px;
+    background: #fff;
+    padding: 18px 20px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
-
+.myfeeds-field-group:hover {
+    border-color: rgba(102, 126, 234, 0.3);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.08);
+}
 .myfeeds-field-group h3 {
-    margin: 0 0 15px 0;
+    margin: 0 0 14px 0;
     padding-bottom: 10px;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1d2327;
 }
-
 .myfeeds-field-group h3 .description {
     display: block;
     font-size: 12px;
     font-weight: normal;
-    color: #666;
-    margin-top: 5px;
+    color: #71717a;
+    margin-top: 4px;
 }
 
+/* Field rows */
 .myfeeds-field-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
+    padding: 4px 0;
 }
-
 .myfeeds-field-row label {
     flex: 0 0 140px;
     font-weight: 500;
+    color: #3f3f46;
+    font-size: 13px;
 }
-
-.myfeeds-field-row label .required {
-    color: #d63638;
-}
-
+.myfeeds-field-row label .required { color: #d63638; }
 .myfeeds-field-row select {
     flex: 1;
-    padding: 5px;
+    padding: 6px 10px;
+    border: 1px solid #d4d4d8;
+    border-radius: 5px;
+    font-size: 13px;
+    background: #fff;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.myfeeds-field-row select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
 }
 
 .myfeeds-field-help {
-    width: 20px;
-    height: 20px;
-    line-height: 20px;
+    width: 18px;
+    height: 18px;
+    line-height: 18px;
     text-align: center;
-    background: #ddd;
+    background: #e0e7ff;
+    color: #4338ca;
     border-radius: 50%;
     font-size: 11px;
+    font-weight: 600;
     cursor: help;
 }
 
+/* Preview panel */
 .myfeeds-preview-panel {
-    background: #f0f0f1;
-    padding: 15px;
-    margin: 20px 0;
-    border-radius: 4px;
+    background: #f8fafc;
+    padding: 16px 18px;
+    margin: 16px 0;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
 }
-
 .myfeeds-preview-panel pre {
     background: #fff;
-    padding: 15px;
+    padding: 14px;
+    border-radius: 6px;
+    border: 1px solid #f3f4f6;
     overflow-x: auto;
     font-size: 12px;
     max-height: 300px;
     overflow-y: auto;
+    color: #1d2327;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
+/* Mapping actions row */
 .myfeeds-mapping-actions {
-    padding-top: 20px;
-    border-top: 1px solid #ddd;
+    padding-top: 18px;
+    margin-top: 18px;
+    border-top: 1px solid #f3f4f6;
     display: flex;
     gap: 10px;
 }
+.myfeeds-mapping-actions .button-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border-color: transparent !important;
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.25) !important;
+    text-shadow: none !important;
+    color: #fff !important;
+}
+.myfeeds-mapping-actions .button-primary:hover {
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35) !important;
+    transform: translateY(-1px);
+}
 
+/* Modal */
 .myfeeds-modal {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(2px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100000;
 }
-
 .myfeeds-modal-content {
     background: #fff;
-    padding: 30px;
-    border-radius: 4px;
-    max-width: 500px;
+    padding: 28px;
+    border-radius: 10px;
+    max-width: 520px;
     width: 100%;
+    box-shadow: 0 20px 60px rgba(15, 23, 42, 0.3);
 }
-
 .myfeeds-modal-content label {
     display: block;
-    margin: 15px 0 5px;
+    margin: 14px 0 5px;
     font-weight: 500;
+    color: #3f3f46;
+    font-size: 13px;
 }
-
 .myfeeds-modal-content input,
 .myfeeds-modal-content select {
     width: 100%;
-    padding: 8px;
+    padding: 9px 12px;
+    border: 1px solid #d4d4d8;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
-
+.myfeeds-modal-content input:focus,
+.myfeeds-modal-content select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
 .myfeeds-modal-actions {
-    margin-top: 20px;
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid #f3f4f6;
     display: flex;
     gap: 10px;
     justify-content: flex-end;
@@ -169,17 +284,21 @@
 /* Settings page */
 .myfeeds-settings-section {
     background: #fff;
-    padding: 20px;
+    padding: 24px 28px;
     margin: 20px 0;
-    border: 1px solid #ccd0d4;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 .myfeeds-pro-badge {
-    background: #2271b1;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: #fff;
-    padding: 3px 8px;
-    border-radius: 3px;
-    font-size: 11px;
-    font-weight: bold;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     margin-left: 10px;
     vertical-align: middle;
 }
