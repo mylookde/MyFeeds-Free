@@ -243,15 +243,15 @@ class MyFeeds_Universal_Mapper_UI {
                     <!-- Actions -->
                     <div class="myfeeds-mapping-actions">
                         <button type="button" id="myfeeds-save-mapping" class="button button-primary button-large">
-                            <?php esc_html_e('💾 Save Mapping', 'myfeeds-affiliate-feed-manager'); ?>
+                            <?php esc_html_e('Save Mapping', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
                         
                         <button type="button" id="myfeeds-save-as-template" class="button">
-                            <?php esc_html_e('📑 Save as Template', 'myfeeds-affiliate-feed-manager'); ?>
+                            <?php esc_html_e('Save as Template', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
                         
                         <button type="button" id="myfeeds-auto-detect" class="button">
-                            <?php esc_html_e('🔍 Auto-Detect', 'myfeeds-affiliate-feed-manager'); ?>
+                            <?php esc_html_e('Auto-Detect', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
                     </div>
                 </div>
