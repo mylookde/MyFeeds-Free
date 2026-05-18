@@ -12,32 +12,56 @@ Import an affiliate product feed, search it locally, and showcase products in yo
 
 == Description ==
 
-Write affiliate posts without copy-paste. Prices stay up to date automatically. **MyFeeds — Affiliate Product Feed Manager** imports your affiliate product feed into your WordPress database, so you can drop product cards into any post or page from the block editor — no external calls when a visitor loads your page.
+**Stop copy-pasting affiliate products. Stop fixing dead links by hand. Start writing.**
 
-Insert product cards directly in Gutenberg with the **MyFeeds – Product Picker** block. Search your feed by name, brand, or category — the smart search understands synonyms and German umlauts. Products render in a responsive grid with live prices, images, and your affiliate links.
+MyFeeds — Affiliate Product Feed Manager turns your affiliate network's product feed into a locally searchable product catalog inside WordPress. Drop product cards into any blog post or page from the Gutenberg block editor — prices, images, brands and affiliate links stay current on every sync, and your visitors never wait on an external API.
+
+Built for **fashion bloggers**, **tech reviewers**, **deal sites** and anyone running affiliate marketing on WordPress. Pick products in the editor, publish, move on. No CSV downloads, no FTP juggling, no admin overhead.
+
+= Why MyFeeds? =
+
+Existing WordPress affiliate plugins force a choice between **Amazon-only convenience** and **manual link-rotation tools**. MyFeeds covers the middle ground: any affiliate network with a product feed, fully imported into your own database, surfaced through a native block editor block.
+
+* **Any affiliate network with a feed** — AWIN, CJ Affiliate, Tradedoubler, Webgains, Rakuten, Admitad, Impact, ShareASale, and any other network that exports a CSV, TSV, XML or JSON product feed.
+* **Self-hosted product data** — every imported product lives in your WordPress database. The frontend never calls an external service when a visitor loads a page. Faster pages, GDPR-friendly, no third-party tracking on render.
+* **Native Gutenberg block** — search by name, brand or category inside the editor and insert product cards inline. Not a shortcode wrapper.
+* **Smart auto-mapping** — the importer recognises the column structure of major networks out of the box (AWIN's `aw_product_id`, CJ's `advertiser_sku`, Tradedoubler's `TDProductId`, and many more). Manual override for the rest.
+* **Smart search with German support** — FULLTEXT index with synonyms, German stemming, umlaut normalisation, gender-aware filtering. Searches like "schuhe", "Schuh" and "shoes" all return the same products.
+* **Truthful pricing** — no silent EUR defaults, no fake discount markers. What the feed publishes is what visitors see.
+* **Built for large feeds** — background imports via Action Scheduler, 32 KB delimiter sniffing for messy CSV headers, RFC4180-aware quote handling. 80-column AWIN feeds with quoted descriptions parse correctly out of the box.
 
 = How it works =
 
-1. Paste a product feed URL from your affiliate network (AWIN, Webgains, Rakuten, Tradedoubler, Admitad, and other networks that provide CSV, TSV, XML, or JSON feeds).
-2. MyFeeds imports and indexes the products locally in your database.
-3. Use the Product Picker block in any post or page to search the index and select products.
-4. Published pages render a responsive grid with prices, images, and affiliate links.
+1. Paste your **affiliate product feed URL** from your network (AWIN, CJ, Tradedoubler, Rakuten, Webgains, Admitad, Impact, ShareASale, or any other CSV/TSV/XML/JSON exporter).
+2. MyFeeds imports and indexes every product locally in your **WordPress database**.
+3. In any post or page, add the **MyFeeds – Product Picker** block, search by name, brand or category, and click to insert.
+4. The published page renders a **responsive product grid** with live prices, images, brands, shipping info, and your affiliate links — straight from your database. No frontend external calls.
+
+= Use cases =
+
+* **Affiliate roundup posts** — "20 best running shoes 2026", "Top 10 sustainable fashion brands" — replace dozens of hand-coded product blocks with a single Product Picker.
+* **Fashion and lifestyle blogs** — pick today's outfit recommendations in the editor, let the nightly sync keep prices in line with the merchant store.
+* **Tech review sites** — link to current product variants without rewriting old posts when SKUs change.
+* **Deal aggregators** — search a multi-network catalog for matching deals and surface them inside long-form content.
+* **Niche review sites** — multi-network catalog instead of being locked into one affiliate program.
 
 = Features =
 
-* **Affiliate product feed import** — Add an affiliate product feed and manage it from the WordPress admin.
-* **Universal feed import** — CSV, TSV, XML, and JSON feeds are detected and parsed automatically.
-* **Smart Mapping** — Automatic field detection (title, price, brand, image, affiliate link, …) with manual override if needed.
-* **Smart Search** — FULLTEXT search with synonym expansion, German stemming, umlaut normalisation, and gender-aware filtering.
-* **Product Picker block** — Native Gutenberg block to search, select, and display products in posts and pages.
-* **Grid layout** — Responsive product grid with prices, brands, shipping info, and affiliate links.
-* **Manual and automatic sync** — Update products on demand with a single click, plus a nightly quick refresh and a weekly full re-import via WP-Cron.
-* **Local storage** — All product data lives in your WordPress database. No external calls on the frontend.
-* **Works with any block theme** — Compatible with any WordPress theme that supports the block editor.
+* Universal feed import — CSV, TSV, XML, JSON and gzipped variants, all detected automatically from the URL
+* Smart Mapping — network-aware automatic field detection for AWIN, CJ, Tradedoubler, Webgains, Rakuten, Impact, ShareASale, Belboon, Adcell and more
+* Smart Search — FULLTEXT index with synonyms, German stemming, umlaut normalisation, gender-aware filtering
+* Native Gutenberg **Product Picker** block with live in-editor search and multi-select
+* Responsive product grid with prices, brands, shipping info and configurable affiliate links
+* Background imports via Action Scheduler — no admin lock-up on large feeds
+* Nightly quick sync (active products) plus weekly full re-import via WP-Cron
+* AWIN Publisher API integration — verify credentials and resolve feed URLs without leaving WordPress
+* Truthful currency handling — no hardcoded EUR fallback
+* Works with any block-editor compatible WordPress theme (5.8+)
+* Self-hosted, no frontend external calls — products render from your own database
 
 = Related paid plugins =
 
-This plugin is fully functional on its own. Separate, independent paid plugins called **MyFeeds Pro** and **MyFeeds Premium** are available at [myfeeds.site](https://myfeeds.site) and ship with additional features such as a carousel block, a visual card design editor with Google Fonts, and an analytics dashboard. They are not required to use this plugin.
+This plugin is fully functional on its own. Separate, independent paid plugins called **MyFeeds Pro** and **MyFeeds Business** are available at [myfeeds.site](https://myfeeds.site) and ship with additional features such as a carousel block, a visual card design editor with Google Fonts, click and conversion analytics, and a full multi-feed storefront system. They are not required to use this plugin.
 
 == Installation ==
 
