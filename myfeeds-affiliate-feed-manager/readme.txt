@@ -1,6 +1,6 @@
 === MyFeeds — Affiliate Product Feed Manager ===
 Contributors: myfeeds
-Tags: affiliate, product feeds, gutenberg, product picker, awin
+Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 6.9
 Stable tag: 1.0.1
