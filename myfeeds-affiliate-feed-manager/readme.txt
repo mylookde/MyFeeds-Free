@@ -74,7 +74,7 @@ This plugin is fully functional on its own. Separate, independent paid plugins c
 
 = Where do I get a product feed URL? =
 
-Sign up with an affiliate network (such as AWIN, CJ, or Tradedoubler), navigate to the product feed section — usually labelled "Create a feed" or "Product feeds" — and copy the feed URL.
+Sign up with an affiliate network (such as AWIN, CJ Affiliate, Rakuten, or Impact), navigate to the product feed section — usually labelled "Create a feed" or "Product feeds" — and copy the feed URL.
 
 == Frequently Asked Questions ==
 
@@ -100,7 +100,7 @@ No. MyFeeds requires the block editor.
 
 = Which affiliate networks are supported? =
 
-MyFeeds works with any affiliate network that provides a product feed URL in CSV, TSV, XML, or JSON format. The parser has been tested with AWIN, Webgains, Rakuten, Tradedoubler, and Admitad.
+MyFeeds works with any affiliate network that provides a product feed URL in CSV, TSV, XML, or JSON format. Smart Mapping recognises the column structure of major networks out of the box — including AWIN, CJ Affiliate, Rakuten, Impact, Tradedoubler, Webgains, Pepperjam, FlexOffers, Admitad, and Google Shopping — and a manual mapping editor handles anything custom.
 
 = Does the plugin make any external requests? =
 
