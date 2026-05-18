@@ -60,6 +60,12 @@ html body .myfeeds-product-grid .myfeeds-product-card {
     flex-direction: column !important;
     text-decoration: none !important;
     color: inherit !important;
+    /* Neutral sans-serif default so themes that set a serif body font
+       don't leak through to the card wrapper. Inner elements keep
+       their own var(--myfeeds-<elem>-font, inherit) so per-element
+       font choices still work. */
+    font-family: var(--myfeeds-card-font, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif) !important;
+    line-height: 1.3 !important;
     background: var(--myfeeds-card-bg, #fff) !important;
     border-radius: var(--myfeeds-card-radius, 0) !important;
     overflow: hidden !important;
@@ -154,11 +160,9 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image img
     padding: 0 !important;
 }
 
-@media (max-width: 767px) {
-    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image {
-        padding-bottom: 120% !important;
-    }
-}
+/* No mobile-only image aspect override — the desktop rule reads
+   --myfeeds-img-ratio so a single setting drives every breakpoint.
+   The old hardcoded 120% used to clobber that. */
 
 /* ==========================================================================
    PRODUCT DETAILS - Text containment with ellipsis
@@ -223,21 +227,10 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
     text-transform: var(--myfeeds-title-transform, none) !important;
 }
 
-@media (max-width: 767px) {
-    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details {
-        padding: 10px 8px !important;
-    }
-    
-    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand {
-        font-size: 10px !important;
-        margin-bottom: 3px !important;
-    }
-    
-    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title {
-        font-size: 11px !important;
-        margin-bottom: 6px !important;
-    }
-}
+/* Removed: a mobile @media block that hardcoded brand font-size:10px,
+   title font-size:11px and details padding:10px 8px with no var()
+   lookup. The element-level rules above already read the relevant
+   variables, so they now apply on every viewport. */
 
 /* ==========================================================================
    PRICE SECTION - Text containment, no column stretch
@@ -248,6 +241,10 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
     align-items: baseline !important;
     gap: 8px !important;
     margin-bottom: 6px !important;
+    /* Explicit line-height so the price row stays a predictable height
+       no matter what the host theme's body line-height is — OceanWP +
+       Raleway pushed it to ~41px otherwise. 1.3 matches brand + title. */
+    line-height: 1.3 !important;
     flex-wrap: nowrap !important;
     overflow: hidden !important;
     min-width: 0 !important;
@@ -297,24 +294,10 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
     font-style: italic !important;
 }
 
-@media (max-width: 767px) {
-    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price {
-        gap: 6px !important;
-        margin-bottom: 5px !important;
-    }
-    
-    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price {
-        font-size: 13px !important;
-    }
-    
-    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price {
-        font-size: 14px !important;
-    }
-    
-    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount {
-        font-size: 14px !important;
-    }
-}
+/* Removed: same hardcoded-mobile-override pattern as above, this time
+   for old-price (13px), current-price (14px), has-discount (14px),
+   and the price-container gap/margin. Variable-driven rules above
+   apply on all breakpoints. */
 
 /* ==========================================================================
    SHIPPING INFO
@@ -323,6 +306,7 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
 html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info {
     display: var(--myfeeds-shipping-display, block) !important;
     font-size: var(--myfeeds-shipping-size, 10px) !important;
+    line-height: 1.3 !important;
     color: var(--myfeeds-shipping-color, #999) !important;
     margin-bottom: 6px !important;
     font-weight: 400 !important;
@@ -342,6 +326,7 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
 html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant {
     display: var(--myfeeds-merchant-display, block) !important;
     font-size: var(--myfeeds-merchant-size, 10px) !important;
+    line-height: 1.3 !important;
     color: var(--myfeeds-merchant-color, #666) !important;
     font-weight: 400 !important;
     text-align: right !important;
@@ -356,18 +341,9 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
     font-family: var(--myfeeds-merchant-font, inherit) !important;
 }
 
-@media (max-width: 767px) {
-    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info {
-        font-size: 9px !important;
-        margin-bottom: 4px !important;
-    }
-    
-    html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant {
-        font-size: 9px !important;
-        margin-top: auto !important;
-        padding-top: 3px !important;
-    }
-}
+/* Removed: same hardcoded-mobile-override pattern for shipping and
+   merchant (font-size:9px). Variable-driven rules above apply on
+   all breakpoints. */
 
 /* ==========================================================================
    EMPTY STATE
@@ -501,23 +477,10 @@ html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-car
     font-size: var(--myfeeds-price-size, 15px) !important;
 }
 
-@media (max-width: 767px) {
-    html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details {
-        padding: 10px 8px !important;
-    }
-    
-    html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price {
-        font-size: 13px !important;
-    }
-    
-    html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price {
-        font-size: 14px !important;
-    }
-    
-    html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount {
-        font-size: 14px !important;
-    }
-}
+/* Removed: the Elementor-widget-container variant of the same mobile
+   hardcode block (details padding + old/current/has-discount price
+   font-sizes). Variable-driven Elementor-scoped rules above cover
+   every breakpoint. */
 
 /* ==========================================================================
    MISSING PRODUCT PLACEHOLDER
