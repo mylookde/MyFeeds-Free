@@ -149,6 +149,15 @@
     margin-top: 32px;
 }
 
+/* When there's only one screenshot, center it and cap the width so it
+   doesn't stretch into a billboard. The :has() selector is supported
+   in every browser shipped since 2023, which is well below the 5.8+
+   WordPress baseline we support. */
+.myfeeds-preview-screenshots:has(> .myfeeds-preview-screenshot:only-child) {
+    grid-template-columns: minmax(0, 880px);
+    justify-content: center;
+}
+
 @media (max-width: 900px) {
     .myfeeds-preview-screenshots {
         grid-template-columns: 1fr;
