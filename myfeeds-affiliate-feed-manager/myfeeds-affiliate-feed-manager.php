@@ -416,7 +416,6 @@ function myfeeds_load_includes() {
         'class-smart-mapper.php' => 'Smart Mapper Class',
         'class-network-handlers.php' => 'Network Handlers Class', 
         'class-feed-manager.php' => 'Feed Manager Class',
-        'class-contact-page.php' => 'Custom Contact Page',
         'class-upsell.php'       => 'Informational Upsell Banner',
         'class-feature-previews.php' => 'Feature Preview Pages',
         'class-schema-generator.php' => 'Schema.org JSON-LD Generator',
@@ -519,13 +518,6 @@ class MyFeeds_Affiliate_Product_Picker {
                 myfeeds_log("Batch Importer created successfully");
             } else {
                 myfeeds_log("ERROR: MyFeeds_Batch_Importer class not found");
-            }
-            
-            // Initialize Custom Contact Page
-            if (class_exists('MyFeeds_Contact_Page')) {
-                $contact_page = new MyFeeds_Contact_Page();
-                $contact_page->init();
-                myfeeds_log("Custom Contact Page initialized");
             }
             
             // Initialize informational upsell banner

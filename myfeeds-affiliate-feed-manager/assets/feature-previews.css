@@ -121,9 +121,11 @@
     min-height: 26px;
 }
 
-/* Filled brand-gradient circle with a white check inside — reads as
-   confirmed/included at a glance, much stronger than a thin green
-   tick on white. */
+/* Filled green-gradient circle with a white check inside — reads as
+   confirmed/included at a glance. Green here (rather than brand
+   indigo) so the page has a balanced two-colour rhythm: brand
+   purple for action surfaces (badge, CTA, links), success green
+   for the included-feature list. */
 .myfeeds-preview-benefits li::before {
     content: "";
     position: absolute;
@@ -132,8 +134,8 @@
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    box-shadow: 0 2px 6px rgba(102, 126, 234, 0.28);
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.32);
 }
 
 .myfeeds-preview-benefits li::after {
