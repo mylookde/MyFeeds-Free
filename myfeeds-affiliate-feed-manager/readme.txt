@@ -8,7 +8,7 @@ Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Import an affiliate product feed, search it locally, and showcase products in your posts with a native Gutenberg block.
+WordPress affiliate plugin for AWIN, CJ Affiliate, Rakuten & more: import product feeds, insert product cards from the Gutenberg block editor.
 
 == Description ==
 
