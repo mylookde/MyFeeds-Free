@@ -1,0 +1,213 @@
+/**
+ * MyFeeds Feature Preview pages.
+ *
+ * Marketing-only surface — no real feature UI behind these, only
+ * static HTML/CSS describing the feature with screenshots and a CTA.
+ */
+
+.myfeeds-preview-wrap {
+    max-width: 1100px;
+    margin: 24px 0;
+}
+
+/* ---------- HERO ---------- */
+
+.myfeeds-preview-hero {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+    border: 1px solid rgba(118, 75, 162, 0.18);
+    border-radius: 14px;
+    padding: 40px 44px;
+    position: relative;
+    overflow: hidden;
+}
+
+.myfeeds-preview-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(900px circle at 0% 0%, rgba(102, 126, 234, 0.12), transparent 50%),
+        radial-gradient(700px circle at 100% 100%, rgba(118, 75, 162, 0.10), transparent 50%);
+    z-index: 0;
+}
+
+.myfeeds-preview-hero-text {
+    position: relative;
+    z-index: 1;
+    max-width: 720px;
+}
+
+.myfeeds-preview-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.myfeeds-preview-eyebrow-text {
+    font-size: 12px;
+    font-weight: 600;
+    color: #764ba2;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.myfeeds-preview-wrap h1 {
+    margin: 0 0 12px 0;
+    padding: 0;
+    font-size: 32px;
+    font-weight: 800;
+    color: #1d2327;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+
+.myfeeds-preview-subtitle {
+    margin: 0 0 28px 0;
+    color: #50575e;
+    font-size: 15px;
+    line-height: 1.6;
+    max-width: 640px;
+}
+
+.myfeeds-preview-benefits {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 32px 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px 24px;
+}
+
+@media (max-width: 720px) {
+    .myfeeds-preview-benefits {
+        grid-template-columns: 1fr;
+    }
+}
+
+.myfeeds-preview-benefits li {
+    padding: 4px 0 4px 26px;
+    position: relative;
+    color: #1d2327;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.myfeeds-preview-benefits li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 10px;
+    width: 16px;
+    height: 16px;
+    background-color: #34d399;
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") no-repeat center / contain;
+    mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") no-repeat center / contain;
+}
+
+/* ---------- CTA ---------- */
+
+.myfeeds-preview-cta-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.myfeeds-preview-cta {
+    display: inline-block;
+    padding: 14px 28px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff !important;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 15px;
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.28);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.myfeeds-preview-cta:hover,
+.myfeeds-preview-cta:focus {
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 22px rgba(102, 126, 234, 0.4);
+}
+
+.myfeeds-preview-cta-note {
+    color: #646970;
+    font-size: 12px;
+}
+
+/* ---------- SCREENSHOTS ---------- */
+
+.myfeeds-preview-screenshots {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    margin-top: 32px;
+}
+
+@media (max-width: 900px) {
+    .myfeeds-preview-screenshots {
+        grid-template-columns: 1fr;
+    }
+}
+
+.myfeeds-preview-screenshot {
+    margin: 0;
+}
+
+.myfeeds-preview-screenshot img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    border: 1px solid #dcdcde;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+.myfeeds-preview-screenshot-placeholder {
+    aspect-ratio: 16 / 10;
+    border-radius: 10px;
+    border: 2px dashed rgba(118, 75, 162, 0.25);
+    background:
+        repeating-linear-gradient(
+            45deg,
+            rgba(102, 126, 234, 0.04) 0,
+            rgba(102, 126, 234, 0.04) 10px,
+            rgba(118, 75, 162, 0.04) 10px,
+            rgba(118, 75, 162, 0.04) 20px
+        );
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(118, 75, 162, 0.6);
+    font-weight: 600;
+    font-size: 13px;
+    text-align: center;
+    padding: 24px;
+}
+
+.myfeeds-preview-screenshot figcaption {
+    margin-top: 12px;
+    color: #646970;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* ---------- FOOTER ---------- */
+
+.myfeeds-preview-footer {
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid #f0f0f1;
+}
+
+.myfeeds-preview-disclaimer {
+    margin: 0;
+    color: #646970;
+    font-size: 12px;
+    line-height: 1.6;
+}
