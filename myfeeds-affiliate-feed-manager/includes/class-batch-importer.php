@@ -1786,27 +1786,52 @@ class MyFeeds_Batch_Importer {
             }
         }
         
-        // Try common ID field names
-        $id_fields = array('aw_product_id', 'product_id', 'id', 'sku', 'ID', 'ProductID');
+        // Try the shared network-agnostic candidate list.
+        $id_fields = function_exists('myfeeds_id_field_candidates')
+            ? myfeeds_id_field_candidates()
+            : array('aw_product_id', 'product_id', 'id', 'sku', 'ID', 'ProductID');
         foreach ($id_fields as $field) {
-            $index = array_search($field, $header);
+            $index = array_search($field, $header, true);
             if ($index !== false) {
                 return $index;
             }
         }
-        
+
         return null;
     }
-    
+
     /**
-     * Fast extraction of product ID from raw data
+     * Fast extraction of product ID from raw data. Walks the shared
+     * network-agnostic candidate list (myfeeds_id_field_candidates),
+     * so AWIN, CJ, ShareASale, Belboon, Impact, Webgains, Tradedoubler,
+     * Adcell, Daisycon and friends all resolve without code changes.
+     *
+     * When a feed has none of the known keys we surface the first row's
+     * actual keys in the log once per session, so the user can see WHY
+     * the importer counted zero products and either fix the feed or
+     * extend the candidate list via the filter.
      */
     private function extract_product_id_fast($raw) {
-        $id_fields = array('aw_product_id', 'product_id', 'id', 'sku', 'ID', 'ProductID');
-        foreach ($id_fields as $field) {
-            if (!empty($raw[$field])) {
+        if (!is_array($raw)) return null;
+        $candidates = function_exists('myfeeds_id_field_candidates')
+            ? myfeeds_id_field_candidates()
+            : array('aw_product_id', 'product_id', 'id', 'sku', 'ID', 'ProductID');
+        foreach ($candidates as $field) {
+            if (isset($raw[$field]) && $raw[$field] !== '' && $raw[$field] !== null) {
                 return (string) $raw[$field];
             }
+        }
+        static $sample_logged = false;
+        if (!$sample_logged) {
+            $keys = array_keys($raw);
+            $preview = array_slice($keys, 0, 30);
+            myfeeds_log(
+                'ID_DETECT_FAIL: no known id-field in raw row. Available keys: '
+                . implode(', ', $preview)
+                . (count($keys) > 30 ? ' (+' . (count($keys) - 30) . ' more)' : ''),
+                'info'
+            );
+            $sample_logged = true;
         }
         return null;
     }
@@ -2366,6 +2391,18 @@ class MyFeeds_Batch_Importer {
         // PARSE FEED FROM DISK: Universal Feed Reader (CSV/TSV/XML/JSON)
         // =====================================================================
         $format_hint = $current_feed['format_hint'] ?? '';
+        // Fall back to URL-derived hint when the persisted entry is
+        // empty. Feeds saved before the URL-hint code shipped have an
+        // empty hint, and our delimiter sniffing has been getting fooled
+        // by AWIN's huge CSV headers — the URL always knows the format
+        // unambiguously (format/csv/, format/xml/, etc.).
+        if ($format_hint === '' && function_exists('myfeeds_infer_format_from_url')) {
+            $inferred = myfeeds_infer_format_from_url($current_feed['url'] ?? '');
+            if ($inferred !== '') {
+                $format_hint = $inferred;
+                MyFeeds_Logger::info("AS Job: Inferred format_hint='{$format_hint}' from URL for feed '{$feed_name}'");
+            }
+        }
         $reader = new MyFeeds_Feed_Reader();
         if (!$reader->open($cache_path, $format_hint)) {
             MyFeeds_Logger::error("AS Job: Feed Reader cannot open cache file for feed '{$feed_name}'");
@@ -3454,7 +3491,9 @@ class MyFeeds_Batch_Importer {
     private function process_critical_fields_fallback(array $mapped, array $raw) {
         // ID
         if (empty($mapped['id'])) {
-            $id_fields = array('aw_product_id', 'product_id', 'id', 'sku', 'offer_id');
+            $id_fields = function_exists('myfeeds_id_field_candidates')
+                ? myfeeds_id_field_candidates()
+                : array('aw_product_id', 'product_id', 'id', 'sku', 'offer_id');
             foreach ($id_fields as $f) {
                 if (!empty($raw[$f])) {
                     $mapped['id'] = (string) $raw[$f];
@@ -3516,10 +3555,19 @@ class MyFeeds_Batch_Importer {
             }
         }
         
-        if ($old_price > 0 && $old_price > floatval($mapped['price'])) {
+        // Store original_price whenever the feed publishes a positive
+        // value, not only when it exceeds the current price. The earlier
+        // strict guard (`old_price > price`) silently dropped rows whose
+        // rrp_price equalled the current price (no discount but value
+        // present) and made the mapping-quality view report a missing
+        // field that was actually mapped and populated. Visual strike-
+        // through in the card front-end still gates on `old_price >
+        // price` so a non-discount value never renders as a fake
+        // discount.
+        if ($old_price > 0) {
             $mapped['old_price'] = $old_price;
         }
-        
+
         // Direct discount from feed
         $discount = 0;
         $discount_fields = array('savings_percent', 'discount', 'discount_percentage');
@@ -3529,27 +3577,33 @@ class MyFeeds_Batch_Importer {
                 break;
             }
         }
-        
+
         // Calculate discount if not provided
         if ($discount <= 0 && $old_price > floatval($mapped['price']) && floatval($mapped['price']) > 0) {
             $discount = round((($old_price - floatval($mapped['price'])) / $old_price) * 100);
         }
-        
+
         if ($discount > 0) {
             $mapped['discount_percentage'] = $discount;
         }
-        
-        // Currency
+
+        // Currency. Probe a few common source-field names, but DO NOT
+        // fall back to a hard-coded default. Hard-coding 'EUR' here
+        // silently mislabelled USD feeds that omit a currency column
+        // (visitors saw "€" on cards linking to a USD checkout).
+        // Leaving the column empty when the feed is silent is the
+        // truthful behaviour: the front-end renders the price without
+        // a symbol rather than guess one.
         if (empty($mapped['currency'])) {
-            $curr_fields = array('currency', 'currencyId');
+            $curr_fields = array('currency', 'currencyId', 'currency_code', 'currencyCode');
             foreach ($curr_fields as $f) {
-                if (!empty($raw[$f])) { $mapped['currency'] = $raw[$f]; break; }
-            }
-            if (empty($mapped['currency'])) {
-                $mapped['currency'] = 'EUR';
+                if (!empty($raw[$f])) {
+                    $mapped['currency'] = $raw[$f];
+                    break;
+                }
             }
         }
-        
+
         return $mapped;
     }
     

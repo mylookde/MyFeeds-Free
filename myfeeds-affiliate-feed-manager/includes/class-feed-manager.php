@@ -736,6 +736,10 @@ class MyFeeds_Feed_Manager {
                 return;
             }
 
+            if ($format_hint === '' && function_exists('myfeeds_infer_format_from_url')) {
+                $format_hint = myfeeds_infer_format_from_url($url);
+            }
+
             $detected_network = $this->detect_network_from_url($url);
             if (!$detected_network) {
                 $detected_network = $network_hint ? $network_hint : 'auto-detected';
@@ -828,6 +832,15 @@ class MyFeeds_Feed_Manager {
             if (empty($name) || empty($url)) {
                 wp_send_json_error(array('message' => __('Feed name and URL are required.', 'myfeeds-affiliate-feed-manager')));
                 return;
+            }
+
+            // If the user didn't pick a format, infer it from the URL.
+            // AWIN datafeeds carry "format/csv" in the path, Tradedoubler
+            // and others use "?format=csv". Sniffing the URL is far more
+            // reliable than counting separators in the first 4 KB of a
+            // large feed.
+            if ($format_hint === '' && function_exists('myfeeds_infer_format_from_url')) {
+                $format_hint = myfeeds_infer_format_from_url($url);
             }
 
             // Detect network from URL or use hint

@@ -275,17 +275,27 @@ class MyFeeds_Feed_Reader {
             return $hint;
         }
 
-        // Read first 4 KB for sniffing
+        // Read a much larger window (32 KB) — affiliate feed headers
+        // with 80+ columns can easily push 3 KB on their own, and the
+        // first data row may also exceed a few KB. A small sniff window
+        // means the "first newline" we find is often inside a quoted
+        // description, which then makes the delimiter vote include the
+        // description text and pick the wrong character.
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Need raw read for format detection
         $sniff_fh = fopen($file_path, 'r');
         if (!$sniff_fh) {
             return 'csv'; // Fallback
         }
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
-        $head = fread($sniff_fh, 4096);
+        $head = fread($sniff_fh, 32768);
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
         fclose($sniff_fh);
 
+        // Strip UTF-8 BOM if present so the structural sniff below
+        // looks at the actual content.
+        if (strncmp($head, "\xEF\xBB\xBF", 3) === 0) {
+            $head = substr($head, 3);
+        }
         $head = ltrim($head);
 
         // XML detection
@@ -306,26 +316,63 @@ class MyFeeds_Feed_Reader {
             return 'json';
         }
 
-        // Delimited — sniff first line for delimiter
-        $first_line_end = strpos($head, "\n");
-        $first_line = $first_line_end !== false ? substr($head, 0, $first_line_end) : $head;
+        // Delimited — sniff the first UNQUOTED line so the vote runs
+        // on the header row only, not on a body row that landed in
+        // the sniff buffer with semicolons / pipes inside descriptions.
+        $first_line = self::sniff_unquoted_first_line($head);
 
         $tab_count   = substr_count($first_line, "\t");
         $semi_count  = substr_count($first_line, ';');
         $pipe_count  = substr_count($first_line, '|');
         $comma_count = substr_count($first_line, ',');
 
-        if ($tab_count > $comma_count && $tab_count > $semi_count && $tab_count > $pipe_count) {
+        // Comma wins ties — CSV is by far the most common affiliate
+        // feed format and tied counts almost always come from quoted
+        // text leaking in.
+        $max = max($tab_count, $semi_count, $pipe_count, $comma_count);
+        if ($max === 0) {
+            return 'csv';
+        }
+        if ($comma_count === $max) {
+            return 'csv';
+        }
+        if ($tab_count === $max) {
             return 'tsv';
         }
-        if ($semi_count > $comma_count && $semi_count > $tab_count && $semi_count > $pipe_count) {
+        if ($semi_count === $max) {
             return 'ssv';
         }
-        if ($pipe_count > $comma_count && $pipe_count > $tab_count && $pipe_count > $semi_count) {
+        if ($pipe_count === $max) {
             return 'psv';
         }
-
         return 'csv';
+    }
+
+    /**
+     * Return the bytes up to the first newline that is NOT inside a
+     * double-quoted field. Walks the head buffer character-by-character
+     * tracking quote state with an RFC4180-style "" escape rule.
+     * Falls back to the full buffer (= old behaviour) if no unquoted
+     * newline is found.
+     */
+    private static function sniff_unquoted_first_line($head) {
+        $len = strlen($head);
+        $in_quotes = false;
+        for ($i = 0; $i < $len; $i++) {
+            $c = $head[$i];
+            if ($c === '"') {
+                if ($in_quotes && isset($head[$i + 1]) && $head[$i + 1] === '"') {
+                    $i++; // Escaped quote inside quoted field.
+                    continue;
+                }
+                $in_quotes = !$in_quotes;
+                continue;
+            }
+            if (!$in_quotes && ($c === "\n" || $c === "\r")) {
+                return substr($head, 0, $i);
+            }
+        }
+        return $head;
     }
 
     // =========================================================================

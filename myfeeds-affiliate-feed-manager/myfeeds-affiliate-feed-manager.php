@@ -3,7 +3,7 @@
  * Plugin Name: MyFeeds — Affiliate Product Feed Manager
  * Plugin URI: https://myfeeds.site
  * Description: Import and manage affiliate product feeds from any network. Smart search, auto-mapping, and a Gutenberg Product Picker for bloggers.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: Marlon Weber
  * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -38,7 +38,7 @@ if (!defined('ABSPATH')) {
 // =============================================================================
 
 // Define plugin constants
-define('MYFEEDS_VERSION', '1.0.0');
+define('MYFEEDS_VERSION', '1.0.1');
 define('MYFEEDS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('MYFEEDS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('MYFEEDS_PLUGIN_FILE', __FILE__);
@@ -84,6 +84,127 @@ function myfeeds_log($message, $level = 'debug') {
     if ($msg_priority <= $threshold) {
         error_log('MYFEEDS [' . strtoupper($level) . ']: ' . $message);
     }
+}
+
+/**
+ * Infer feed format (csv|tsv|ssv|psv|xml|json|json_lines) from a URL
+ * before we ever touch the file. AWIN datafeeds carry the format in
+ * the path ("format/csv"), Tradedoubler / Webgains / others put it
+ * in a query parameter ("format=csv"); file extensions are the last
+ * resort. Lives at the global level because every import path
+ * (save, reimport, scheduled sync) needs it, and we can't rely on
+ * the persisted feed entry — older saves predate the hint and the
+ * URL is always the authoritative source.
+ *
+ * Returns '' when nothing matches.
+ */
+function myfeeds_infer_format_from_url($url) {
+    if (!is_string($url) || $url === '') return '';
+    $lower = strtolower($url);
+
+    $patterns = array(
+        '#/format/json_lines/#'     => 'json_lines',
+        '#/format/json/#'           => 'json',
+        '#/format/xml/#'            => 'xml',
+        '#/format/tsv/#'            => 'tsv',
+        '#/format/ssv/#'            => 'ssv',
+        '#/format/psv/#'            => 'psv',
+        '#/format/csv/#'            => 'csv',
+        '#[?&]format=json_lines\b#' => 'json_lines',
+        '#[?&]format=json\b#'       => 'json',
+        '#[?&]format=xml\b#'        => 'xml',
+        '#[?&]format=tsv\b#'        => 'tsv',
+        '#[?&]format=ssv\b#'        => 'ssv',
+        '#[?&]format=psv\b#'        => 'psv',
+        '#[?&]format=csv\b#'        => 'csv',
+    );
+    foreach ($patterns as $regex => $format) {
+        if (preg_match($regex, $lower)) {
+            return $format;
+        }
+    }
+
+    $path = parse_url($lower, PHP_URL_PATH);
+    if (is_string($path)) {
+        $ext_map = array(
+            '.csv.gz'    => 'csv',
+            '.tsv.gz'    => 'tsv',
+            '.xml.gz'    => 'xml',
+            '.json.gz'   => 'json',
+            '.jsonl.gz'  => 'json_lines',
+            '.ndjson.gz' => 'json_lines',
+            '.csv'       => 'csv',
+            '.tsv'       => 'tsv',
+            '.txt'       => 'csv',
+            '.xml'       => 'xml',
+            '.json'      => 'json',
+            '.jsonl'     => 'json_lines',
+            '.ndjson'    => 'json_lines',
+        );
+        foreach ($ext_map as $suffix => $format) {
+            $len = strlen($suffix);
+            if (substr($path, -$len) === $suffix) {
+                return $format;
+            }
+        }
+    }
+    return '';
+}
+
+/**
+ * Single source of truth for "what column names hold a product id"
+ * across every affiliate network we know about. Used by the importer
+ * and any future network-detection surface. Extensible via the
+ * `myfeeds_id_field_candidates` filter so plugins / themes can teach
+ * the system about new networks without touching core code.
+ *
+ * Order matters: first match wins, so the most specific / canonical
+ * names come first.
+ */
+function myfeeds_id_field_candidates() {
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    $list = array(
+        // Universal / generic
+        'id', 'ID', 'Id', 'product_id', 'productId', 'ProductId', 'ProductID', 'productid',
+        'sku', 'SKU', 'Sku', 'productSku', 'product_sku', 'productSKU',
+        // AWIN
+        'aw_product_id', 'merchant_product_id', 'merchant_product_third_party_id',
+        // Commission Junction / CJ
+        'advertiser_sku', 'advertiser-sku', 'ad_id', 'cj_ad_id',
+        // ShareASale
+        'merchantsku', 'merchantSKU', 'MerchantSKU',
+        // Belboon
+        'MerchantProductIdentifier', 'merchant_product_identifier',
+        // Impact Radius / Impact.com
+        'CatalogItemId', 'catalog_item_id', 'Catalog Item Id', 'CatalogId',
+        // Webgains
+        'productNo', 'product_no', 'merchantProductCode',
+        // Tradedoubler
+        'TDProductId', 'TDProductID',
+        // Adcell, Daisycon, Skimlinks, Yieldkit and friends
+        'item_id', 'ItemID', 'item-id', 'offer_id', 'OfferId', 'OfferID',
+        'merchantId_productId', 'MerchantProductId', 'merchantProductId',
+        // Product-code identifiers some feeds key on
+        'ean', 'EAN', 'gtin', 'GTIN', 'upc', 'UPC', 'mpn', 'MPN',
+        // Generic xml / google-shopping style
+        'g:id', 'g_id', 'ProductCode', 'productCode',
+    );
+    if (function_exists('apply_filters')) {
+        $list = apply_filters('myfeeds_id_field_candidates', $list);
+    }
+    $seen = array();
+    $out  = array();
+    foreach ($list as $name) {
+        if (!is_string($name) || $name === '') continue;
+        if (isset($seen[$name])) continue;
+        $seen[$name] = true;
+        $out[] = $name;
+    }
+    $cached = $out;
+    return $cached;
 }
 
 // =============================================================================
