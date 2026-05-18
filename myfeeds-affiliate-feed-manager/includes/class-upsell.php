@@ -36,7 +36,7 @@ class MyFeeds_Upsell {
      * inside the plugin's own admin screens.
      */
     public function render_sidebar_card() {
-        $plans_page_url = admin_url('admin.php?page=myfeeds-plans');
+        $pricing_url = self::PRICING_URL . '&utm_term=settings-sidebar';
         $compare_url = 'https://myfeeds.site/#pricing?utm_source=wp-plugin-free&utm_medium=settings-sidebar&utm_term=compare-link';
         ?>
         <div class="myfeeds-upsell-card">
@@ -50,11 +50,11 @@ class MyFeeds_Upsell {
                 <li><?php esc_html_e('Card design editor with Google Fonts', 'myfeeds-affiliate-feed-manager'); ?></li>
                 <li><?php esc_html_e('Click + conversion analytics', 'myfeeds-affiliate-feed-manager'); ?></li>
             </ul>
-            <a href="<?php echo esc_url($plans_page_url); ?>" class="myfeeds-upsell-cta">
+            <a href="<?php echo esc_url($pricing_url); ?>" target="_blank" rel="noopener noreferrer" class="myfeeds-upsell-cta">
                 <?php esc_html_e('See Pro & Business →', 'myfeeds-affiliate-feed-manager'); ?>
             </a>
             <a href="<?php echo esc_url($compare_url); ?>" target="_blank" rel="noopener noreferrer" class="myfeeds-upsell-secondary">
-                <?php esc_html_e('Compare plans on myfeeds.site', 'myfeeds-affiliate-feed-manager'); ?>
+                <?php esc_html_e('Compare plans', 'myfeeds-affiliate-feed-manager'); ?>
             </a>
         </div>
         <?php

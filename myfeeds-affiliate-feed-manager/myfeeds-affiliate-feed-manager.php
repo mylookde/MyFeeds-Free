@@ -418,7 +418,6 @@ function myfeeds_load_includes() {
         'class-feed-manager.php' => 'Feed Manager Class',
         'class-contact-page.php' => 'Custom Contact Page',
         'class-upsell.php'       => 'Informational Upsell Banner',
-        'class-plans-page.php'   => 'Plans & Pricing Page',
         'class-schema-generator.php' => 'Schema.org JSON-LD Generator',
         'class-product-picker.php' => 'Product Picker Class',
         'class-product-resolver.php' => 'Product Resolver (Multi-Source Fallback)',
@@ -533,13 +532,6 @@ class MyFeeds_Affiliate_Product_Picker {
                 $upsell = new MyFeeds_Upsell();
                 $upsell->init();
                 myfeeds_log("Upsell surfaces initialized");
-            }
-
-            // Initialize Plans & Pricing page
-            if (class_exists('MyFeeds_Plans_Page')) {
-                $plans_page = new MyFeeds_Plans_Page();
-                $plans_page->init();
-                myfeeds_log("Plans & Pricing page initialized");
             }
 
             // Initialize Universal Mapper UI
