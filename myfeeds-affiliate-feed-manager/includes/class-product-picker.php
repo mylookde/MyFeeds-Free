@@ -21,7 +21,7 @@ class MyFeeds_Product_Picker {
      */
     public function register_block() {
         if (class_exists('MyFeeds_External_Debug')) {
-            MyFeeds_External_Debug::log("📦 BLOCK DEBUG: Starting Gutenberg block registration...");
+            MyFeeds_External_Debug::log("BLOCK DEBUG: Starting Gutenberg block registration...");
         }
         
         // Check if required files exist
@@ -31,20 +31,20 @@ class MyFeeds_Product_Picker {
         
         if (!file_exists($script_path)) {
             if (class_exists('MyFeeds_External_Debug')) {
-                MyFeeds_External_Debug::log("❌ BLOCK DEBUG: JavaScript file missing: " . $script_path);
+                MyFeeds_External_Debug::log("BLOCK DEBUG: JavaScript file missing: " . $script_path);
             }
             return;
         }
         
         if (!file_exists($editor_css_path)) {
             if (class_exists('MyFeeds_External_Debug')) {
-                MyFeeds_External_Debug::log("⚠️ BLOCK DEBUG: Editor CSS file missing: " . $editor_css_path);
+                MyFeeds_External_Debug::log("BLOCK DEBUG: Editor CSS file missing: " . $editor_css_path);
             }
         }
         
         if (!file_exists($frontend_css_path)) {
             if (class_exists('MyFeeds_External_Debug')) {
-                MyFeeds_External_Debug::log("⚠️ BLOCK DEBUG: Frontend CSS file missing: " . $frontend_css_path);
+                MyFeeds_External_Debug::log("BLOCK DEBUG: Frontend CSS file missing: " . $frontend_css_path);
             }
         }
         
@@ -54,7 +54,7 @@ class MyFeeds_Product_Picker {
         $frontend_css_ver = file_exists($frontend_css_path) ? filemtime($frontend_css_path) : MYFEEDS_VERSION;
 
         if (class_exists('MyFeeds_External_Debug')) {
-            MyFeeds_External_Debug::log("📜 BLOCK DEBUG: Registering script with version: " . $script_ver);
+            MyFeeds_External_Debug::log("BLOCK DEBUG: Registering script with version: " . $script_ver);
         }
 
         // Register block script
@@ -67,7 +67,7 @@ class MyFeeds_Product_Picker {
         );
         
         if (!$script_registered && class_exists('MyFeeds_External_Debug')) {
-            MyFeeds_External_Debug::log("❌ BLOCK DEBUG: Failed to register JavaScript!");
+            MyFeeds_External_Debug::log("BLOCK DEBUG: Failed to register JavaScript!");
         }
         
         // Register block styles
@@ -79,7 +79,7 @@ class MyFeeds_Product_Picker {
         );
         
         if (!$editor_style_registered && class_exists('MyFeeds_External_Debug')) {
-            MyFeeds_External_Debug::log("❌ BLOCK DEBUG: Failed to register editor CSS!");
+            MyFeeds_External_Debug::log("BLOCK DEBUG: Failed to register editor CSS!");
         }
         
         wp_register_style(
@@ -90,7 +90,7 @@ class MyFeeds_Product_Picker {
         );
         
         if (class_exists('MyFeeds_External_Debug')) {
-            MyFeeds_External_Debug::log("🎯 BLOCK DEBUG: Attempting to register block type 'myfeeds/product-picker'...");
+            MyFeeds_External_Debug::log("BLOCK DEBUG: Attempting to register block type 'myfeeds/product-picker'...");
         }
         
         $block_registered = register_block_type('myfeeds/product-picker', [
@@ -107,15 +107,15 @@ class MyFeeds_Product_Picker {
         ]);
         
         if ($block_registered && class_exists('MyFeeds_External_Debug')) {
-            MyFeeds_External_Debug::log("✅ BLOCK DEBUG: Block 'myfeeds/product-picker' registered successfully!");
+            MyFeeds_External_Debug::log("BLOCK DEBUG: Block 'myfeeds/product-picker' registered successfully!");
         } elseif (!$block_registered && class_exists('MyFeeds_External_Debug')) {
-            MyFeeds_External_Debug::log("❌ BLOCK DEBUG: Failed to register block 'myfeeds/product-picker'!");
+            MyFeeds_External_Debug::log("BLOCK DEBUG: Failed to register block 'myfeeds/product-picker'!");
         }
     }
     
     public function enqueue_editor_assets() {
         if (class_exists('MyFeeds_External_Debug')) {
-            MyFeeds_External_Debug::log("📜 ASSETS DEBUG: Enqueuing editor assets...");
+            MyFeeds_External_Debug::log("ASSETS DEBUG: Enqueuing editor assets...");
         }
         
         // Pass data to JavaScript
@@ -129,9 +129,9 @@ class MyFeeds_Product_Picker {
         ]);
         
         if (!$localize_result && class_exists('MyFeeds_External_Debug')) {
-            MyFeeds_External_Debug::log("❌ ASSETS DEBUG: Failed to localize script data!");
+            MyFeeds_External_Debug::log("ASSETS DEBUG: Failed to localize script data!");
         } elseif (class_exists('MyFeeds_External_Debug')) {
-            MyFeeds_External_Debug::log("✅ ASSETS DEBUG: Script data localized successfully");
+            MyFeeds_External_Debug::log("ASSETS DEBUG: Script data localized successfully");
         }
     }
     

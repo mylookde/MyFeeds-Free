@@ -224,7 +224,7 @@ class MyFeeds_Universal_Mapper_UI {
                                             <select class="myfeeds-field-mapping" data-field="<?php echo esc_attr($field_key); ?>">
                                                 <option value=""><?php esc_html_e('-- Not mapped --', 'myfeeds-affiliate-feed-manager'); ?></option>
                                             </select>
-                                            <span class="myfeeds-field-help" title="<?php echo esc_attr($field['description']); ?>">?</span>
+                                            <span class="myfeeds-field-help" data-help="<?php echo esc_attr($field['description']); ?>">?</span>
                                         </div>
                                     <?php endforeach; ?>
                                 </div>

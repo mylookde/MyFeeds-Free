@@ -1629,7 +1629,7 @@ class MyFeeds_Feed_Manager {
 
         // Extract original keywords (without synonyms for main logic)
         $original_tokens = array_filter(array_map('trim', preg_split('/\s+/', strtolower($query))));
-        myfeeds_log("📝 Original tokens: " . implode(', ', $original_tokens), 'debug');
+        myfeeds_log("Original tokens: " . implode(', ', $original_tokens), 'debug');
         
         // Extended token list with comprehensive German/English synonyms for smart search
         $all_tokens = $original_tokens;
@@ -1788,11 +1788,11 @@ class MyFeeds_Feed_Manager {
         foreach ($original_tokens as $token) {
             if (in_array($token, $male_terms)) {
                 $search_for_male = true;
-                myfeeds_log("🚹 Male search detected: $token", 'debug');
+                myfeeds_log("Male search detected: $token", 'debug');
             }
             if (in_array($token, $female_terms)) {
                 $search_for_female = true;
-                myfeeds_log("🚺 Female search detected: $token", 'debug');
+                myfeeds_log("Female search detected: $token", 'debug');
             }
         }
 
@@ -1838,7 +1838,7 @@ class MyFeeds_Feed_Manager {
                 foreach ($female_terms as $female_term) {
                     if (preg_match('/\b' . preg_quote($female_term, '/') . '\b/i', $all_product_text)) {
                         $contains_female_terms = true;
-                        myfeeds_log("🚺 Found female term (word boundary): $female_term", 'debug');
+                        myfeeds_log("Found female term (word boundary): $female_term", 'debug');
                         break;
                     }
                 }
@@ -1847,7 +1847,7 @@ class MyFeeds_Feed_Manager {
                 foreach ($male_terms as $male_term) {
                     if (preg_match('/\b' . preg_quote($male_term, '/') . '\b/i', $all_product_text)) {
                         $contains_male_terms = true;
-                        myfeeds_log("🚹 Found male term (word boundary): $male_term", 'debug');
+                        myfeeds_log("Found male term (word boundary): $male_term", 'debug');
                         break;
                     }
                 }
@@ -1855,7 +1855,7 @@ class MyFeeds_Feed_Manager {
                 // If only female terms found, exclude
                 if ($contains_female_terms && !$contains_male_terms) {
                     $gender_conflict = true;
-                    myfeeds_log("❌ Excluded female product: " . substr($entry['title'], 0, 50), 'error');
+                    myfeeds_log("Excluded female product: " . substr($entry['title'], 0, 50), 'error');
                 }
             } elseif ($search_for_female && !$search_for_male) {
                 // Search for female products - exclude pure male products
@@ -1866,7 +1866,7 @@ class MyFeeds_Feed_Manager {
                 foreach ($male_terms as $male_term) {
                     if (preg_match('/\b' . preg_quote($male_term, '/') . '\b/i', $all_product_text)) {
                         $contains_male_terms = true;
-                        myfeeds_log("🚹 Found male term (word boundary): $male_term", 'debug');
+                        myfeeds_log("Found male term (word boundary): $male_term", 'debug');
                         break;
                     }
                 }
@@ -1875,7 +1875,7 @@ class MyFeeds_Feed_Manager {
                 foreach ($female_terms as $female_term) {
                     if (preg_match('/\b' . preg_quote($female_term, '/') . '\b/i', $all_product_text)) {
                         $contains_female_terms = true;
-                        myfeeds_log("🚺 Found female term (word boundary): $female_term", 'debug');
+                        myfeeds_log("Found female term (word boundary): $female_term", 'debug');
                         break;
                     }
                 }
@@ -1883,7 +1883,7 @@ class MyFeeds_Feed_Manager {
                 // If only male terms found, exclude
                 if ($contains_male_terms && !$contains_female_terms) {
                     $gender_conflict = true;
-                    myfeeds_log("❌ Excluded male product: " . substr($entry['title'], 0, 50), 'error');
+                    myfeeds_log("Excluded male product: " . substr($entry['title'], 0, 50), 'error');
                 }
             }
             
@@ -1899,7 +1899,7 @@ class MyFeeds_Feed_Manager {
                 $all_keywords_found = true;
                 $missing_keywords = array();
                 
-                myfeeds_log("🔍 FLEXIBLE SEARCH: Checking all keywords: " . implode(', ', $original_tokens), 'debug');
+                myfeeds_log("FLEXIBLE SEARCH: Checking all keywords: " . implode(', ', $original_tokens), 'debug');
                 
                 foreach ($original_tokens as $keyword) {
                     $keyword_found_somewhere = false;
@@ -1915,7 +1915,7 @@ class MyFeeds_Feed_Manager {
                             // Check exact keyword match
                             if (preg_match('/\b' . preg_quote($keyword, '/') . '\b/i', $field_value)) {
                                 $keyword_found_somewhere = true;
-                                myfeeds_log("✅ KEYWORD '$keyword' found in $field: " . substr($field_value, 0, 30), 'info');
+                                myfeeds_log("KEYWORD '$keyword' found in $field: " . substr($field_value, 0, 30), 'info');
                                 break;
                             }
                             
@@ -1924,7 +1924,7 @@ class MyFeeds_Feed_Manager {
                                 foreach ($synonyms[$keyword] as $synonym) {
                                     if (preg_match('/\b' . preg_quote($synonym, '/') . '\b/i', $field_value)) {
                                         $keyword_found_somewhere = true;
-                                        myfeeds_log("✅ SYNONYM '$synonym' (for '$keyword') found in $field: " . substr($field_value, 0, 30), 'info');
+                                        myfeeds_log("SYNONYM '$synonym' (for '$keyword') found in $field: " . substr($field_value, 0, 30), 'info');
                                         break 2;
                                     }
                                 }
@@ -1935,16 +1935,16 @@ class MyFeeds_Feed_Manager {
                     if (!$keyword_found_somewhere) {
                         $all_keywords_found = false;
                         $missing_keywords[] = $keyword;
-                        myfeeds_log("❌ MISSING KEYWORD: '$keyword' not found anywhere in product", 'error');
+                        myfeeds_log("MISSING KEYWORD: '$keyword' not found anywhere in product", 'error');
                     }
                 }
                 
                 if (!$all_keywords_found) {
-                    myfeeds_log("❌ PRODUCT REJECTED: Missing keywords: " . implode(', ', $missing_keywords) . " in product: " . substr($entry['title'], 0, 50), 'error');
+                    myfeeds_log("PRODUCT REJECTED: Missing keywords: " . implode(', ', $missing_keywords) . " in product: " . substr($entry['title'], 0, 50), 'error');
                     continue; // Skip this product - not all keywords found
                 }
                 
-                myfeeds_log("✅ ALL KEYWORDS FOUND: Product accepted for scoring: " . substr($entry['title'], 0, 50), 'info');
+                myfeeds_log("ALL KEYWORDS FOUND: Product accepted for scoring: " . substr($entry['title'], 0, 50), 'info');
             }
             
             // Rule: At least 50% of keywords must be found, with high preference for title matches
@@ -1956,7 +1956,7 @@ class MyFeeds_Feed_Manager {
                 $single_keyword = $original_tokens[0];
                 $found_somewhere = false;
                 
-                myfeeds_log("🔍 ENHANCED SINGLE WORD SEARCH: '$single_keyword' - checking word boundary AND substring contains", 'debug');
+                myfeeds_log("ENHANCED SINGLE WORD SEARCH: '$single_keyword' - checking word boundary AND substring contains", 'debug');
                 
                 // Check in title, brand, and all searchable fields
                 foreach ($search_fields as $field => $weight) {
@@ -1969,14 +1969,14 @@ class MyFeeds_Feed_Manager {
                         // METHOD 1: Check exact keyword with word boundaries (highest priority)
                         if (preg_match('/\b' . preg_quote($single_keyword, '/') . '\b/i', $field_value)) {
                             $found_somewhere = true;
-                            myfeeds_log("✅ WORD BOUNDARY match for '$single_keyword' in $field: " . substr($field_value, 0, 50), 'info');
+                            myfeeds_log("WORD BOUNDARY match for '$single_keyword' in $field: " . substr($field_value, 0, 50), 'info');
                             break;
                         }
                         
                         // METHOD 2: NEW - Check "contains" substring match (e.g., "suit" in "Bodysuit")
                         if (strpos($field_value, $single_keyword) !== false) {
                             $found_somewhere = true;
-                            myfeeds_log("✅ SUBSTRING CONTAINS match for '$single_keyword' in $field: " . substr($field_value, 0, 50), 'info');
+                            myfeeds_log("SUBSTRING CONTAINS match for '$single_keyword' in $field: " . substr($field_value, 0, 50), 'info');
                             break;
                         }
                         
@@ -1985,14 +1985,14 @@ class MyFeeds_Feed_Manager {
                             foreach ($synonyms[$single_keyword] as $synonym) {
                                 if (preg_match('/\b' . preg_quote($synonym, '/') . '\b/i', $field_value)) {
                                     $found_somewhere = true;
-                                    myfeeds_log("✅ SYNONYM WORD BOUNDARY match for '$synonym' (from '$single_keyword') in $field: " . substr($field_value, 0, 50), 'info');
+                                    myfeeds_log("SYNONYM WORD BOUNDARY match for '$synonym' (from '$single_keyword') in $field: " . substr($field_value, 0, 50), 'info');
                                     break 2;
                                 }
                                 
                                 // METHOD 4: NEW - Check synonym "contains" substring match  
                                 if (strpos($field_value, strtolower($synonym)) !== false) {
                                     $found_somewhere = true;
-                                    myfeeds_log("✅ SYNONYM SUBSTRING match for '$synonym' (from '$single_keyword') in $field: " . substr($field_value, 0, 50), 'info');
+                                    myfeeds_log("SYNONYM SUBSTRING match for '$synonym' (from '$single_keyword') in $field: " . substr($field_value, 0, 50), 'info');
                                     break 2;
                                 }
                             }
@@ -2001,7 +2001,7 @@ class MyFeeds_Feed_Manager {
                 }
                 
                 if (!$found_somewhere) {
-                    myfeeds_log("❌ SINGLE WORD '$single_keyword' not found anywhere in product: " . substr($entry['title'], 0, 50), 'error');
+                    myfeeds_log("SINGLE WORD '$single_keyword' not found anywhere in product: " . substr($entry['title'], 0, 50), 'error');
                     continue; // Skip this product
                 }
             }
@@ -2088,27 +2088,27 @@ class MyFeeds_Feed_Manager {
                 // PRIORITY 1: All keywords in title = 1000 points
                 if ($title_keyword_matches === count($original_tokens)) {
                     $score += 1000;
-                    myfeeds_log("🏆 PRIORITY 1: All keywords in title - " . substr($entry['title'], 0, 50), 'debug');
+                    myfeeds_log("PRIORITY 1: All keywords in title - " . substr($entry['title'], 0, 50), 'debug');
                 }
                 // PRIORITY 2: Mix of title keywords and title synonyms = 800 points
                 elseif (($title_keyword_matches + $title_synonym_matches) === count($original_tokens)) {
                     $score += 800;
-                    myfeeds_log("🥈 PRIORITY 2: Keywords + synonyms in title - " . substr($entry['title'], 0, 50), 'debug');
+                    myfeeds_log("PRIORITY 2: Keywords + synonyms in title - " . substr($entry['title'], 0, 50), 'debug');
                 }
                 // PRIORITY 3: Some keywords in title + brand matches = 600 points
                 elseif ($title_keyword_matches > 0 && $brand_matches > 0) {
                     $score += 600;
-                    myfeeds_log("🥉 PRIORITY 3: Title + brand matches - " . substr($entry['title'], 0, 50), 'debug');
+                    myfeeds_log("PRIORITY 3: Title + brand matches - " . substr($entry['title'], 0, 50), 'debug');
                 }
                 // PRIORITY 4: Title + description mix = 400 points
                 elseif ($title_keyword_matches > 0 || $title_synonym_matches > 0) {
                     $score += 400;
-                    myfeeds_log("📝 PRIORITY 4: Title + other matches - " . substr($entry['title'], 0, 50), 'debug');
+                    myfeeds_log("PRIORITY 4: Title + other matches - " . substr($entry['title'], 0, 50), 'debug');
                 }
                 // PRIORITY 5: Other combinations = 200 points
                 else {
                     $score += 200;
-                    myfeeds_log("📋 PRIORITY 5: Other combinations - " . substr($entry['title'], 0, 50), 'debug');
+                    myfeeds_log("PRIORITY 5: Other combinations - " . substr($entry['title'], 0, 50), 'debug');
                 }
                 
                 // Bonus points for specific match types
@@ -2123,14 +2123,14 @@ class MyFeeds_Feed_Manager {
                 
                 if ($score > 0) {
                     $results[] = array('product' => $entry, 'score' => $score);
-                    myfeeds_log("✅ Added product with score $score: " . substr($entry['title'], 0, 50), 'info');
+                    myfeeds_log("Added product with score $score: " . substr($entry['title'], 0, 50), 'info');
                 }
             } else {
-                myfeeds_log("❌ Rejected product - not enough keywords ($keywords_found/" . count($original_tokens) . "): " . substr($entry['title'], 0, 50), 'error');
+                myfeeds_log("Rejected product - not enough keywords ($keywords_found/" . count($original_tokens) . "): " . substr($entry['title'], 0, 50), 'error');
             }
         }
 
-        myfeeds_log("📊 Search stats - Processed: $processed_count, Gender-excluded: $excluded_count, Results: " . count($results), 'info');
+        myfeeds_log("Search stats - Processed: $processed_count, Gender-excluded: $excluded_count, Results: " . count($results), 'info');
 
         usort($results, function($a, $b){ return $b['score'] - $a['score']; });
         $top = array_slice($results, 0, 50);
@@ -2235,7 +2235,7 @@ class MyFeeds_Feed_Manager {
      * Rebuild product index with all feeds
      */
     public function rebuild_feed_index() {
-        myfeeds_log('🔄 Rebuilding feed index...', 'info');
+        myfeeds_log('Rebuilding feed index...', 'info');
 
         $feeds = get_option(self::OPTION_KEY, array());
         $items = array();
@@ -2252,11 +2252,11 @@ class MyFeeds_Feed_Manager {
         );
 
         foreach ($feeds as $feed_key => $feed) {
-            myfeeds_log("📥 Processing feed: " . $feed['name'], 'debug');
+            myfeeds_log("Processing feed: " . $feed['name'], 'debug');
             
             $resp = wp_remote_get($feed['url'], array('timeout' => 30));
             if (is_wp_error($resp)) {
-                myfeeds_log('❌ Feed error: ' . $feed['url'] . ' - ' . $resp->get_error_message(), 'error');
+                myfeeds_log('Feed error: ' . $feed['url'] . ' - ' . $resp->get_error_message(), 'error');
                 continue;
             }
 
@@ -2318,7 +2318,7 @@ class MyFeeds_Feed_Manager {
             $feeds[$feed_key]['product_count'] = $product_count;
             $feeds[$feed_key]['last_sync'] = current_time('mysql');
             
-            myfeeds_log("✅ Processed $product_count products from feed: " . $feed['name'], 'info');
+            myfeeds_log("Processed $product_count products from feed: " . $feed['name'], 'info');
         }
 
         // Save updated feeds with product counts
@@ -2361,7 +2361,7 @@ class MyFeeds_Feed_Manager {
              OR option_name LIKE '_transient_timeout_myfeeds_product_%'"
         );
         
-        myfeeds_log('🧹 Cleared all myfeeds product caches', 'info');
+        myfeeds_log('Cleared all myfeeds product caches', 'info');
     }
     
     /**
@@ -2979,13 +2979,13 @@ class MyFeeds_Feed_Manager {
         $error_count = 0;
         
         foreach ($feeds as $key => $feed) {
-            myfeeds_log("🔄 Regenerating mapping for feed: " . $feed['name'], 'info');
+            myfeeds_log("Regenerating mapping for feed: " . $feed['name'], 'info');
             
             // Test the feed URL to get sample data
             $test_result = $this->test_feed_url($feed['url'], $feed['format_hint'] ?? '');
             
             if (is_wp_error($test_result)) {
-                myfeeds_log("❌ Feed test failed: " . $test_result->get_error_message(), 'error');
+                myfeeds_log("Feed test failed: " . $test_result->get_error_message(), 'error');
                 $error_count++;
                 continue;
             }
@@ -2998,9 +2998,9 @@ class MyFeeds_Feed_Manager {
                 $feeds[$key]['mapping_confidence'] = $this->smart_mapper->get_mapping_confidence($new_mapping);
                 $feeds[$key]['last_mapping_update'] = current_time('mysql');
                 $updated_count++;
-                myfeeds_log("✅ Mapping regenerated for: " . $feed['name'], 'info');
+                myfeeds_log("Mapping regenerated for: " . $feed['name'], 'info');
             } else {
-                myfeeds_log("❌ Mapping generation failed for: " . $feed['name'], 'error');
+                myfeeds_log("Mapping generation failed for: " . $feed['name'], 'error');
                 $error_count++;
             }
         }

@@ -362,34 +362,34 @@ class MyFeeds_Smart_Mapper {
      */
     public function auto_map_fields($sample_data, $feed_url = null) {
         if (!is_array($sample_data) || empty($sample_data)) {
-            MyFeeds_Affiliate_Product_Picker::log('❌ Smart Mapper: Invalid sample data provided');
+            MyFeeds_Affiliate_Product_Picker::log('Smart Mapper: Invalid sample data provided');
             return false;
         }
         
         $available_fields = array_keys($sample_data);
-        MyFeeds_Affiliate_Product_Picker::log('🧠 Smart Mapper: Analyzing ' . count($available_fields) . ' fields');
+        MyFeeds_Affiliate_Product_Picker::log('Smart Mapper: Analyzing ' . count($available_fields) . ' fields');
         
         // Detect network for enhanced mapping
         $detected_network = $this->detect_network_advanced($available_fields, $feed_url);
         $this->last_detected_network = $detected_network ?: '';
-        MyFeeds_Affiliate_Product_Picker::log('🔍 Detected Network: ' . ($detected_network ?: 'Universal'));
+        MyFeeds_Affiliate_Product_Picker::log('Detected Network: ' . ($detected_network ?: 'Universal'));
         
         // Generate universal mapping with confidence scoring
         $mapping = $this->generate_universal_mapping($available_fields, $detected_network);
         
         if (!$mapping) {
-            MyFeeds_Affiliate_Product_Picker::log('❌ Smart Mapper: Could not generate mapping');
+            MyFeeds_Affiliate_Product_Picker::log('Smart Mapper: Could not generate mapping');
             return false;
         }
         
         // Validate critical fields
         $validation_result = $this->validate_critical_fields($mapping);
         if (is_wp_error($validation_result)) {
-            MyFeeds_Affiliate_Product_Picker::log('❌ Smart Mapper: ' . $validation_result->get_error_message());
+            MyFeeds_Affiliate_Product_Picker::log('Smart Mapper: ' . $validation_result->get_error_message());
             return false;
         }
         
-        MyFeeds_Affiliate_Product_Picker::log('✅ Smart Mapper: Successfully mapped ' . count($mapping) . ' fields');
+        MyFeeds_Affiliate_Product_Picker::log('Smart Mapper: Successfully mapped ' . count($mapping) . ' fields');
         return $mapping;
     }
     
@@ -406,7 +406,7 @@ class MyFeeds_Smart_Mapper {
                     foreach ($config['url_patterns'] as $pattern) {
                         if (stripos($feed_url, $pattern) !== false) {
                             $network_scores[$network] = ($network_scores[$network] ?? 0) + $config['confidence_boost'];
-                            MyFeeds_Affiliate_Product_Picker::log("🔗 URL pattern '$pattern' matches network: $network");
+                            MyFeeds_Affiliate_Product_Picker::log("URL pattern '$pattern' matches network: $network");
                         }
                     }
                 }
@@ -425,7 +425,7 @@ class MyFeeds_Smart_Mapper {
             if ($signature_matches > 0) {
                 $score = ($signature_matches / count($config['signature_fields'])) * $config['confidence_boost'];
                 $network_scores[$network] = ($network_scores[$network] ?? 0) + $score;
-                MyFeeds_Affiliate_Product_Picker::log("🏷️ Network '$network' signature match: $signature_matches fields");
+                MyFeeds_Affiliate_Product_Picker::log("Network '$network' signature match: $signature_matches fields");
             }
         }
         
@@ -481,14 +481,14 @@ class MyFeeds_Smart_Mapper {
                     if ($gs_sig_matches >= 4) {
                         $best_network = 'google_shopping';
                         $network_scores['google_shopping'] = max($network_scores) + 1;
-                        MyFeeds_Affiliate_Product_Picker::log("🔄 Google Shopping override: {$gs_sig_matches} signature fields matched, overriding non-URL-based detection");
+                        MyFeeds_Affiliate_Product_Picker::log("Google Shopping override: {$gs_sig_matches} signature fields matched, overriding non-URL-based detection");
                     }
                 } else {
-                    MyFeeds_Affiliate_Product_Picker::log("🔒 Google Shopping override SKIPPED: {$best_network} was detected via URL pattern (more reliable)");
+                    MyFeeds_Affiliate_Product_Picker::log("Google Shopping override SKIPPED: {$best_network} was detected via URL pattern (more reliable)");
                 }
             }
             
-            MyFeeds_Affiliate_Product_Picker::log("🎯 Best network match: $best_network (score: {$network_scores[$best_network]})");
+            MyFeeds_Affiliate_Product_Picker::log("Best network match: $best_network (score: {$network_scores[$best_network]})");
             return $best_network;
         }
         
@@ -518,7 +518,7 @@ class MyFeeds_Smart_Mapper {
                                 if (in_array($attr_option, $available_fields)) {
                                     $attr_mapping[$attr_name] = $attr_option;
                                     $field_usage[$attr_option] = "attributes.{$attr_name}";
-                                    MyFeeds_Affiliate_Product_Picker::log("✅ Mapped 'attributes.{$attr_name}' → '{$attr_option}' (network-specific)");
+                                    MyFeeds_Affiliate_Product_Picker::log("Mapped 'attributes.{$attr_name}' → '{$attr_option}' (network-specific)");
                                     break;
                                 }
                             }
@@ -526,7 +526,7 @@ class MyFeeds_Smart_Mapper {
                             if (in_array($attr_field, $available_fields)) {
                                 $attr_mapping[$attr_name] = $attr_field;
                                 $field_usage[$attr_field] = "attributes.{$attr_name}";
-                                MyFeeds_Affiliate_Product_Picker::log("✅ Mapped 'attributes.{$attr_name}' → '{$attr_field}' (network-specific)");
+                                MyFeeds_Affiliate_Product_Picker::log("Mapped 'attributes.{$attr_name}' → '{$attr_field}' (network-specific)");
                             }
                         }
                     }
@@ -542,7 +542,7 @@ class MyFeeds_Smart_Mapper {
                         if (in_array($field_option, $available_fields)) {
                             $mapping[$standard_field] = $field_option;
                             $field_usage[$field_option] = $standard_field;
-                            MyFeeds_Affiliate_Product_Picker::log("✅ Mapped '$standard_field' → '$field_option' (network-specific)");
+                            MyFeeds_Affiliate_Product_Picker::log("Mapped '$standard_field' → '$field_option' (network-specific)");
                             break;
                         }
                     }
@@ -551,7 +551,7 @@ class MyFeeds_Smart_Mapper {
                     if (in_array($network_field, $available_fields)) {
                         $mapping[$standard_field] = $network_field;
                         $field_usage[$network_field] = $standard_field;
-                        MyFeeds_Affiliate_Product_Picker::log("✅ Mapped '$standard_field' → '$network_field' (network-specific)");
+                        MyFeeds_Affiliate_Product_Picker::log("Mapped '$standard_field' → '$network_field' (network-specific)");
                     }
                 }
             }
@@ -575,9 +575,9 @@ class MyFeeds_Smart_Mapper {
                 $mapping[$standard_field] = $best_match['field'];
                 $field_usage[$best_match['field']] = $standard_field;
                 
-                MyFeeds_Affiliate_Product_Picker::log("✅ Mapped '$standard_field' → '{$best_match['field']}' (confidence: {$best_match['confidence']})");
+                MyFeeds_Affiliate_Product_Picker::log("Mapped '$standard_field' → '{$best_match['field']}' (confidence: {$best_match['confidence']})");
             } else {
-                MyFeeds_Affiliate_Product_Picker::log("⚠️ No mapping found for '$standard_field'");
+                MyFeeds_Affiliate_Product_Picker::log("No mapping found for '$standard_field'");
             }
         }
         
