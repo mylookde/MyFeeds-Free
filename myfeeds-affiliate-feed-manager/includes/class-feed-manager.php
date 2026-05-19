@@ -1708,16 +1708,29 @@ class MyFeeds_Feed_Manager {
      */
     public function rest_search_products(WP_REST_Request $req) {
         $query = sanitize_text_field($req->get_param('q'));
-        if (!$query || strlen($query) < 2) return array();
-        
+        if (!$query || strlen($query) < 2) {
+            return $req->get_param('with_meta')
+                ? rest_ensure_response(array('products' => array(), 'total' => 0, 'suggestion' => null, 'parsed' => null))
+                : array();
+        }
+
         $offset = intval($req->get_param('offset'));
         if ($offset < 0) $offset = 0;
         $limit = 50;
-        
+        $with_meta = (bool) $req->get_param('with_meta');
+
         // =====================================================================
         // DB MODE: SQL-based search — fast, no RAM spike
         // =====================================================================
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
+            if ($with_meta && class_exists('MyFeeds_Search_Engine')) {
+                $wrapper = MyFeeds_Search_Engine::search($query, array(
+                    'limit'       => $limit,
+                    'offset'      => $offset,
+                    'return_meta' => true,
+                ));
+                return rest_ensure_response($wrapper);
+            }
             $results = MyFeeds_DB_Manager::search_products($query, $limit, $offset);
             return rest_ensure_response(array_values($results));
         }

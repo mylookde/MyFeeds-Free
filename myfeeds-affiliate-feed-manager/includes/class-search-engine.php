@@ -993,19 +993,65 @@ class MyFeeds_Search_Engine {
         global $wpdb;
         $table = MyFeeds_DB_Manager::table_name();
 
-        $query = trim($query);
+        // Accept either the legacy positional signature ($limit, $offset) or
+        // a single $args array. Callers that ask for meta get the new wrapper
+        // back ({products, total, suggestion, parsed}); callers that pass an
+        // int $limit keep getting the flat product array as before.
+        $args = array(
+            'limit'        => 50,
+            'offset'       => 0,
+            'return_meta'  => false,
+            'parsed_query' => null,
+        );
+        if (is_array($limit)) {
+            $args = array_merge($args, $limit);
+        } else {
+            $args['limit']  = (int) $limit;
+            $args['offset'] = (int) $offset;
+        }
+        // Normalize downstream locals so the rest of the function never sees
+        // the args-array form leaking out as $limit.
+        $limit  = (int) $args['limit'];
+        $offset = (int) $args['offset'];
+
+        $query = trim((string) $query);
         if (empty($query)) {
-            return array();
+            return $args['return_meta']
+                ? array('products' => array(), 'total' => 0, 'suggestion' => null, 'parsed' => null)
+                : array();
+        }
+
+        // =====================================================================
+        // SMART QUERY PARSER: pull "unter 80€" / "im sale" / phrases out before
+        // tokenization so the keyword stage only sees actual keywords.
+        // =====================================================================
+        $parsed = is_array($args['parsed_query']) ? $args['parsed_query'] : self::parse_smart_query($query);
+        $phrase_data = self::extract_phrases($parsed['query']);
+        $clean_query = $phrase_data['query'] !== '' ? $phrase_data['query'] : $parsed['query'];
+        $phrases     = $phrase_data['phrases'];
+
+        // If smart parser stripped everything except phrases, keep the phrases
+        // as the keyword fallback so the FULLTEXT stage has something to match.
+        if ($clean_query === '' && !empty($phrases)) {
+            $clean_query = implode(' ', $phrases);
+        }
+        if ($clean_query === '') {
+            return $args['return_meta']
+                ? array('products' => array(), 'total' => 0, 'suggestion' => null, 'parsed' => $parsed)
+                : array();
         }
 
         // =====================================================================
         // PHASE A: Expand query (stop words → stemming → umlauts → synonyms)
         // =====================================================================
-        $expansion = self::expand_query($query);
+        $expansion = self::expand_query($clean_query);
         $original_tokens = $expansion['original_tokens'];
         $synonym_map = $expansion['synonym_map'];
 
         if (empty($original_tokens)) {
+            if ($args['return_meta']) {
+                return array('products' => array(), 'total' => 0, 'suggestion' => null, 'parsed' => $parsed);
+            }
             return array();
         }
 
@@ -1040,6 +1086,25 @@ class MyFeeds_Search_Engine {
         $ft_data = self::build_fulltext_query($original_tokens, $synonym_map, $gender_tokens);
         $ft_query_str = $ft_data['fulltext_query'];
         $short_tokens = $ft_data['short_tokens'];
+
+        // Quoted phrases are appended as BOOLEAN MODE phrase clauses. Each one
+        // becomes a required exact-word-sequence match in addition to the
+        // keyword stage; calculate_score adds a hefty boost when the phrase
+        // appears as a substring inside product_name so phrase hits float to
+        // the top even if the same word soup matches more partial results.
+        if (!empty($phrases)) {
+            $phrase_clauses = array();
+            foreach ($phrases as $phrase) {
+                $clean = preg_replace('/[+\-><()~*@"]/', '', $phrase);
+                $clean = trim($clean);
+                if ($clean !== '' && mb_strpos($clean, ' ') !== false) {
+                    $phrase_clauses[] = '+"' . $clean . '"';
+                }
+            }
+            if (!empty($phrase_clauses)) {
+                $ft_query_str = trim($ft_query_str . ' ' . implode(' ', $phrase_clauses));
+            }
+        }
 
         $fetch_limit = max($limit * 4, 200);
         $rows = array();
@@ -1098,6 +1163,15 @@ class MyFeeds_Search_Engine {
 
         if (empty($rows)) {
             myfeeds_log("SEARCH: No results for '{$query}'", 'debug');
+            if ($args['return_meta']) {
+                $suggestion = self::did_you_mean($original_tokens);
+                return array(
+                    'products'   => array(),
+                    'total'      => 0,
+                    'suggestion' => $suggestion,
+                    'parsed'     => $parsed,
+                );
+            }
             return array();
         }
 
@@ -1119,10 +1193,23 @@ class MyFeeds_Search_Engine {
 
         // =====================================================================
         // PHASE D: 3-Tier weighted scoring (scoring_tokens WITHOUT gender for match_ratio)
+        // Phrase boost: each matching phrase adds substantial score so quoted
+        // queries float to the top of the ranked list ahead of word-bag matches.
         // =====================================================================
         $scored_rows = array();
         foreach ($rows as $row) {
             $score = self::calculate_score($row, $scoring_tokens, $synonym_map, $gender_tokens, $expansion['search_for_female'], $expansion['search_for_male']);
+            if (!empty($phrases)) {
+                $hay_name = mb_strtolower($row['product_name'] ?? '');
+                $hay_brand = mb_strtolower($row['brand'] ?? '');
+                foreach ($phrases as $phrase) {
+                    if ($hay_name !== '' && mb_strpos($hay_name, $phrase) !== false) {
+                        $score += 5000;
+                    } elseif ($hay_brand !== '' && mb_strpos($hay_brand, $phrase) !== false) {
+                        $score += 2500;
+                    }
+                }
+            }
             $scored_rows[] = array('row' => $row, 'score' => $score);
         }
 
@@ -1154,6 +1241,7 @@ class MyFeeds_Search_Engine {
         $dedup_count = count($scored_rows);
         myfeeds_log("SEARCH: After dedup={$dedup_count}", 'debug');
 
+        $total_after_dedup = $dedup_count;
         $scored_rows = array_slice($scored_rows, $offset, $limit);
 
         // Log top 3 results with tier info
@@ -1172,6 +1260,22 @@ class MyFeeds_Search_Engine {
         foreach ($scored_rows as $item) {
             $product = self::row_to_product_simple($item['row']);
             $products[$product['id']] = $product;
+        }
+
+        if ($args['return_meta']) {
+            $suggestion = null;
+            if (empty($products)) {
+                $suggestion = self::did_you_mean($original_tokens);
+                if ($suggestion === implode(' ', array_map('mb_strtolower', $original_tokens))) {
+                    $suggestion = null; // No actual change
+                }
+            }
+            return array(
+                'products'   => array_values($products),
+                'total'      => $total_after_dedup,
+                'suggestion' => $suggestion,
+                'parsed'     => $parsed,
+            );
         }
 
         return $products;
@@ -1275,6 +1379,267 @@ class MyFeeds_Search_Engine {
         ), ARRAY_A);
 
         return $rows ?: array();
+    }
+
+    // =========================================================================
+    // Smart Query Parser: pull structured filters out of natural language
+    // =========================================================================
+
+    /**
+     * Pulls price ranges and on-sale intent out of a raw query string before
+     * tokenization. "schwarze sneaker unter 80 euro im sale" becomes a clean
+     * keyword query ("schwarze sneaker") plus structured filters the rest of
+     * the pipeline can apply alongside the FULLTEXT match.
+     */
+    public static function parse_smart_query($raw_query) {
+        $result = array(
+            'query'      => $raw_query,
+            'min_price'  => null,
+            'max_price'  => null,
+            'on_sale'    => false,
+            'extracted'  => array(),
+        );
+
+        if (!is_string($raw_query) || $raw_query === '') {
+            return $result;
+        }
+
+        $q = ' ' . $raw_query . ' ';
+
+        // Price range: 80-150€ / 80 to 150 / 80 bis 150
+        if (preg_match('/(\d{1,5})\s*(?:-|–|—|to|bis)\s*(\d{1,5})\s*(?:€|eur|euro|\$|usd|gbp|£)?\b/iu', $q, $m)) {
+            $a = (float) $m[1];
+            $b = (float) $m[2];
+            $result['min_price'] = min($a, $b);
+            $result['max_price'] = max($a, $b);
+            $q = str_replace($m[0], ' ', $q);
+            $result['extracted'][] = 'range:' . $m[1] . '-' . $m[2];
+        }
+
+        // Max price: unter 80€ / under 80 / <80 / max 80 / bis 80
+        if (preg_match('/(?:^|\s)(?:unter|under|max\.?|bis|<=?)\s*(\d{1,5})\s*(?:€|eur|euro|\$|usd|gbp|£)?\b/iu', $q, $m)) {
+            $result['max_price'] = isset($result['max_price'])
+                ? min($result['max_price'], (float) $m[1])
+                : (float) $m[1];
+            $q = str_replace($m[0], ' ', $q);
+            $result['extracted'][] = 'max:' . $m[1];
+        }
+
+        // Min price: ab 50€ / over 50 / >50 / mindestens 50 / from 50
+        if (preg_match('/(?:^|\s)(?:ab|from|over|mindestens|min\.?|>=?)\s*(\d{1,5})\s*(?:€|eur|euro|\$|usd|gbp|£)?\b/iu', $q, $m)) {
+            $result['min_price'] = isset($result['min_price'])
+                ? max($result['min_price'], (float) $m[1])
+                : (float) $m[1];
+            $q = str_replace($m[0], ' ', $q);
+            $result['extracted'][] = 'min:' . $m[1];
+        }
+
+        // On-sale intent: im sale / on sale / reduziert / im angebot / discount
+        if (preg_match('/(?:^|\s)(?:im\s+sale|on\s+sale|sale|reduziert|im\s+angebot|angebot|discount)(?=\s|$)/iu', $q, $m)) {
+            $result['on_sale'] = true;
+            $q = preg_replace('/(?:^|\s)(?:im\s+sale|on\s+sale|sale|reduziert|im\s+angebot|angebot|discount)(?=\s|$)/iu', ' ', $q);
+            $result['extracted'][] = 'on_sale';
+        }
+
+        $result['query'] = trim(preg_replace('/\s+/', ' ', $q));
+        return $result;
+    }
+
+    /**
+     * Pull double-quoted phrases out of the raw query. Returns the cleaned
+     * query (with the quoted segments removed) plus the list of phrases so
+     * the scorer can reward exact substring hits and the FULLTEXT builder
+     * can wrap them in BOOLEAN MODE phrase syntax.
+     */
+    public static function extract_phrases($raw_query) {
+        $phrases = array();
+        $cleaned = $raw_query;
+        if (preg_match_all('/"([^"]{2,})"/u', $raw_query, $m)) {
+            foreach ($m[1] as $phrase) {
+                $phrase = trim(preg_replace('/\s+/', ' ', $phrase));
+                if ($phrase !== '' && mb_strpos($phrase, ' ') !== false) {
+                    $phrases[] = mb_strtolower($phrase);
+                }
+            }
+            $cleaned = preg_replace('/"[^"]*"/u', ' ', $raw_query);
+            $cleaned = trim(preg_replace('/\s+/', ' ', $cleaned));
+        }
+        return array('query' => $cleaned, 'phrases' => $phrases);
+    }
+
+    // =========================================================================
+    // Did-You-Mean: Damerau-Levenshtein against brand + popular-token vocab
+    // =========================================================================
+
+    /** @var array|null Cached vocab (lowercase token => freq) */
+    private static $vocab_cache = null;
+
+    /**
+     * Build a small vocabulary of well-known tokens from the product table:
+     * all brand names plus the most frequent word-tokens from product_name.
+     * Cached for the lifetime of the request; transient-cached for an hour
+     * so we are not paying the scan on every search.
+     */
+    private static function get_vocab() {
+        if (self::$vocab_cache !== null) {
+            return self::$vocab_cache;
+        }
+        $cached = get_transient('myfeeds_search_vocab_v1');
+        if (is_array($cached)) {
+            self::$vocab_cache = $cached;
+            return self::$vocab_cache;
+        }
+
+        global $wpdb;
+        $vocab = array();
+        if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::table_exists()) {
+            $table = MyFeeds_DB_Manager::table_name();
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+            $brands = $wpdb->get_col("SELECT DISTINCT LOWER(brand) FROM {$table} WHERE brand IS NOT NULL AND brand != '' LIMIT 3000");
+            foreach ((array) $brands as $b) {
+                if (mb_strlen($b) >= 3) {
+                    $vocab[$b] = 100;
+                }
+            }
+            // Skim a few thousand product names, extract word-tokens, count freq
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+            $names = $wpdb->get_col("SELECT product_name FROM {$table} WHERE status = 'active' AND product_name IS NOT NULL LIMIT 5000");
+            $stops = array_flip(self::get_stop_words());
+            foreach ((array) $names as $name) {
+                $name = mb_strtolower($name);
+                $parts = preg_split('/[^\p{L}\p{N}]+/u', $name);
+                foreach ((array) $parts as $p) {
+                    if (!is_string($p) || mb_strlen($p) < 4) {
+                        continue;
+                    }
+                    if (isset($stops[$p])) {
+                        continue;
+                    }
+                    if (!isset($vocab[$p])) {
+                        $vocab[$p] = 0;
+                    }
+                    $vocab[$p]++;
+                }
+            }
+            // Keep only the well-represented vocab (or it suggests garbage)
+            $vocab = array_filter($vocab, function ($freq) { return $freq >= 3; });
+        }
+
+        self::$vocab_cache = $vocab;
+        set_transient('myfeeds_search_vocab_v1', $vocab, HOUR_IN_SECONDS);
+        return $vocab;
+    }
+
+    /**
+     * Damerau-Levenshtein distance with transposition support — same notion
+     * of "edit distance" as plain Levenshtein but counting "addidas <-> adidas"
+     * (one adjacent swap) as a single edit instead of two. PHP's native
+     * levenshtein() does not handle transpositions which is the most common
+     * typo class for brand names.
+     */
+    private static function damerau_levenshtein($a, $b) {
+        $a = (string) $a;
+        $b = (string) $b;
+        $al = mb_strlen($a);
+        $bl = mb_strlen($b);
+        if ($al === 0) return $bl;
+        if ($bl === 0) return $al;
+
+        $aa = preg_split('//u', $a, -1, PREG_SPLIT_NO_EMPTY);
+        $bb = preg_split('//u', $b, -1, PREG_SPLIT_NO_EMPTY);
+
+        $d = array();
+        for ($i = 0; $i <= $al; $i++) {
+            $d[$i] = array($i);
+        }
+        for ($j = 1; $j <= $bl; $j++) {
+            $d[0][$j] = $j;
+        }
+        for ($i = 1; $i <= $al; $i++) {
+            for ($j = 1; $j <= $bl; $j++) {
+                $cost = ($aa[$i - 1] === $bb[$j - 1]) ? 0 : 1;
+                $d[$i][$j] = min(
+                    $d[$i - 1][$j] + 1,
+                    $d[$i][$j - 1] + 1,
+                    $d[$i - 1][$j - 1] + $cost
+                );
+                if ($i > 1 && $j > 1
+                    && $aa[$i - 1] === $bb[$j - 2]
+                    && $aa[$i - 2] === $bb[$j - 1]) {
+                    $d[$i][$j] = min($d[$i][$j], $d[$i - 2][$j - 2] + 1);
+                }
+            }
+        }
+        return $d[$al][$bl];
+    }
+
+    /**
+     * Produce a single corrected query string for the user if their tokens
+     * look like typos against the live vocab. We only suggest when the
+     * edit distance is small relative to the token length so we do not
+     * confidently suggest "rocket" when the user meant "jacket".
+     */
+    public static function did_you_mean($original_tokens) {
+        if (empty($original_tokens) || !is_array($original_tokens)) {
+            return null;
+        }
+        $vocab = self::get_vocab();
+        if (empty($vocab)) {
+            return null;
+        }
+
+        $synonyms = self::get_synonyms();
+        $suggested = array();
+        $changed_any = false;
+
+        foreach ($original_tokens as $token) {
+            $token = mb_strtolower($token);
+            // Exact match in vocab or in synonym keys: keep as-is
+            if (isset($vocab[$token]) || isset($synonyms[$token])) {
+                $suggested[] = $token;
+                continue;
+            }
+            // Short tokens are too noisy to fuzz-match
+            if (mb_strlen($token) < 4) {
+                $suggested[] = $token;
+                continue;
+            }
+            // Allow at most floor(len/4) edits, capped at 2 — so 4-char tokens
+            // tolerate 1 edit, 8-char tokens 2 edits. Anything past that is
+            // a different word, not a typo.
+            $max_edits = min(2, (int) floor(mb_strlen($token) / 4));
+            if ($max_edits < 1) {
+                $suggested[] = $token;
+                continue;
+            }
+            $best = null;
+            $best_dist = $max_edits + 1;
+            foreach ($vocab as $candidate => $freq) {
+                $lenDiff = abs(mb_strlen($candidate) - mb_strlen($token));
+                if ($lenDiff > $max_edits) {
+                    continue;
+                }
+                $dist = self::damerau_levenshtein($token, $candidate);
+                if ($dist < $best_dist) {
+                    $best_dist = $dist;
+                    $best = $candidate;
+                    if ($dist === 1) {
+                        break; // Cannot do better than 1
+                    }
+                }
+            }
+            if ($best !== null && $best !== $token) {
+                $suggested[] = $best;
+                $changed_any = true;
+            } else {
+                $suggested[] = $token;
+            }
+        }
+
+        if (!$changed_any) {
+            return null;
+        }
+        return implode(' ', $suggested);
     }
 
     /**
