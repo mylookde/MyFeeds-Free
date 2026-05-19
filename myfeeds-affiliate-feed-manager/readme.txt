@@ -8,7 +8,7 @@ Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Stop pasting affiliate links by hand. Your network's product feed becomes a searchable catalog inside WordPress, with cards you drop in from the block editor.
+Turn any affiliate product feed into searchable product cards you insert from the WordPress block editor.
 
 == Description ==
 
