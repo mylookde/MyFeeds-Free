@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 6.9
-Stable tag: 1.0.6
+Stable tag: 1.0.7
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -157,6 +157,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.7 =
+* Smart Search: the result counter and the facet pills now report the same number of products the grid actually renders. Previously, every size variant of a product was tallied separately in the header total and in the brand/colour/category pills, so a search for "head" could promise "17 results" or "Bape (15)" and then deliver 5 and 3 once the result deduplicator collapsed the sizes. Counts now flow through the same size-suffix pipeline as the result set.
+
 = 1.0.6 =
 * Smart Search: fixed a recall bug where any query containing a short token (e.g. "air force 1" or "nike 1") returned zero results because the FULLTEXT engine drops sub-min tokens from required clauses and the LIKE fallback was using a MySQL 5.x word-boundary regex that broke on 8.0.4+. Short tokens now AND-constrain the FULLTEXT match via a portable space-padded LIKE.
 * Smart Search: quoted-phrase queries ("air force 1") now use a substring LIKE constraint instead of a FULLTEXT phrase clause, so phrases that contain short tokens work too. Quote characters are also properly stripped before tokenization.
@@ -219,6 +222,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * AWIN Publisher API integration for credential and feed-URL resolution.
 
 == Upgrade Notice ==
+
+= 1.0.7 =
+Honest counts: the result total and facet pills in the product picker now match the grid below them. Size variants are no longer double-counted in the header.
 
 = 1.0.6 =
 Recall fix: queries with a short token like "air force 1" or "nike 1" now return matches instead of an empty list. Recommended for anyone running MySQL 8 (most modern hosts).
