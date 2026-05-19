@@ -1616,11 +1616,16 @@ class MyFeeds_Search_Engine {
         $dedup_count = count($scored_rows);
         myfeeds_log("SEARCH: After dedup={$dedup_count}", 'debug');
 
-        // Honest total: when the caller asked for meta we run a tiny
-        // COUNT(DISTINCT name, colour) over the full filtered match set so the
-        // UI can show the real number of products in the DB, not just the
-        // dedup'd count of the fetched candidate batch (capped at fetch_limit).
-        // Falls back to dedup_count if the count query errors out.
+        // Honest total: when the caller asked for meta we fetch DISTINCT
+        // (product_name, colour) tuples for the full filtered match set and
+        // run them through the same strip_size_suffix() pipeline as the
+        // result deduplicator. This keeps the reported total in lockstep
+        // with what the UI actually renders -- a SQL-side COUNT(DISTINCT)
+        // would count "Tee White - S / - M / - L" as three separate rows,
+        // while the result set collapses them into one. REGEXP_REPLACE
+        // would do the job in SQL but isn't available on MySQL 5.7, which
+        // we still support. Capped at 5000 distinct tuples as a safety
+        // bound for extremely broad queries.
         $total_after_dedup = $dedup_count;
         if (!empty($args['return_meta']) && $has_search_text && ($has_ft || $has_short_constraint || $has_phrases)) {
             $count_filter   = self::build_filter_clause($args);
@@ -1638,15 +1643,22 @@ class MyFeeds_Search_Engine {
                 $count_parts[] = 'search_text LIKE %s';
                 $count_params[] = '%' . $wpdb->esc_like($phrase) . '%';
             }
-            $count_sql = "SELECT COUNT(DISTINCT product_name, COALESCE(LOWER(colour), '')) AS total
+            $count_sql = "SELECT DISTINCT product_name, COALESCE(LOWER(colour), '') AS colour_norm
                           FROM {$table}
                           WHERE status = 'active'
                           {$count_filter['sql']}
-                          AND " . implode(' AND ', $count_parts);
+                          AND " . implode(' AND ', $count_parts) . "
+                          LIMIT 5000";
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-            $real_total = (int) $wpdb->get_var($wpdb->prepare($count_sql, ...$count_params));
-            if ($real_total > 0) {
-                $total_after_dedup = $real_total;
+            $count_rows = $wpdb->get_results($wpdb->prepare($count_sql, ...$count_params), ARRAY_A);
+            if (is_array($count_rows) && count($count_rows) > 0) {
+                $seen_distinct = array();
+                foreach ($count_rows as $cr) {
+                    $key  = mb_strtolower(self::strip_size_suffix($cr['product_name'] ?? ''));
+                    $key .= '|' . ($cr['colour_norm'] ?? '');
+                    $seen_distinct[$key] = true;
+                }
+                $total_after_dedup = count($seen_distinct);
             }
         }
 
