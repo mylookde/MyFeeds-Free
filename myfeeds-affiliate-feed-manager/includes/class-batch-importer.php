@@ -1470,13 +1470,17 @@ class MyFeeds_Batch_Importer {
         $active_ids_hash = array_flip($active_ids); // O(1) Lookup
         
         myfeeds_log("Quick Sync: Starting FAST sync for $total_active active products", 'info');
-        
-        // Initialize status
+
+        // Initialize status. heartbeat_timestamp gets bumped after every
+        // feed iteration below so the watchdog in get_import_status() can
+        // tell a hung worker (no progress in >5 min) from an active one.
         $status = array(
             'status' => 'running',
             'mode' => self::MODE_ACTIVE_ONLY,
             'phase' => 'quick_sync',
             'started_at' => current_time('mysql'),
+            'last_activity' => current_time('mysql'),
+            'heartbeat_timestamp' => time(),
             'total_feeds' => count($feeds),
             'processed_feeds' => 0,
             'current_feed' => null,
@@ -1515,8 +1519,13 @@ class MyFeeds_Batch_Importer {
             
             $status['current_feed'] = $key;
             $status['current_feed_name'] = $feed['name'];
+            $status['last_activity'] = current_time('mysql');
+            $status['heartbeat_timestamp'] = time();
             update_option(self::OPTION_IMPORT_STATUS, $status, false);
-            
+
+            $feed_started_at = microtime(true);
+            myfeeds_log("Quick Sync: starting feed '{$feed['name']}' (key={$key}, " . count($remaining_ids) . " ids remaining)", 'info');
+
             // Download feed
             $response = wp_remote_get($feed['url'], array(
                 'timeout' => 30,
@@ -1574,9 +1583,14 @@ class MyFeeds_Batch_Importer {
             }
             
             $status['processed_feeds']++;
+            $status['last_activity'] = current_time('mysql');
+            $status['heartbeat_timestamp'] = time();
             update_option(self::OPTION_IMPORT_STATUS, $status, false);
+
+            $feed_elapsed_ms = (int) round((microtime(true) - $feed_started_at) * 1000);
+            myfeeds_log("Quick Sync: finished feed '{$feed['name']}' in {$feed_elapsed_ms}ms (found={$found_count}, remaining=" . count($remaining_ids) . ")", 'info');
         }
-        
+
         if ($use_db) {
             // DB mode: Quick Sync products already written via quick_sync_product()
             // ARCHITECTURE DECISION: Quick Sync NEVER marks products as unavailable.
@@ -3129,7 +3143,23 @@ class MyFeeds_Batch_Importer {
         
         // Process batch
         $result = $this->process_feed_batch($current_feed);
-        
+
+        // Race-condition guard: process_feed_batch can run for tens of
+        // seconds on a large feed. If the user clicked Cancel from the
+        // Feeds page mid-batch, cancel_import() will have written
+        // status='cancelled' and unscheduled the remaining batches —
+        // but the $status we snapshotted at the top of this function
+        // is a stale in-memory copy that still says 'running'. Writing
+        // it back below would overwrite the cancellation AND the
+        // subsequent schedule_next_batch() call would resurrect the
+        // import chain because the next batch reads status='running'
+        // again. Re-read here and bail out if a cancel landed.
+        $fresh_status = get_option(self::OPTION_IMPORT_STATUS, array());
+        if (is_array($fresh_status) && ($fresh_status['status'] ?? '') === 'cancelled') {
+            MyFeeds_Logger::info('Batch: Cancellation detected during process_feed_batch — discarding this batch and exiting');
+            return;
+        }
+
         if (is_wp_error($result)) {
             $queue[$current_index]['status'] = 'failed';
             $queue[$current_index]['error'] = $result->get_error_message();
@@ -3694,7 +3724,16 @@ class MyFeeds_Batch_Importer {
         $status = get_option(self::OPTION_IMPORT_STATUS, array());
         $mode = $status['mode'] ?? self::MODE_FULL;
         $import_type = $status['import_type'] ?? 'full';
-        
+
+        // If a cancel arrived between the last batch and this finalization
+        // hook firing, do not promote 'cancelled' back to 'completed'.
+        // cancel_import() has already done the cleanup; running our own
+        // index swap / option deletes on top would defeat the cancel.
+        if (($status['status'] ?? '') === 'cancelled') {
+            MyFeeds_Logger::info('Complete: Status is cancelled — skipping finalization');
+            return;
+        }
+
         MyFeeds_Logger::info('=== IMPORT COMPLETING ===');
         MyFeeds_Logger::info("Complete: mode={$mode}, type={$import_type}, processed={$status['processed_products']}, feeds={$status['processed_feeds']}");
         
@@ -4092,7 +4131,68 @@ class MyFeeds_Batch_Importer {
                 }
             }
         }
-        
+
+        // =====================================================================
+        // WATCHDOG (Quick Sync): auto-cancel a stalled MODE_ACTIVE_ONLY run
+        //
+        // Quick Sync is intentionally NOT auto-resumed (unlike Full Mode):
+        // the worker is synchronous, has no batched checkpoint state to
+        // restart from, and a stall almost always means the worker was
+        // killed mid-feed (PHP timeout, OOM, host-side cgroup kill). The
+        // safe response is to release the lock so the UI stops showing
+        // the phantom progress bar; the user can retry manually.
+        //
+        // 5-minute timeout — Quick Sync normally completes in 30-90s for
+        // a few thousand active products. 5 minutes without a heartbeat
+        // is well past any legitimate slow feed.
+        // =====================================================================
+        if ($status['status'] === 'running' && $mode === self::MODE_ACTIVE_ONLY) {
+            $heartbeat = isset($status['heartbeat_timestamp']) ? intval($status['heartbeat_timestamp']) : 0;
+            $last_activity = isset($status['last_activity']) ? strtotime($status['last_activity']) : 0;
+            $started_at = isset($status['started_at']) ? strtotime($status['started_at']) : 0;
+
+            // Pre-heartbeat status rows (from a worker that crashed before
+            // the new code shipped) only have started_at. Use it as the
+            // last sign of life so we still recover those legacy rows.
+            $last_sign_of_life = max($heartbeat, $last_activity, $started_at);
+            $stale_seconds = time() - $last_sign_of_life;
+
+            if ($last_sign_of_life > 0 && $stale_seconds > 300) {
+                MyFeeds_Logger::info("[WATCHDOG] Quick Sync stalled for {$stale_seconds}s at feed='" . ($status['current_feed_name'] ?? '?') . "' processed_feeds=" . ($status['processed_feeds'] ?? 0) . "/" . ($status['total_feeds'] ?? 0) . " — auto-cancelling");
+
+                // Restore feed-config statuses that the worker may have
+                // flipped to 'importing' but never restored due to the
+                // crash. Mirrors cancel_import() so the UI is consistent.
+                $feeds_to_fix = get_option('myfeeds_feeds', array());
+                $feeds_updated = false;
+                foreach ($feeds_to_fix as $fk => &$ff) {
+                    if (($ff['status'] ?? '') === 'importing') {
+                        $ff['status'] = 'active';
+                        $feeds_updated = true;
+                    }
+                }
+                unset($ff);
+                if ($feeds_updated) {
+                    update_option('myfeeds_feeds', $feeds_to_fix);
+                }
+
+                // Mark the status itself as cancelled with a watchdog
+                // marker the UI can use to surface a one-liner if we
+                // want to later. For now the standard 'cancelled' badge
+                // is enough.
+                $status['status'] = 'cancelled';
+                $status['cancelled_at'] = current_time('mysql');
+                $status['cancel_reason'] = 'watchdog_stalled';
+                $status['stalled_seconds'] = $stale_seconds;
+                update_option(self::OPTION_IMPORT_STATUS, $status, false);
+
+                // Drop the active-ids cache so a fresh manual retry
+                // re-discovers from posts/pages instead of inheriting
+                // the dead run's snapshot.
+                delete_option(self::OPTION_ACTIVE_IDS);
+            }
+        }
+
         // =====================================================================
         // COMPLETED: Immer 100% zurückgeben
         // =====================================================================
@@ -4538,13 +4638,19 @@ class MyFeeds_Batch_Importer {
         }
         
         MyFeeds_Logger::info("Quick Sync: Found " . count($active_ids) . " active products - spawning worker");
-        
-        // Set initial status BEFORE triggering job for instant UI feedback
+
+        // Set initial status BEFORE triggering job for instant UI feedback.
+        // heartbeat_timestamp + last_activity power the Quick-Sync watchdog
+        // in get_import_status() — without them a crashed background worker
+        // leaves status='running' permanently and the UI loops on the
+        // stale progress bar.
         $status = array(
             'status' => 'running',
             'mode' => self::MODE_ACTIVE_ONLY,
             'phase' => 'quick_sync',
             'started_at' => current_time('mysql'),
+            'last_activity' => current_time('mysql'),
+            'heartbeat_timestamp' => time(),
             'total_feeds' => count(get_option('myfeeds_feeds', array())),
             'processed_feeds' => 0,
             'current_feed' => null,
