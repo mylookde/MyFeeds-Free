@@ -662,6 +662,173 @@ class MyFeeds_Search_Engine {
         return trim($clean);
     }
 
+    /**
+     * Build the SQL filter fragment for caller-supplied filters: brand,
+     * colour, price range, on_sale, in_stock. Returns SQL prefixed with
+     * ' AND ' (or empty string) plus the parameter values that match the
+     * %s/%d placeholders inside the fragment. The fragment is meant to be
+     * concatenated to the main search WHERE clause; every dynamic value
+     * flows through wpdb->prepare() at the call site.
+     */
+    private static function build_filter_clause($args) {
+        global $wpdb;
+        $sql = '';
+        $params = array();
+
+        if (!empty($args['brand']) && is_array($args['brand'])) {
+            $brands = array_values(array_filter(array_map('strval', $args['brand']), 'strlen'));
+            if (!empty($brands)) {
+                $placeholders = implode(',', array_fill(0, count($brands), '%s'));
+                $sql .= " AND LOWER(brand) IN ({$placeholders})";
+                foreach ($brands as $b) {
+                    $params[] = mb_strtolower($b);
+                }
+            }
+        }
+        if (!empty($args['colour']) && is_array($args['colour'])) {
+            $colours = array_values(array_filter(array_map('strval', $args['colour']), 'strlen'));
+            if (!empty($colours)) {
+                $placeholders = implode(',', array_fill(0, count($colours), '%s'));
+                $sql .= " AND LOWER(colour) IN ({$placeholders})";
+                foreach ($colours as $c) {
+                    $params[] = mb_strtolower($c);
+                }
+            }
+        }
+        if ($args['min_price'] !== null && (float) $args['min_price'] > 0) {
+            $sql .= " AND price >= %f";
+            $params[] = (float) $args['min_price'];
+        }
+        if ($args['max_price'] !== null && (float) $args['max_price'] > 0) {
+            $sql .= " AND price <= %f";
+            $params[] = (float) $args['max_price'];
+        }
+        if (!empty($args['on_sale'])) {
+            $sql .= " AND original_price IS NOT NULL AND original_price > price AND price > 0";
+        }
+        if (!empty($args['in_stock'])) {
+            $sql .= " AND in_stock = 1";
+        }
+
+        return array('sql' => $sql, 'params' => $params);
+    }
+
+    /**
+     * Count products matching the keyword query + filters, grouped by brand
+     * and colour. For each dimension the filter on THAT dimension is omitted
+     * so the user can switch between brands without the count collapsing to
+     * just their current pick (Stylight/Algolia OR-facet semantics).
+     */
+    private static function compute_facets($table, $ft_query_str, $short_tokens, $args) {
+        global $wpdb;
+        $facets = array('brand' => array(), 'colour' => array());
+
+        if (empty($ft_query_str)) {
+            return $facets;
+        }
+
+        // Build short-token LIKE fragment (same as in main search)
+        $like_conditions = array();
+        $like_values = array();
+        if (!empty($short_tokens)) {
+            foreach ($short_tokens as $st) {
+                if (is_numeric($st)) {
+                    $like_conditions[] = '(search_text REGEXP %s)';
+                    $like_values[] = '[[:<:]]' . $st . '[[:>:]]';
+                } else {
+                    $like_conditions[] = 'search_text LIKE %s';
+                    $like_values[] = '%' . $wpdb->esc_like($st) . '%';
+                }
+            }
+        }
+        $match_sql = !empty($like_conditions)
+            ? '(MATCH(search_text) AGAINST(%s IN BOOLEAN MODE) OR (' . implode(' AND ', $like_conditions) . '))'
+            : 'MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)';
+
+        // Brand facets: apply every filter except brand[]
+        $args_no_brand = array_merge($args, array('brand' => array()));
+        $fb = self::build_filter_clause($args_no_brand);
+        $sql_brand = "SELECT LOWER(brand) AS facet_value, COUNT(*) AS facet_count
+                      FROM {$table}
+                      WHERE status = 'active'
+                      AND brand IS NOT NULL AND brand <> ''
+                      {$fb['sql']}
+                      AND {$match_sql}
+                      GROUP BY LOWER(brand)
+                      ORDER BY facet_count DESC
+                      LIMIT 50";
+        $params_brand = array_merge($fb['params'], array($ft_query_str), $like_values);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        $rows_brand = $wpdb->get_results($wpdb->prepare($sql_brand, ...$params_brand), ARRAY_A);
+        foreach ((array) $rows_brand as $r) {
+            if (!empty($r['facet_value'])) {
+                $facets['brand'][] = array('value' => $r['facet_value'], 'count' => (int) $r['facet_count']);
+            }
+        }
+
+        // Colour facets: apply every filter except colour[]
+        $args_no_colour = array_merge($args, array('colour' => array()));
+        $fc = self::build_filter_clause($args_no_colour);
+        $sql_colour = "SELECT LOWER(colour) AS facet_value, COUNT(*) AS facet_count
+                       FROM {$table}
+                       WHERE status = 'active'
+                       AND colour IS NOT NULL AND colour <> ''
+                       {$fc['sql']}
+                       AND {$match_sql}
+                       GROUP BY LOWER(colour)
+                       ORDER BY facet_count DESC
+                       LIMIT 50";
+        $params_colour = array_merge($fc['params'], array($ft_query_str), $like_values);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        $rows_colour = $wpdb->get_results($wpdb->prepare($sql_colour, ...$params_colour), ARRAY_A);
+        foreach ((array) $rows_colour as $r) {
+            if (!empty($r['facet_value'])) {
+                $facets['colour'][] = array('value' => $r['facet_value'], 'count' => (int) $r['facet_count']);
+            }
+        }
+
+        // Price range hint (min/max in the keyword-matched set, respecting brand+colour filters)
+        $args_for_range = $args;
+        $fr = self::build_filter_clause($args_for_range);
+        $sql_range = "SELECT MIN(price) AS min_price, MAX(price) AS max_price
+                      FROM {$table}
+                      WHERE status = 'active'
+                      AND price > 0
+                      {$fr['sql']}
+                      AND {$match_sql}";
+        $params_range = array_merge($fr['params'], array($ft_query_str), $like_values);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        $row_range = $wpdb->get_row($wpdb->prepare($sql_range, ...$params_range), ARRAY_A);
+        if (!empty($row_range) && $row_range['min_price'] !== null) {
+            $facets['price_range'] = array(
+                'min' => (float) $row_range['min_price'],
+                'max' => (float) $row_range['max_price'],
+            );
+        }
+
+        return $facets;
+    }
+
+    /**
+     * Map the sort key to a deterministic ORDER BY fragment. Returns empty
+     * string for "relevance" — the PHP scorer ranks those after fetch.
+     */
+    private static function build_order_clause($sort) {
+        switch ($sort) {
+            case 'price_asc':
+                return ' ORDER BY price ASC, id ASC';
+            case 'price_desc':
+                return ' ORDER BY price DESC, id ASC';
+            case 'discount_desc':
+                return ' ORDER BY (CASE WHEN original_price > 0 AND original_price > price THEN (original_price - price) / original_price ELSE 0 END) DESC, id ASC';
+            case 'newest':
+                return ' ORDER BY last_updated DESC, id DESC';
+            case 'relevance':
+            default:
+                return '';
+        }
+    }
+
     // =========================================================================
     // PHASE C: Gender Filter (unchanged from 16.1)
     // =========================================================================
@@ -998,10 +1165,21 @@ class MyFeeds_Search_Engine {
         // back ({products, total, suggestion, parsed}); callers that pass an
         // int $limit keep getting the flat product array as before.
         $args = array(
-            'limit'        => 50,
-            'offset'       => 0,
-            'return_meta'  => false,
-            'parsed_query' => null,
+            'limit'          => 50,
+            'offset'         => 0,
+            'return_meta'    => false,
+            'parsed_query'   => null,
+            // Filters
+            'brand'          => array(),    // string[] (any-of)
+            'colour'         => array(),    // string[] (any-of)
+            'min_price'      => null,       // float
+            'max_price'      => null,       // float
+            'on_sale'        => false,      // bool
+            'in_stock'       => false,      // bool
+            // Sort: relevance | price_asc | price_desc | discount_desc | newest
+            'sort'           => 'relevance',
+            // Facets: include brand + colour aggregates in wrapper return
+            'include_facets' => false,
         );
         if (is_array($limit)) {
             $args = array_merge($args, $limit);
@@ -1029,6 +1207,19 @@ class MyFeeds_Search_Engine {
         $phrase_data = self::extract_phrases($parsed['query']);
         $clean_query = $phrase_data['query'] !== '' ? $phrase_data['query'] : $parsed['query'];
         $phrases     = $phrase_data['phrases'];
+
+        // Fold smart-parser-derived filters into $args. Explicit caller-provided
+        // filters win over parsed defaults so the picker UI can override the
+        // parser if needed; otherwise parsed price/sale intent is applied.
+        if ($args['max_price'] === null && isset($parsed['max_price'])) {
+            $args['max_price'] = $parsed['max_price'];
+        }
+        if ($args['min_price'] === null && isset($parsed['min_price'])) {
+            $args['min_price'] = $parsed['min_price'];
+        }
+        if (!$args['on_sale'] && !empty($parsed['on_sale'])) {
+            $args['on_sale'] = true;
+        }
 
         // If smart parser stripped everything except phrases, keep the phrases
         // as the keyword fallback so the FULLTEXT stage has something to match.
@@ -1111,6 +1302,14 @@ class MyFeeds_Search_Engine {
 
         $has_search_text = $wpdb->get_var("SHOW COLUMNS FROM {$table} LIKE 'search_text'");
 
+        // Filters are applied at the SQL level so the FULLTEXT match works on
+        // a pre-narrowed set (brand IN ..., price BETWEEN ..., etc.). Sort is
+        // applied in PHP after dedup so the score/sort-key flow stays uniform
+        // and 'total' stays honest across sort modes.
+        $filter_data  = self::build_filter_clause($args);
+        $filter_sql   = $filter_data['sql'];
+        $filter_param = $filter_data['params'];
+
         if ($has_search_text && !empty($ft_query_str)) {
             if (!empty($short_tokens)) {
                 // LIKE conditions for short tokens (< 4 chars, not indexed by FULLTEXT)
@@ -1130,23 +1329,25 @@ class MyFeeds_Search_Engine {
 
                 $sql = "SELECT * FROM {$table}
                         WHERE status = 'active'
+                        {$filter_sql}
                         AND (
                             MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)
                             OR ({$like_sql})
                         )
                         LIMIT %d";
 
-                $params = array_merge(array($ft_query_str), $like_values, array($fetch_limit));
+                $params = array_merge($filter_param, array($ft_query_str), $like_values, array($fetch_limit));
                 // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Dynamic FULLTEXT search query, user tokens sanitized individually via $wpdb->prepare()
                 $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A);
             } else {
-                $rows = $wpdb->get_results($wpdb->prepare(
-                    "SELECT * FROM {$table}
-                     WHERE status = 'active'
-                     AND MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)
-                     LIMIT %d",
-                    $ft_query_str, $fetch_limit
-                ), ARRAY_A);
+                $sql = "SELECT * FROM {$table}
+                        WHERE status = 'active'
+                        {$filter_sql}
+                        AND MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)
+                        LIMIT %d";
+                $params = array_merge($filter_param, array($ft_query_str, $fetch_limit));
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A);
             }
 
             if (empty($rows)) {
@@ -1213,25 +1414,66 @@ class MyFeeds_Search_Engine {
             $scored_rows[] = array('row' => $row, 'score' => $score);
         }
 
-        usort($scored_rows, function ($a, $b) {
-            return $b['score'] - $a['score'];
-        });
-
-        // =====================================================================
-        // Tier cutoff: if enough full matches exist, drop partial matches
-        // =====================================================================
-        $tier1_count = 0;
-        foreach ($scored_rows as $item) {
-            if ($item['score'] >= 10000) {
-                $tier1_count++;
-            }
+        // Sort: relevance uses the score, the other modes re-rank by price /
+        // discount / newest while keeping score as a stable tiebreaker.
+        $sort_mode = $args['sort'];
+        if ($sort_mode === 'price_asc') {
+            usort($scored_rows, function ($a, $b) {
+                $pa = (float) ($a['row']['price'] ?? 0);
+                $pb = (float) ($b['row']['price'] ?? 0);
+                if ($pa === $pb) return $b['score'] - $a['score'];
+                return $pa <=> $pb;
+            });
+        } elseif ($sort_mode === 'price_desc') {
+            usort($scored_rows, function ($a, $b) {
+                $pa = (float) ($a['row']['price'] ?? 0);
+                $pb = (float) ($b['row']['price'] ?? 0);
+                if ($pa === $pb) return $b['score'] - $a['score'];
+                return $pb <=> $pa;
+            });
+        } elseif ($sort_mode === 'discount_desc') {
+            $disc = function ($row) {
+                $p  = (float) ($row['price'] ?? 0);
+                $op = (float) ($row['original_price'] ?? 0);
+                return ($op > 0 && $op > $p) ? ($op - $p) / $op : 0.0;
+            };
+            usort($scored_rows, function ($a, $b) use ($disc) {
+                $da = $disc($a['row']);
+                $db = $disc($b['row']);
+                if ($da === $db) return $b['score'] - $a['score'];
+                return $db <=> $da;
+            });
+        } elseif ($sort_mode === 'newest') {
+            usort($scored_rows, function ($a, $b) {
+                $ta = strtotime($a['row']['last_updated'] ?? '') ?: 0;
+                $tb = strtotime($b['row']['last_updated'] ?? '') ?: 0;
+                if ($ta === $tb) return $b['score'] - $a['score'];
+                return $tb <=> $ta;
+            });
+        } else {
+            usort($scored_rows, function ($a, $b) {
+                return $b['score'] - $a['score'];
+            });
         }
 
-        if ($tier1_count >= 10) {
-            $scored_rows = array_values(array_filter($scored_rows, function($item) {
-                return $item['score'] >= 10000;
-            }));
-            myfeeds_log("SEARCH: Tier cutoff applied — {$tier1_count} Tier-1 results, dropped partial matches", 'debug');
+        // =====================================================================
+        // Tier cutoff: if enough full matches exist, drop partial matches.
+        // Only applies in relevance mode — other sort modes show every match.
+        // =====================================================================
+        if ($sort_mode === 'relevance') {
+            $tier1_count = 0;
+            foreach ($scored_rows as $item) {
+                if ($item['score'] >= 10000) {
+                    $tier1_count++;
+                }
+            }
+
+            if ($tier1_count >= 10) {
+                $scored_rows = array_values(array_filter($scored_rows, function($item) {
+                    return $item['score'] >= 10000;
+                }));
+                myfeeds_log("SEARCH: Tier cutoff applied — {$tier1_count} Tier-1 results, dropped partial matches", 'debug');
+            }
         }
 
         // =====================================================================
@@ -1270,11 +1512,25 @@ class MyFeeds_Search_Engine {
                     $suggestion = null; // No actual change
                 }
             }
+            $facets = null;
+            if (!empty($args['include_facets'])) {
+                $facets = self::compute_facets($table, $ft_query_str, $short_tokens, $args);
+            }
             return array(
                 'products'   => array_values($products),
                 'total'      => $total_after_dedup,
                 'suggestion' => $suggestion,
                 'parsed'     => $parsed,
+                'facets'     => $facets,
+                'applied'    => array(
+                    'brand'     => $args['brand'],
+                    'colour'    => $args['colour'],
+                    'min_price' => $args['min_price'],
+                    'max_price' => $args['max_price'],
+                    'on_sale'   => (bool) $args['on_sale'],
+                    'in_stock'  => (bool) $args['in_stock'],
+                    'sort'      => $args['sort'],
+                ),
             );
         }
 

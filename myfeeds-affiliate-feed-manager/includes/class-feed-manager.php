@@ -1724,11 +1724,22 @@ class MyFeeds_Feed_Manager {
         // =====================================================================
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
             if ($with_meta && class_exists('MyFeeds_Search_Engine')) {
-                $wrapper = MyFeeds_Search_Engine::search($query, array(
-                    'limit'       => $limit,
-                    'offset'      => $offset,
-                    'return_meta' => true,
-                ));
+                $brand_param  = $req->get_param('brand');
+                $colour_param = $req->get_param('colour');
+                $args = array(
+                    'limit'          => $limit,
+                    'offset'         => $offset,
+                    'return_meta'    => true,
+                    'brand'          => is_array($brand_param) ? array_map('sanitize_text_field', $brand_param) : array(),
+                    'colour'         => is_array($colour_param) ? array_map('sanitize_text_field', $colour_param) : array(),
+                    'min_price'      => $req->get_param('min_price') !== null ? (float) $req->get_param('min_price') : null,
+                    'max_price'      => $req->get_param('max_price') !== null ? (float) $req->get_param('max_price') : null,
+                    'on_sale'        => (bool) $req->get_param('on_sale'),
+                    'in_stock'       => (bool) $req->get_param('in_stock'),
+                    'sort'           => sanitize_key((string) $req->get_param('sort')) ?: 'relevance',
+                    'include_facets' => (bool) $req->get_param('include_facets'),
+                );
+                $wrapper = MyFeeds_Search_Engine::search($query, $args);
                 return rest_ensure_response($wrapper);
             }
             $results = MyFeeds_DB_Manager::search_products($query, $limit, $offset);
