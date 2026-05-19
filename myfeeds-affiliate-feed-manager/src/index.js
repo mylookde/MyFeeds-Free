@@ -189,6 +189,22 @@
       const [currentVariant, setCurrentVariant] = useState({ color: '', size: '' });
       const [detailSizes, setDetailSizes] = useState([]);
 
+      // Search-meta state: did-you-mean suggestion, structured filters,
+      // sort mode, OR-faceted aggregates, smart-parser extracted hint.
+      const [suggestion, setSuggestion] = useState(null);
+      const [filterBrand, setFilterBrand] = useState([]);
+      const [filterColour, setFilterColour] = useState([]);
+      const [filterMinPrice, setFilterMinPrice] = useState('');
+      const [filterMaxPrice, setFilterMaxPrice] = useState('');
+      const [filterOnSale, setFilterOnSale] = useState(false);
+      const [filterInStock, setFilterInStock] = useState(false);
+      const [sortMode, setSortMode] = useState('relevance');
+      const [facets, setFacets] = useState(null);
+      const [parsedHint, setParsedHint] = useState(null);
+      const [totalResults, setTotalResults] = useState(0);
+      const [showFilters, setShowFilters] = useState(false);
+      const [recents, setRecents] = useState([]);
+
       // On block mount: refresh selected products with current data from DB
       useEffect(function() {
         if (!selected || selected.length === 0 || !apiUrl) return;
@@ -285,6 +301,19 @@
         }
       };
 
+      const buildSearchUrl = function (offset, withFacets) {
+        var u = apiUrl + 'products?q=' + encodeURIComponent(searchTerm) + '&offset=' + offset + '&with_meta=1';
+        if (withFacets) u += '&include_facets=1';
+        if (sortMode && sortMode !== 'relevance') u += '&sort=' + encodeURIComponent(sortMode);
+        (filterBrand || []).forEach(function (b) { u += '&brand[]=' + encodeURIComponent(b); });
+        (filterColour || []).forEach(function (c) { u += '&colour[]=' + encodeURIComponent(c); });
+        if (filterMinPrice !== '' && filterMinPrice !== null) u += '&min_price=' + encodeURIComponent(filterMinPrice);
+        if (filterMaxPrice !== '' && filterMaxPrice !== null) u += '&max_price=' + encodeURIComponent(filterMaxPrice);
+        if (filterOnSale) u += '&on_sale=1';
+        if (filterInStock) u += '&in_stock=1';
+        return u;
+      };
+
       const fetchProducts = async function (loadMore) {
         if (!searchTerm || searchTerm.length < 2) {
           setError("Please enter at least 2 characters for search");
@@ -299,13 +328,15 @@
         setError(null);
         try {
           var offset = loadMore ? searchOffset + 50 : 0;
-          const response = await fetch(apiUrl + 'products?q=' + encodeURIComponent(searchTerm) + '&offset=' + offset, {
+          // Only fetch facets on the first page — facets are query-scoped not
+          // page-scoped, so requesting them on every load-more is waste.
+          const response = await fetch(buildSearchUrl(offset, !loadMore), {
             credentials: 'include',
             headers: { 'X-WP-Nonce': nonce }
           });
           if (response.ok) {
-            const products = await response.json();
-            var newProducts = Array.isArray(products) ? products : [];
+            const payload = await response.json();
+            var newProducts = (payload && Array.isArray(payload.products)) ? payload.products : [];
             if (loadMore) {
               setResults(function(prev) {
                 var existingIds = {};
@@ -315,7 +346,11 @@
               });
             } else {
               setResults(newProducts);
-              if (newProducts.length === 0) {
+              setSuggestion((payload && payload.suggestion) ? payload.suggestion : null);
+              setFacets((payload && payload.facets) ? payload.facets : null);
+              setParsedHint((payload && payload.parsed) ? payload.parsed : null);
+              setTotalResults((payload && typeof payload.total === 'number') ? payload.total : newProducts.length);
+              if (newProducts.length === 0 && !(payload && payload.suggestion)) {
                 setError('No products found for "' + searchTerm + '". Try other keywords.');
               }
             }
@@ -334,11 +369,99 @@
         }
       };
 
+      // Search-as-you-type: when the modal is open and the user is typing or
+      // changing filters/sort, refetch after a short debounce so the result
+      // list updates without making them hit Enter every time.
+      useEffect(function () {
+        if (!showModal) return undefined;
+        if (!searchTerm || searchTerm.length < 2) return undefined;
+        var t = setTimeout(function () { fetchProducts(false); }, 280);
+        return function () { clearTimeout(t); };
+      }, [searchTerm, sortMode, filterBrand, filterColour, filterMinPrice, filterMaxPrice, filterOnSale, filterInStock, showModal]);
+
+      const clearAllFilters = function () {
+        setFilterBrand([]);
+        setFilterColour([]);
+        setFilterMinPrice('');
+        setFilterMaxPrice('');
+        setFilterOnSale(false);
+        setFilterInStock(false);
+        setSortMode('relevance');
+      };
+
+      const toggleArrayItem = function (arr, value) {
+        var v = String(value);
+        var has = arr.some(function (x) { return String(x) === v; });
+        return has ? arr.filter(function (x) { return String(x) !== v; }) : arr.concat([v]);
+      };
+
+      const acceptSuggestion = function () {
+        if (suggestion && typeof suggestion === 'string') {
+          setSearchTerm(suggestion);
+          setSuggestion(null);
+        }
+      };
+
+      // Color picker: best-effort mapping from English/German colour names
+      // (the values the feeds ship) to CSS background colors so the swatches
+      // visually mean something. Anything unmapped renders a neutral chip.
+      const colourSwatch = function (name) {
+        var map = {
+          black: '#000', schwarz: '#000', noir: '#000',
+          white: '#fff', weiss: '#fff', 'weiß': '#fff', blanc: '#fff',
+          grey: '#888', gray: '#888', grau: '#888', gris: '#888',
+          silver: '#c0c0c0', silber: '#c0c0c0',
+          red: '#dc2626', rot: '#dc2626', rouge: '#dc2626',
+          blue: '#2563eb', blau: '#2563eb', bleu: '#2563eb', navy: '#1e3a8a',
+          green: '#16a34a', gruen: '#16a34a', 'grün': '#16a34a', vert: '#16a34a',
+          yellow: '#eab308', gelb: '#eab308', jaune: '#eab308',
+          orange: '#f97316',
+          pink: '#ec4899', rosa: '#ec4899', rose: '#ec4899',
+          purple: '#9333ea', lila: '#9333ea', violet: '#9333ea',
+          brown: '#92400e', braun: '#92400e', marron: '#92400e',
+          beige: '#d6b88a', sand: '#d6b88a', creme: '#f1eadc', cream: '#f1eadc',
+          gold: '#d4af37', bronze: '#cd7f32',
+          khaki: '#7c7553', olive: '#556b2f', olivgruen: '#556b2f', oliv: '#556b2f',
+          turquoise: '#14b8a6', tuerkis: '#14b8a6', 'türkis': '#14b8a6',
+          mint: '#a7f3d0', mintgreen: '#a7f3d0',
+          coral: '#ff7f50', koralle: '#ff7f50',
+          burgundy: '#7f1d1d', bordeaux: '#7f1d1d', weinrot: '#7f1d1d'
+        };
+        var key = String(name || '').toLowerCase().replace(/\s+/g, '');
+        return map[key] || null;
+      };
+
+      // Persist a tiny recents list (last 10 used product IDs) in localStorage
+      // so the picker can offer a one-click re-insert next session.
+      useEffect(function () {
+        try {
+          var raw = window.localStorage && window.localStorage.getItem('myfeedsPickerRecents');
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) setRecents(parsed.slice(0, 10));
+          }
+        } catch (e) { /* ignore */ }
+      }, []);
+
+      const rememberRecent = function (product) {
+        if (!product || (!product.id && !product.aw_product_id)) return;
+        try {
+          var next = [product].concat((recents || []).filter(function (r) {
+            return String(r.id || r.aw_product_id) !== String(product.id || product.aw_product_id);
+          })).slice(0, 10);
+          setRecents(next);
+          if (window.localStorage) {
+            window.localStorage.setItem('myfeedsPickerRecents', JSON.stringify(next));
+          }
+        } catch (e) { /* ignore */ }
+      };
+
       const toggleProduct = function (product, useCurrentVariant) {
         if (!product || !product.id && !product.aw_product_id) {
           alert("Product missing ID - cannot be saved.");
           return;
         }
+        rememberRecent(product);
         const awId = product.aw_product_id || product.id;
         
         const title = product.title || product.product_name || product.name || '';
@@ -1025,6 +1148,171 @@
               React.createElement("div", { style: { display: "flex", gap: "10px", alignItems: "end" } },
                 React.createElement("div", { style: { flex: 1 } }, React.createElement(TextControl, { label: "Search", value: searchTerm, onChange: setSearchTerm, onKeyDown: function (e) { if (e.key === "Enter" || e.key === "NumpadEnter") { e.preventDefault(); fetchProducts(false); } }, style: { width: "100%" } })),
                 React.createElement("div", null, React.createElement(Button, { isPrimary: true, onClick: function(){ fetchProducts(false); }, disabled: isLoading || !searchTerm || searchTerm.length < 2, style: { height: "36px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, isLoading ? "Searching..." : "Search"))
+              ),
+              // Hint: phrases / price / sale auto-extracted from the query
+              parsedHint && (parsedHint.max_price || parsedHint.min_price || parsedHint.on_sale) && React.createElement("div", {
+                style: { marginTop: "8px", padding: "8px 12px", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: "6px", color: "#3730a3", fontSize: "13px" }
+              },
+                "Smart filter from your query: ",
+                parsedHint.min_price ? React.createElement("strong", null, "from " + parsedHint.min_price + "€ ") : null,
+                parsedHint.max_price ? React.createElement("strong", null, "up to " + parsedHint.max_price + "€ ") : null,
+                parsedHint.on_sale ? React.createElement("strong", null, "on sale ") : null
+              ),
+              // Did-you-mean banner: only renders when backend offered a correction
+              suggestion && React.createElement("div", {
+                style: { marginTop: "8px", padding: "10px 12px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "6px", color: "#9a3412", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }
+              },
+                React.createElement("div", null,
+                  "No matches for ", React.createElement("strong", null, "\"" + searchTerm + "\""), ". Did you mean ",
+                  React.createElement(Button, { isLink: true, onClick: acceptSuggestion, style: { padding: 0, color: "#9a3412", textDecoration: "underline", fontWeight: 600 } }, suggestion),
+                  "?"
+                )
+              ),
+              // Sort + filter toolbar row, only when actively searching
+              searchTerm && searchTerm.length >= 2 && React.createElement("div", { style: { display: "flex", gap: "10px", alignItems: "center", marginTop: "10px", flexWrap: "wrap" } },
+                React.createElement("div", { style: { color: "#374151", fontSize: "13px" } },
+                  isLoading ? "Searching…" : (totalResults > 0 ? (totalResults + " result" + (totalResults === 1 ? "" : "s")) : "")
+                ),
+                React.createElement("div", { style: { flex: 1 } }),
+                React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#374151" } },
+                  "Sort:",
+                  React.createElement("select", {
+                    value: sortMode,
+                    onChange: function (e) { setSortMode(e.target.value); },
+                    style: { padding: "6px 8px", borderRadius: "6px", border: "1px solid #d1d5db", background: "#fff", fontSize: "13px" }
+                  },
+                    React.createElement("option", { value: "relevance" }, "Best match"),
+                    React.createElement("option", { value: "price_asc" }, "Price (low → high)"),
+                    React.createElement("option", { value: "price_desc" }, "Price (high → low)"),
+                    React.createElement("option", { value: "discount_desc" }, "Biggest discount"),
+                    React.createElement("option", { value: "newest" }, "Newest")
+                  )
+                ),
+                React.createElement(Button, {
+                  isSecondary: true,
+                  onClick: function () { setShowFilters(!showFilters); },
+                  style: { padding: "6px 12px", fontSize: "13px", background: showFilters ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "#fff", color: showFilters ? "#fff" : "#667eea", border: "1px solid #667eea", borderRadius: "6px" }
+                }, showFilters ? "Hide filters" : "Filters"
+                  + ((filterBrand.length + filterColour.length + (filterOnSale?1:0) + (filterInStock?1:0) + (filterMinPrice!==''?1:0) + (filterMaxPrice!==''?1:0)) > 0
+                      ? " (" + (filterBrand.length + filterColour.length + (filterOnSale?1:0) + (filterInStock?1:0) + (filterMinPrice!==''?1:0) + (filterMaxPrice!==''?1:0)) + ")"
+                      : ""))
+              ),
+              // Active filter chips
+              (filterBrand.length > 0 || filterColour.length > 0 || filterMinPrice !== '' || filterMaxPrice !== '' || filterOnSale || filterInStock) && React.createElement("div", { style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" } },
+                filterBrand.map(function (b) {
+                  return React.createElement("span", { key: "fbchip-" + b, style: { background: "#eef2ff", border: "1px solid #c7d2fe", color: "#3730a3", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
+                    "Brand: " + b,
+                    React.createElement("button", { onClick: function () { setFilterBrand(filterBrand.filter(function (x) { return x !== b; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#3730a3", fontWeight: 600, padding: 0 } }, "×")
+                  );
+                }),
+                filterColour.map(function (c) {
+                  return React.createElement("span", { key: "fcchip-" + c, style: { background: "#fdf4ff", border: "1px solid #f5d0fe", color: "#86198f", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
+                    "Colour: " + c,
+                    React.createElement("button", { onClick: function () { setFilterColour(filterColour.filter(function (x) { return x !== c; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#86198f", fontWeight: 600, padding: 0 } }, "×")
+                  );
+                }),
+                (filterMinPrice !== '' || filterMaxPrice !== '') && React.createElement("span", { style: { background: "#ecfeff", border: "1px solid #a5f3fc", color: "#155e75", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
+                  "Price: " + (filterMinPrice || '0') + "€ – " + (filterMaxPrice || '∞'),
+                  React.createElement("button", { onClick: function () { setFilterMinPrice(''); setFilterMaxPrice(''); }, style: { background: "none", border: "none", cursor: "pointer", color: "#155e75", fontWeight: 600, padding: 0 } }, "×")
+                ),
+                filterOnSale && React.createElement("span", { style: { background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
+                  "On sale",
+                  React.createElement("button", { onClick: function () { setFilterOnSale(false); }, style: { background: "none", border: "none", cursor: "pointer", color: "#991b1b", fontWeight: 600, padding: 0 } }, "×")
+                ),
+                filterInStock && React.createElement("span", { style: { background: "#ecfdf5", border: "1px solid #a7f3d0", color: "#065f46", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
+                  "In stock",
+                  React.createElement("button", { onClick: function () { setFilterInStock(false); }, style: { background: "none", border: "none", cursor: "pointer", color: "#065f46", fontWeight: 600, padding: 0 } }, "×")
+                ),
+                React.createElement(Button, { isLink: true, onClick: clearAllFilters, style: { padding: "0 6px", fontSize: "12px", color: "#6b7280" } }, "Clear all")
+              ),
+              // Filter panel — collapsible. Brand checkboxes from facets, colour
+              // swatches (visual picker), price range, on-sale + in-stock toggles.
+              showFilters && searchTerm && searchTerm.length >= 2 && React.createElement("div", { style: { marginTop: "10px", padding: "14px", background: "#fafafa", border: "1px solid #e5e7eb", borderRadius: "8px" } },
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" } },
+                  // Brands
+                  React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" } }, "Brand"),
+                    facets && facets.brand && facets.brand.length > 0 ? facets.brand.slice(0, 12).map(function (b) {
+                      var checked = filterBrand.some(function (x) { return x.toLowerCase() === b.value; });
+                      return React.createElement("label", { key: "fb-" + b.value, style: { display: "flex", alignItems: "center", gap: "8px", padding: "3px 0", fontSize: "13px", cursor: "pointer", color: "#374151" } },
+                        React.createElement("input", { type: "checkbox", checked: checked, onChange: function () { setFilterBrand(toggleArrayItem(filterBrand, b.value)); } }),
+                        React.createElement("span", { style: { flex: 1, textTransform: "capitalize" } }, b.value),
+                        React.createElement("span", { style: { color: "#9ca3af", fontSize: "11px" } }, b.count)
+                      );
+                    }) : React.createElement("div", { style: { fontSize: "12px", color: "#9ca3af" } }, "Run a search to see brands")
+                  ),
+                  // Colours (visual picker)
+                  React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" } }, "Colour"),
+                    facets && facets.colour && facets.colour.length > 0
+                      ? React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "6px" } },
+                          facets.colour.slice(0, 16).map(function (c) {
+                            var swatch = colourSwatch(c.value);
+                            var checked = filterColour.some(function (x) { return x.toLowerCase() === c.value; });
+                            return React.createElement("button", {
+                              key: "fc-" + c.value,
+                              onClick: function () { setFilterColour(toggleArrayItem(filterColour, c.value)); },
+                              title: c.value + " (" + c.count + ")",
+                              style: {
+                                display: "inline-flex", alignItems: "center", gap: "6px",
+                                padding: "3px 8px", border: checked ? "2px solid #667eea" : "1px solid #d1d5db",
+                                background: "#fff", borderRadius: "999px", cursor: "pointer",
+                                fontSize: "12px", color: "#374151", textTransform: "capitalize"
+                              }
+                            },
+                              swatch ? React.createElement("span", { style: { width: "14px", height: "14px", borderRadius: "50%", background: swatch, border: "1px solid #e5e7eb", display: "inline-block" } }) : null,
+                              c.value,
+                              React.createElement("span", { style: { color: "#9ca3af" } }, "(" + c.count + ")")
+                            );
+                          })
+                        )
+                      : React.createElement("div", { style: { fontSize: "12px", color: "#9ca3af" } }, "Run a search to see colours")
+                  ),
+                  // Price range
+                  React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" } },
+                      "Price",
+                      facets && facets.price_range ? React.createElement("span", { style: { fontWeight: 400, color: "#9ca3af", marginLeft: "6px" } }, "(" + Math.floor(facets.price_range.min) + " – " + Math.ceil(facets.price_range.max) + ")") : null
+                    ),
+                    React.createElement("div", { style: { display: "flex", gap: "6px", alignItems: "center" } },
+                      React.createElement("input", { type: "number", placeholder: "Min", value: filterMinPrice, onChange: function (e) { setFilterMinPrice(e.target.value); }, style: { width: "70px", padding: "4px 6px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "13px" } }),
+                      React.createElement("span", { style: { color: "#6b7280" } }, "–"),
+                      React.createElement("input", { type: "number", placeholder: "Max", value: filterMaxPrice, onChange: function (e) { setFilterMaxPrice(e.target.value); }, style: { width: "70px", padding: "4px 6px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "13px" } })
+                    )
+                  ),
+                  // Toggles
+                  React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" } }, "Show only"),
+                    React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "8px", padding: "3px 0", fontSize: "13px", cursor: "pointer", color: "#374151" } },
+                      React.createElement("input", { type: "checkbox", checked: filterOnSale, onChange: function () { setFilterOnSale(!filterOnSale); } }),
+                      "On sale"
+                    ),
+                    React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "8px", padding: "3px 0", fontSize: "13px", cursor: "pointer", color: "#374151" } },
+                      React.createElement("input", { type: "checkbox", checked: filterInStock, onChange: function () { setFilterInStock(!filterInStock); } }),
+                      "In stock"
+                    )
+                  )
+                )
+              ),
+              // Recents row — only shown before the user has typed anything, so it
+              // doesn't compete with live results for screen space.
+              (!searchTerm || searchTerm.length < 2) && recents && recents.length > 0 && React.createElement("div", { style: { marginTop: "12px" } },
+                React.createElement("div", { style: { fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" } }, "Recently used"),
+                React.createElement("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap" } },
+                  recents.slice(0, 10).map(function (r, idx) {
+                    var img = r.image_url || r.merchant_image_url || r.aw_image_url || PLACEHOLDER_IMG;
+                    var t = r.title || r.product_name || r.name || "Product";
+                    return React.createElement("button", {
+                      key: "rec-" + idx,
+                      onClick: function () { toggleProduct(r); },
+                      title: t,
+                      style: { display: "flex", alignItems: "center", gap: "6px", padding: "4px 8px 4px 4px", border: "1px solid #e5e7eb", borderRadius: "999px", background: "#fff", cursor: "pointer", fontSize: "12px", color: "#374151" }
+                    },
+                      React.createElement("img", { src: img, alt: "", style: { width: "22px", height: "22px", borderRadius: "50%", objectFit: "cover", background: "#f3f4f6" } }),
+                      React.createElement("span", { style: { maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, t)
+                    );
+                  })
+                )
               )
             ),
 
