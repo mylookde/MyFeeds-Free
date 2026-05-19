@@ -190,6 +190,103 @@
     }
 }
 
+/* ── Content Health card (dead-product report) ───────────────────
+   Read-only banner that appears between the intro stats and the
+   feed list when published posts reference products no longer in
+   the user's feed. Plain text — no edit links — by design (Pro keeps
+   the click-through-and-replace flow as differentiation). */
+.myfeeds-dead-health {
+    background: #fff8e1;
+    border: 1px solid #f1c40f;
+    border-left: 4px solid #f1c40f;
+    border-radius: 6px;
+    padding: 18px 22px;
+    margin: 0 0 20px 0;
+}
+
+.myfeeds-dead-health__header {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+}
+
+.myfeeds-dead-health__icon {
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    line-height: 28px;
+    border-radius: 50%;
+    background: #f1c40f;
+    color: #fff;
+    text-align: center;
+    font-weight: 700;
+    font-size: 18px;
+}
+
+.myfeeds-dead-health__title-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.myfeeds-dead-health__title {
+    margin: 0 0 4px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #6b4f00;
+}
+
+.myfeeds-dead-health__lead {
+    margin: 0;
+    color: #6b4f00;
+    font-size: 14px;
+}
+
+.myfeeds-dead-health__list {
+    margin: 14px 0 4px;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid #f5d97d;
+}
+
+.myfeeds-dead-health__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f5d97d;
+    color: #2f2f2f;
+}
+
+.myfeeds-dead-health__post-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.myfeeds-dead-health__counts {
+    flex: 0 0 auto;
+    color: #6b4f00;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.myfeeds-dead-health__overflow {
+    margin: 10px 0 0;
+    color: #6b4f00;
+    font-size: 13px;
+    font-style: italic;
+}
+
+.myfeeds-dead-health__hint {
+    margin: 12px 0 0;
+    color: #6b6048;
+    font-size: 12px;
+}
+
 .myfeeds-feed-modal-content {
     max-width: 700px;
 }

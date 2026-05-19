@@ -422,6 +422,7 @@ function myfeeds_load_includes() {
         'class-product-picker.php' => 'Product Picker Class',
         'class-product-resolver.php' => 'Product Resolver (Multi-Source Fallback)',
         'class-atomic-index-manager.php' => 'Atomic Index Manager',
+        'class-dead-products.php' => 'Dead-Product Detector (read-only report)',
     );
 
     // Load standalone helper functions FIRST (no class dependencies)

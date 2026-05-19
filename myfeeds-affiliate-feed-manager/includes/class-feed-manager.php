@@ -227,7 +227,9 @@ class MyFeeds_Feed_Manager {
                     </div>
                 </div>
             </div>
-            
+
+            <?php $this->render_dead_products_health(); ?>
+
             <?php $this->render_feeds_table($feeds); ?>
             
             <div class="myfeeds-actions-section">
@@ -292,6 +294,93 @@ class MyFeeds_Feed_Manager {
                 <!-- Auto-Sync Schedule Info -->
                 <?php $this->render_auto_sync_info_compact(); ?>
             </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Read-only "content health" card listing posts that reference
+     * products no longer present in the user's feed. Hidden when
+     * everything is fine. No edit links — Pro keeps the click-to-jump
+     * + in-editor highlight as a differentiation; Free only surfaces
+     * the awareness that something needs the user's attention.
+     */
+    private function render_dead_products_health() {
+        if (!class_exists('MyFeeds_Dead_Products')) {
+            return;
+        }
+        $report = MyFeeds_Dead_Products::get_report();
+        $dead_count = isset($report['dead_count']) ? (int) $report['dead_count'] : 0;
+        if ($dead_count <= 0) {
+            return;
+        }
+
+        $posts = isset($report['posts']) && is_array($report['posts']) ? $report['posts'] : array();
+        $post_total = count($posts);
+        $shown = array_slice($posts, 0, 10);
+        $hidden_count = max(0, $post_total - count($shown));
+
+        $headline = sprintf(
+            /* translators: 1: number of dead products, 2: number of affected posts */
+            _n(
+                '%1$s product in %2$s of your posts is no longer in your feed.',
+                '%1$s products across %2$s of your posts are no longer in your feed.',
+                $dead_count,
+                'myfeeds-affiliate-feed-manager'
+            ),
+            number_format_i18n($dead_count),
+            number_format_i18n($post_total)
+        );
+        ?>
+        <div class="myfeeds-dead-health" role="region" aria-label="<?php esc_attr_e('Content health report', 'myfeeds-affiliate-feed-manager'); ?>">
+            <div class="myfeeds-dead-health__header">
+                <span class="myfeeds-dead-health__icon" aria-hidden="true">!</span>
+                <div class="myfeeds-dead-health__title-wrap">
+                    <h3 class="myfeeds-dead-health__title"><?php esc_html_e('Content health', 'myfeeds-affiliate-feed-manager'); ?></h3>
+                    <p class="myfeeds-dead-health__lead"><?php echo esc_html($headline); ?></p>
+                </div>
+            </div>
+            <ul class="myfeeds-dead-health__list">
+                <?php foreach ($shown as $row) : ?>
+                    <li class="myfeeds-dead-health__row">
+                        <span class="myfeeds-dead-health__post-title"><?php echo esc_html($row['title']); ?></span>
+                        <span class="myfeeds-dead-health__counts">
+                            <?php
+                            echo esc_html(sprintf(
+                                /* translators: 1: dead products in this post, 2: total products in this post */
+                                _n(
+                                    '%1$s of %2$s product missing',
+                                    '%1$s of %2$s products missing',
+                                    (int) $row['total_count'],
+                                    'myfeeds-affiliate-feed-manager'
+                                ),
+                                number_format_i18n((int) $row['dead_count']),
+                                number_format_i18n((int) $row['total_count'])
+                            ));
+                            ?>
+                        </span>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+            <?php if ($hidden_count > 0) : ?>
+                <p class="myfeeds-dead-health__overflow">
+                    <?php
+                    echo esc_html(sprintf(
+                        /* translators: %s: number of additional posts not shown */
+                        _n(
+                            'and %s more post.',
+                            'and %s more posts.',
+                            $hidden_count,
+                            'myfeeds-affiliate-feed-manager'
+                        ),
+                        number_format_i18n($hidden_count)
+                    ));
+                    ?>
+                </p>
+            <?php endif; ?>
+            <p class="myfeeds-dead-health__hint">
+                <?php esc_html_e('Run "Update All Feeds" below to refresh this list. Products that come back to your feed are removed from this report automatically.', 'myfeeds-affiliate-feed-manager'); ?>
+            </p>
         </div>
         <?php
     }
