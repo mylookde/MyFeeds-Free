@@ -1601,25 +1601,13 @@ class MyFeeds_Search_Engine {
             });
         }
 
-        // =====================================================================
-        // Tier cutoff: if enough full matches exist, drop partial matches.
-        // Only applies in relevance mode — other sort modes show every match.
-        // =====================================================================
-        if ($sort_mode === 'relevance') {
-            $tier1_count = 0;
-            foreach ($scored_rows as $item) {
-                if ($item['score'] >= 10000) {
-                    $tier1_count++;
-                }
-            }
-
-            if ($tier1_count >= 10) {
-                $scored_rows = array_values(array_filter($scored_rows, function($item) {
-                    return $item['score'] >= 10000;
-                }));
-                myfeeds_log("SEARCH: Tier cutoff applied — {$tier1_count} Tier-1 results, dropped partial matches", 'debug');
-            }
-        }
+        // No tier cutoff — the relevance score already lifts full matches
+        // above partials, so an "air force" search shows real Air Force
+        // products at the top and "Air Sweatpants" further down instead
+        // of hiding the second class entirely. Cutting the tail would also
+        // disagree with the total count and break load-more for relevance
+        // sort while leaving other sort modes intact (Marlon's screenshots:
+        // "Best match" hid results that "Biggest discount" exposed).
 
         // =====================================================================
         // PHASE E: Deduplication
