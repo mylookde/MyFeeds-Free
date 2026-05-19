@@ -695,6 +695,16 @@ class MyFeeds_Search_Engine {
                 }
             }
         }
+        if (!empty($args['category']) && is_array($args['category'])) {
+            $cats = array_values(array_filter(array_map('strval', $args['category']), 'strlen'));
+            if (!empty($cats)) {
+                $placeholders = implode(',', array_fill(0, count($cats), '%s'));
+                $sql .= " AND LOWER(category) IN ({$placeholders})";
+                foreach ($cats as $c) {
+                    $params[] = mb_strtolower($c);
+                }
+            }
+        }
         if ($args['min_price'] !== null && (float) $args['min_price'] > 0) {
             $sql .= " AND price >= %f";
             $params[] = (float) $args['min_price'];
@@ -784,6 +794,31 @@ class MyFeeds_Search_Engine {
         foreach ((array) $rows_colour as $r) {
             if (!empty($r['facet_value'])) {
                 $facets['colour'][] = array('value' => $r['facet_value'], 'count' => (int) $r['facet_count']);
+            }
+        }
+
+        // Category facets: apply every filter except category[]. Categories
+        // are raw merchant labels (no taxonomy mapping yet) — useful enough
+        // for the picker context where the user only narrows within a single
+        // post's worth of products.
+        $args_no_category = array_merge($args, array('category' => array()));
+        $fcat = self::build_filter_clause($args_no_category);
+        $facets['category'] = array();
+        $sql_category = "SELECT LOWER(category) AS facet_value, COUNT(*) AS facet_count
+                         FROM {$table}
+                         WHERE status = 'active'
+                         AND category IS NOT NULL AND category <> ''
+                         {$fcat['sql']}
+                         AND {$match_sql}
+                         GROUP BY LOWER(category)
+                         ORDER BY facet_count DESC
+                         LIMIT 50";
+        $params_category = array_merge($fcat['params'], array($ft_query_str), $like_values);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        $rows_category = $wpdb->get_results($wpdb->prepare($sql_category, ...$params_category), ARRAY_A);
+        foreach ((array) $rows_category as $r) {
+            if (!empty($r['facet_value'])) {
+                $facets['category'][] = array('value' => $r['facet_value'], 'count' => (int) $r['facet_count']);
             }
         }
 
@@ -1172,6 +1207,7 @@ class MyFeeds_Search_Engine {
             // Filters
             'brand'          => array(),    // string[] (any-of)
             'colour'         => array(),    // string[] (any-of)
+            'category'       => array(),    // string[] (any-of) - raw merchant categories
             'min_price'      => null,       // float
             'max_price'      => null,       // float
             'on_sale'        => false,      // bool
@@ -1525,6 +1561,7 @@ class MyFeeds_Search_Engine {
                 'applied'    => array(
                     'brand'     => $args['brand'],
                     'colour'    => $args['colour'],
+                    'category'  => $args['category'],
                     'min_price' => $args['min_price'],
                     'max_price' => $args['max_price'],
                     'on_sale'   => (bool) $args['on_sale'],

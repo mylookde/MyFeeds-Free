@@ -1724,14 +1724,16 @@ class MyFeeds_Feed_Manager {
         // =====================================================================
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
             if ($with_meta && class_exists('MyFeeds_Search_Engine')) {
-                $brand_param  = $req->get_param('brand');
-                $colour_param = $req->get_param('colour');
+                $brand_param    = $req->get_param('brand');
+                $colour_param   = $req->get_param('colour');
+                $category_param = $req->get_param('category');
                 $args = array(
                     'limit'          => $limit,
                     'offset'         => $offset,
                     'return_meta'    => true,
                     'brand'          => is_array($brand_param) ? array_map('sanitize_text_field', $brand_param) : array(),
                     'colour'         => is_array($colour_param) ? array_map('sanitize_text_field', $colour_param) : array(),
+                    'category'       => is_array($category_param) ? array_map('sanitize_text_field', $category_param) : array(),
                     'min_price'      => $req->get_param('min_price') !== null ? (float) $req->get_param('min_price') : null,
                     'max_price'      => $req->get_param('max_price') !== null ? (float) $req->get_param('max_price') : null,
                     'on_sale'        => (bool) $req->get_param('on_sale'),

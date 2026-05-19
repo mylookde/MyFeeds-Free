@@ -194,6 +194,7 @@
       const [suggestion, setSuggestion] = useState(null);
       const [filterBrand, setFilterBrand] = useState([]);
       const [filterColour, setFilterColour] = useState([]);
+      const [filterCategory, setFilterCategory] = useState([]);
       const [filterMinPrice, setFilterMinPrice] = useState('');
       const [filterMaxPrice, setFilterMaxPrice] = useState('');
       const [filterOnSale, setFilterOnSale] = useState(false);
@@ -307,12 +308,21 @@
         if (sortMode && sortMode !== 'relevance') u += '&sort=' + encodeURIComponent(sortMode);
         (filterBrand || []).forEach(function (b) { u += '&brand[]=' + encodeURIComponent(b); });
         (filterColour || []).forEach(function (c) { u += '&colour[]=' + encodeURIComponent(c); });
+        (filterCategory || []).forEach(function (c) { u += '&category[]=' + encodeURIComponent(c); });
         if (filterMinPrice !== '' && filterMinPrice !== null) u += '&min_price=' + encodeURIComponent(filterMinPrice);
         if (filterMaxPrice !== '' && filterMaxPrice !== null) u += '&max_price=' + encodeURIComponent(filterMaxPrice);
         if (filterOnSale) u += '&on_sale=1';
         if (filterInStock) u += '&in_stock=1';
         return u;
       };
+
+      // AbortController + generation guard so a slow in-flight request can't
+      // overwrite the result of a newer one when the user is typing fast or
+      // toggling filters quickly.
+      const fetchRef = (function () {
+        if (!window.__myfeedsFetchRef) window.__myfeedsFetchRef = { ctrl: null, gen: 0 };
+        return window.__myfeedsFetchRef;
+      })();
 
       const fetchProducts = async function (loadMore) {
         if (!searchTerm || searchTerm.length < 2) {
@@ -326,16 +336,33 @@
           setSearchOffset(0);
         }
         setError(null);
+
+        // Cancel any in-flight request and stamp this one with a generation
+        // so a slow response from a previous keystroke can't overwrite a
+        // newer one when it arrives out of order.
+        if (fetchRef.ctrl) { try { fetchRef.ctrl.abort(); } catch (e) { /* ignore */ } }
+        var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        fetchRef.ctrl = ctrl;
+        fetchRef.gen += 1;
+        var myGen = fetchRef.gen;
+
         try {
           var offset = loadMore ? searchOffset + 50 : 0;
           // Only fetch facets on the first page — facets are query-scoped not
           // page-scoped, so requesting them on every load-more is waste.
-          const response = await fetch(buildSearchUrl(offset, !loadMore), {
+          const fetchOpts = {
             credentials: 'include',
             headers: { 'X-WP-Nonce': nonce }
-          });
+          };
+          if (ctrl) fetchOpts.signal = ctrl.signal;
+          const response = await fetch(buildSearchUrl(offset, !loadMore), fetchOpts);
+
+          // Stale response guard — newer request has started, drop this one.
+          if (myGen !== fetchRef.gen) return;
+
           if (response.ok) {
             const payload = await response.json();
+            if (myGen !== fetchRef.gen) return;
             var newProducts = (payload && Array.isArray(payload.products)) ? payload.products : [];
             if (loadMore) {
               setResults(function(prev) {
@@ -351,7 +378,13 @@
               setParsedHint((payload && payload.parsed) ? payload.parsed : null);
               setTotalResults((payload && typeof payload.total === 'number') ? payload.total : newProducts.length);
               if (newProducts.length === 0 && !(payload && payload.suggestion)) {
-                setError('No products found for "' + searchTerm + '". Try other keywords.');
+                // Distinguish "typo / no products" from "filters too narrow"
+                var hasFilters = (filterBrand.length + filterColour.length + filterCategory.length) > 0
+                  || filterMinPrice !== '' || filterMaxPrice !== ''
+                  || filterOnSale || filterInStock;
+                setError(hasFilters
+                  ? 'No products match these filters. Try removing one of the active filters.'
+                  : 'No products found for "' + searchTerm + '". Try other keywords.');
               }
             }
             setSearchOffset(offset);
@@ -361,11 +394,17 @@
             if (!loadMore) setResults([]);
           }
         } catch (e) {
+          // AbortError is expected when superseded — silently ignore.
+          if (e && (e.name === 'AbortError' || (e.message || '').toLowerCase().indexOf('abort') !== -1)) {
+            return;
+          }
           setError('Search failed. Please check your feeds configuration.');
           if (!loadMore) setResults([]);
         } finally {
-          setIsLoading(false);
-          setIsLoadingMore(false);
+          if (myGen === fetchRef.gen) {
+            setIsLoading(false);
+            setIsLoadingMore(false);
+          }
         }
       };
 
@@ -377,17 +416,22 @@
         if (!searchTerm || searchTerm.length < 2) return undefined;
         var t = setTimeout(function () { fetchProducts(false); }, 280);
         return function () { clearTimeout(t); };
-      }, [searchTerm, sortMode, filterBrand, filterColour, filterMinPrice, filterMaxPrice, filterOnSale, filterInStock, showModal]);
+      }, [searchTerm, sortMode, filterBrand, filterColour, filterCategory, filterMinPrice, filterMaxPrice, filterOnSale, filterInStock, showModal]);
 
       const clearAllFilters = function () {
         setFilterBrand([]);
         setFilterColour([]);
+        setFilterCategory([]);
         setFilterMinPrice('');
         setFilterMaxPrice('');
         setFilterOnSale(false);
         setFilterInStock(false);
         setSortMode('relevance');
       };
+
+      const activeFilterCount = filterBrand.length + filterColour.length + filterCategory.length
+        + (filterOnSale ? 1 : 0) + (filterInStock ? 1 : 0)
+        + (filterMinPrice !== '' ? 1 : 0) + (filterMaxPrice !== '' ? 1 : 0);
 
       const toggleArrayItem = function (arr, value) {
         var v = String(value);
@@ -1192,13 +1236,10 @@
                   isSecondary: true,
                   onClick: function () { setShowFilters(!showFilters); },
                   style: { padding: "6px 12px", fontSize: "13px", background: showFilters ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "#fff", color: showFilters ? "#fff" : "#667eea", border: "1px solid #667eea", borderRadius: "6px" }
-                }, showFilters ? "Hide filters" : "Filters"
-                  + ((filterBrand.length + filterColour.length + (filterOnSale?1:0) + (filterInStock?1:0) + (filterMinPrice!==''?1:0) + (filterMaxPrice!==''?1:0)) > 0
-                      ? " (" + (filterBrand.length + filterColour.length + (filterOnSale?1:0) + (filterInStock?1:0) + (filterMinPrice!==''?1:0) + (filterMaxPrice!==''?1:0)) + ")"
-                      : ""))
+                }, showFilters ? "Hide filters" : ("Filters" + (activeFilterCount > 0 ? " (" + activeFilterCount + ")" : "")))
               ),
               // Active filter chips
-              (filterBrand.length > 0 || filterColour.length > 0 || filterMinPrice !== '' || filterMaxPrice !== '' || filterOnSale || filterInStock) && React.createElement("div", { style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" } },
+              activeFilterCount > 0 && React.createElement("div", { style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" } },
                 filterBrand.map(function (b) {
                   return React.createElement("span", { key: "fbchip-" + b, style: { background: "#eef2ff", border: "1px solid #c7d2fe", color: "#3730a3", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
                     "Brand: " + b,
@@ -1209,6 +1250,12 @@
                   return React.createElement("span", { key: "fcchip-" + c, style: { background: "#fdf4ff", border: "1px solid #f5d0fe", color: "#86198f", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
                     "Colour: " + c,
                     React.createElement("button", { onClick: function () { setFilterColour(filterColour.filter(function (x) { return x !== c; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#86198f", fontWeight: 600, padding: 0 } }, "×")
+                  );
+                }),
+                filterCategory.map(function (c) {
+                  return React.createElement("span", { key: "fcatchip-" + c, style: { background: "#fef3c7", border: "1px solid #fde68a", color: "#92400e", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
+                    "Category: " + c,
+                    React.createElement("button", { onClick: function () { setFilterCategory(filterCategory.filter(function (x) { return x !== c; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#92400e", fontWeight: 600, padding: 0 } }, "×")
                   );
                 }),
                 (filterMinPrice !== '' || filterMaxPrice !== '') && React.createElement("span", { style: { background: "#ecfeff", border: "1px solid #a5f3fc", color: "#155e75", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
@@ -1225,71 +1272,125 @@
                 ),
                 React.createElement(Button, { isLink: true, onClick: clearAllFilters, style: { padding: "0 6px", fontSize: "12px", color: "#6b7280" } }, "Clear all")
               ),
-              // Filter panel — collapsible. Brand checkboxes from facets, colour
-              // swatches (visual picker), price range, on-sale + in-stock toggles.
-              showFilters && searchTerm && searchTerm.length >= 2 && React.createElement("div", { style: { marginTop: "10px", padding: "14px", background: "#fafafa", border: "1px solid #e5e7eb", borderRadius: "8px" } },
-                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" } },
-                  // Brands
-                  React.createElement("div", null,
-                    React.createElement("div", { style: { fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" } }, "Brand"),
-                    facets && facets.brand && facets.brand.length > 0 ? facets.brand.slice(0, 12).map(function (b) {
-                      var checked = filterBrand.some(function (x) { return x.toLowerCase() === b.value; });
-                      return React.createElement("label", { key: "fb-" + b.value, style: { display: "flex", alignItems: "center", gap: "8px", padding: "3px 0", fontSize: "13px", cursor: "pointer", color: "#374151" } },
-                        React.createElement("input", { type: "checkbox", checked: checked, onChange: function () { setFilterBrand(toggleArrayItem(filterBrand, b.value)); } }),
-                        React.createElement("span", { style: { flex: 1, textTransform: "capitalize" } }, b.value),
-                        React.createElement("span", { style: { color: "#9ca3af", fontSize: "11px" } }, b.count)
-                      );
-                    }) : React.createElement("div", { style: { fontSize: "12px", color: "#9ca3af" } }, "Run a search to see brands")
-                  ),
-                  // Colours (visual picker)
-                  React.createElement("div", null,
-                    React.createElement("div", { style: { fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" } }, "Colour"),
-                    facets && facets.colour && facets.colour.length > 0
-                      ? React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "6px" } },
-                          facets.colour.slice(0, 16).map(function (c) {
-                            var swatch = colourSwatch(c.value);
-                            var checked = filterColour.some(function (x) { return x.toLowerCase() === c.value; });
-                            return React.createElement("button", {
-                              key: "fc-" + c.value,
-                              onClick: function () { setFilterColour(toggleArrayItem(filterColour, c.value)); },
-                              title: c.value + " (" + c.count + ")",
-                              style: {
-                                display: "inline-flex", alignItems: "center", gap: "6px",
-                                padding: "3px 8px", border: checked ? "2px solid #667eea" : "1px solid #d1d5db",
-                                background: "#fff", borderRadius: "999px", cursor: "pointer",
-                                fontSize: "12px", color: "#374151", textTransform: "capitalize"
-                              }
-                            },
-                              swatch ? React.createElement("span", { style: { width: "14px", height: "14px", borderRadius: "50%", background: swatch, border: "1px solid #e5e7eb", display: "inline-block" } }) : null,
-                              c.value,
-                              React.createElement("span", { style: { color: "#9ca3af" } }, "(" + c.count + ")")
-                            );
-                          })
-                        )
-                      : React.createElement("div", { style: { fontSize: "12px", color: "#9ca3af" } }, "Run a search to see colours")
-                  ),
-                  // Price range
-                  React.createElement("div", null,
-                    React.createElement("div", { style: { fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" } },
-                      "Price",
-                      facets && facets.price_range ? React.createElement("span", { style: { fontWeight: 400, color: "#9ca3af", marginLeft: "6px" } }, "(" + Math.floor(facets.price_range.min) + " – " + Math.ceil(facets.price_range.max) + ")") : null
+              // Filter panel — collapsible. Each section caps height at ~220px
+              // with a hidden scrollbar so the panel itself stays compact even
+              // when the facet has many values.
+              showFilters && searchTerm && searchTerm.length >= 2 && React.createElement(Fragment, null,
+                // One-off styles for the panel — scrollbar hiding, swatch chip,
+                // facet row hover. Kept inline so the bundle stays self-contained.
+                React.createElement("style", null,
+                  ".myfeeds-fp{margin-top:10px;padding:16px;background:#fafafa;border:1px solid #e5e7eb;border-radius:10px}" +
+                  ".myfeeds-fp__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px}" +
+                  ".myfeeds-fp__section{display:flex;flex-direction:column;min-height:0;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px}" +
+                  ".myfeeds-fp__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:11px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.06em}" +
+                  ".myfeeds-fp__head .total{font-weight:500;color:#9ca3af;font-size:11px;text-transform:none;letter-spacing:0}" +
+                  ".myfeeds-fp__scroll{max-height:220px;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none;padding-right:2px}" +
+                  ".myfeeds-fp__scroll::-webkit-scrollbar{display:none;width:0;height:0}" +
+                  ".myfeeds-fp__row{display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:13px;cursor:pointer;color:#374151;border-radius:4px;transition:background-color .12s}" +
+                  ".myfeeds-fp__row:hover{background:#f3f4f6}" +
+                  ".myfeeds-fp__row .label{flex:1;text-transform:capitalize;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+                  ".myfeeds-fp__row .count{color:#9ca3af;font-size:11px;font-variant-numeric:tabular-nums}" +
+                  ".myfeeds-fp__swatches{display:flex;flex-wrap:wrap;gap:6px}" +
+                  ".myfeeds-fp__swatch{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #e5e7eb;background:#fff;border-radius:999px;cursor:pointer;font-size:12px;color:#374151;text-transform:capitalize;line-height:1.4;transition:border-color .12s,transform .08s}" +
+                  ".myfeeds-fp__swatch:hover{border-color:#9ca3af}" +
+                  ".myfeeds-fp__swatch.is-on{border:2px solid #667eea;padding:3px 9px;background:#eef2ff}" +
+                  ".myfeeds-fp__swatch .dot{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,0.08);flex:none}" +
+                  ".myfeeds-fp__swatch .num{color:#9ca3af;font-variant-numeric:tabular-nums}" +
+                  ".myfeeds-fp__empty{font-size:12px;color:#9ca3af;padding:6px 0}" +
+                  ".myfeeds-fp__price{display:flex;gap:6px;align-items:center;flex-wrap:wrap}" +
+                  ".myfeeds-fp__price input{width:74px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px}" +
+                  ".myfeeds-fp__price input:focus{outline:none;border-color:#667eea;box-shadow:0 0 0 3px rgba(102,126,234,0.15)}"
+                ),
+                React.createElement("div", { className: "myfeeds-fp" },
+                  React.createElement("div", { className: "myfeeds-fp__grid" },
+                    // Brand
+                    React.createElement("div", { className: "myfeeds-fp__section" },
+                      React.createElement("div", { className: "myfeeds-fp__head" },
+                        React.createElement("span", null, "Brand"),
+                        facets && facets.brand && facets.brand.length > 0 ? React.createElement("span", { className: "total" }, facets.brand.length + (facets.brand.length >= 50 ? "+" : "")) : null
+                      ),
+                      facets && facets.brand && facets.brand.length > 0
+                        ? React.createElement("div", { className: "myfeeds-fp__scroll" },
+                            facets.brand.map(function (b) {
+                              var checked = filterBrand.some(function (x) { return x.toLowerCase() === b.value; });
+                              return React.createElement("label", { key: "fb-" + b.value, className: "myfeeds-fp__row" },
+                                React.createElement("input", { type: "checkbox", checked: checked, onChange: function () { setFilterBrand(toggleArrayItem(filterBrand, b.value)); } }),
+                                React.createElement("span", { className: "label" }, b.value),
+                                React.createElement("span", { className: "count" }, b.count)
+                              );
+                            })
+                          )
+                        : React.createElement("div", { className: "myfeeds-fp__empty" }, "Run a search to see brands")
                     ),
-                    React.createElement("div", { style: { display: "flex", gap: "6px", alignItems: "center" } },
-                      React.createElement("input", { type: "number", placeholder: "Min", value: filterMinPrice, onChange: function (e) { setFilterMinPrice(e.target.value); }, style: { width: "70px", padding: "4px 6px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "13px" } }),
-                      React.createElement("span", { style: { color: "#6b7280" } }, "–"),
-                      React.createElement("input", { type: "number", placeholder: "Max", value: filterMaxPrice, onChange: function (e) { setFilterMaxPrice(e.target.value); }, style: { width: "70px", padding: "4px 6px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "13px" } })
-                    )
-                  ),
-                  // Toggles
-                  React.createElement("div", null,
-                    React.createElement("div", { style: { fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" } }, "Show only"),
-                    React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "8px", padding: "3px 0", fontSize: "13px", cursor: "pointer", color: "#374151" } },
-                      React.createElement("input", { type: "checkbox", checked: filterOnSale, onChange: function () { setFilterOnSale(!filterOnSale); } }),
-                      "On sale"
+                    // Colour (visual picker)
+                    React.createElement("div", { className: "myfeeds-fp__section" },
+                      React.createElement("div", { className: "myfeeds-fp__head" },
+                        React.createElement("span", null, "Colour"),
+                        facets && facets.colour && facets.colour.length > 0 ? React.createElement("span", { className: "total" }, facets.colour.length + (facets.colour.length >= 50 ? "+" : "")) : null
+                      ),
+                      facets && facets.colour && facets.colour.length > 0
+                        ? React.createElement("div", { className: "myfeeds-fp__scroll" },
+                            React.createElement("div", { className: "myfeeds-fp__swatches" },
+                              facets.colour.map(function (c) {
+                                var swatch = colourSwatch(c.value);
+                                var checked = filterColour.some(function (x) { return x.toLowerCase() === c.value; });
+                                return React.createElement("button", {
+                                  key: "fc-" + c.value,
+                                  className: "myfeeds-fp__swatch" + (checked ? " is-on" : ""),
+                                  onClick: function () { setFilterColour(toggleArrayItem(filterColour, c.value)); },
+                                  title: c.value + " (" + c.count + ")"
+                                },
+                                  swatch ? React.createElement("span", { className: "dot", style: { background: swatch } }) : null,
+                                  c.value,
+                                  React.createElement("span", { className: "num" }, "(" + c.count + ")")
+                                );
+                              })
+                            )
+                          )
+                        : React.createElement("div", { className: "myfeeds-fp__empty" }, "Run a search to see colours")
                     ),
-                    React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "8px", padding: "3px 0", fontSize: "13px", cursor: "pointer", color: "#374151" } },
-                      React.createElement("input", { type: "checkbox", checked: filterInStock, onChange: function () { setFilterInStock(!filterInStock); } }),
-                      "In stock"
+                    // Category (raw merchant labels, capped to top-N)
+                    React.createElement("div", { className: "myfeeds-fp__section" },
+                      React.createElement("div", { className: "myfeeds-fp__head" },
+                        React.createElement("span", null, "Category"),
+                        facets && facets.category && facets.category.length > 0 ? React.createElement("span", { className: "total" }, facets.category.length + (facets.category.length >= 50 ? "+" : "")) : null
+                      ),
+                      facets && facets.category && facets.category.length > 0
+                        ? React.createElement("div", { className: "myfeeds-fp__scroll" },
+                            facets.category.map(function (c) {
+                              var checked = filterCategory.some(function (x) { return x.toLowerCase() === c.value; });
+                              return React.createElement("label", { key: "fcat-" + c.value, className: "myfeeds-fp__row", title: c.value },
+                                React.createElement("input", { type: "checkbox", checked: checked, onChange: function () { setFilterCategory(toggleArrayItem(filterCategory, c.value)); } }),
+                                React.createElement("span", { className: "label" }, c.value),
+                                React.createElement("span", { className: "count" }, c.count)
+                              );
+                            })
+                          )
+                        : React.createElement("div", { className: "myfeeds-fp__empty" }, "Run a search to see categories")
+                    ),
+                    // Price range
+                    React.createElement("div", { className: "myfeeds-fp__section" },
+                      React.createElement("div", { className: "myfeeds-fp__head" },
+                        React.createElement("span", null, "Price"),
+                        facets && facets.price_range ? React.createElement("span", { className: "total" }, Math.floor(facets.price_range.min) + " – " + Math.ceil(facets.price_range.max) + "€") : null
+                      ),
+                      React.createElement("div", { className: "myfeeds-fp__price" },
+                        React.createElement("input", { type: "number", placeholder: "Min", value: filterMinPrice, onChange: function (e) { setFilterMinPrice(e.target.value); } }),
+                        React.createElement("span", { style: { color: "#9ca3af" } }, "–"),
+                        React.createElement("input", { type: "number", placeholder: "Max", value: filterMaxPrice, onChange: function (e) { setFilterMaxPrice(e.target.value); } })
+                      )
+                    ),
+                    // Show only toggles
+                    React.createElement("div", { className: "myfeeds-fp__section" },
+                      React.createElement("div", { className: "myfeeds-fp__head" }, "Show only"),
+                      React.createElement("label", { className: "myfeeds-fp__row" },
+                        React.createElement("input", { type: "checkbox", checked: filterOnSale, onChange: function () { setFilterOnSale(!filterOnSale); } }),
+                        React.createElement("span", { className: "label" }, "On sale")
+                      ),
+                      React.createElement("label", { className: "myfeeds-fp__row" },
+                        React.createElement("input", { type: "checkbox", checked: filterInStock, onChange: function () { setFilterInStock(!filterInStock); } }),
+                        React.createElement("span", { className: "label" }, "In stock")
+                      )
                     )
                   )
                 )
