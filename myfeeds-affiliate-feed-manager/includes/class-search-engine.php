@@ -617,9 +617,22 @@ class MyFeeds_Search_Engine {
                 continue;
             }
 
-            // Collect short tokens for LIKE fallback (< 4 chars)
+            // Tokens shorter than the engine's min-word-size never reach the
+            // FULLTEXT index. Putting them in a "+token" required-clause makes
+            // BOOLEAN MODE silently zero the whole query on InnoDB (its
+            // innodb_ft_min_token_size defaults to 3) — that was the
+            // "air force 1 → 0 results" bug. Route them to the LIKE constraint
+            // instead, where they get AND'd onto the FT match.
             if (mb_strlen($clean_token) < 4) {
                 $short_tokens[] = $token;
+                if (isset($synonym_map[$token])) {
+                    foreach ($synonym_map[$token] as $syn) {
+                        if (mb_strlen($syn) < 4 && $syn !== '') {
+                            $short_tokens[] = $syn;
+                        }
+                    }
+                }
+                continue;
             }
 
             // Also add stemmed form
@@ -628,22 +641,27 @@ class MyFeeds_Search_Engine {
 
             if (isset($synonym_map[$token]) && !empty($synonym_map[$token])) {
                 $group_parts = array($clean_token);
-                if (!empty($clean_stemmed) && !in_array($clean_stemmed, $group_parts, true)) {
+                if (!empty($clean_stemmed) && !in_array($clean_stemmed, $group_parts, true) && mb_strlen($clean_stemmed) >= 4) {
                     $group_parts[] = $clean_stemmed;
                 }
                 foreach ($synonym_map[$token] as $syn) {
                     $clean_syn = self::sanitize_fulltext_token($syn);
                     if (!empty($clean_syn) && !in_array($clean_syn, $group_parts, true)) {
-                        $group_parts[] = $clean_syn;
                         if (mb_strlen($clean_syn) < 4) {
                             $short_tokens[] = $syn;
+                        } else {
+                            $group_parts[] = $clean_syn;
                         }
                     }
                 }
-                $groups[] = '+(' . implode(' ', $group_parts) . ')';
+                if (count($group_parts) > 1) {
+                    $groups[] = '+(' . implode(' ', $group_parts) . ')';
+                } else {
+                    $groups[] = '+' . $group_parts[0];
+                }
             } else {
-                // No synonyms — token + optional stem
-                if (!empty($clean_stemmed) && $clean_stemmed !== $clean_token) {
+                // No synonyms — token + optional stem (stem only if long enough)
+                if (!empty($clean_stemmed) && $clean_stemmed !== $clean_token && mb_strlen($clean_stemmed) >= 4) {
                     $groups[] = '+(' . $clean_token . ' ' . $clean_stemmed . ')';
                 } else {
                     $groups[] = '+' . $clean_token;
@@ -655,6 +673,36 @@ class MyFeeds_Search_Engine {
             'fulltext_query' => implode(' ', $groups),
             'short_tokens' => array_values(array_unique($short_tokens)),
         );
+    }
+
+    /**
+     * SQL fragment that requires the search_text to contain every short
+     * token as a word, AND-joined. Numeric shorts use space-padded LIKE
+     * (CONCAT-padded text + "% N %") so "1" matches " 1 " but not "19149";
+     * MySQL 5.x POSIX word-boundary regex [[:<:]] is broken on 8.0.4+.
+     * Alphabetic shorts use plain substring LIKE since 2-3 char alpha
+     * tokens are usually valid word prefixes.
+     */
+    private static function build_short_token_constraint($short_tokens) {
+        global $wpdb;
+        $conditions = array();
+        $values     = array();
+        foreach ($short_tokens as $st) {
+            if (!is_string($st) || $st === '') {
+                continue;
+            }
+            if (is_numeric($st)) {
+                $conditions[] = "CONCAT(' ', search_text, ' ') LIKE %s";
+                $values[]     = '% ' . $wpdb->esc_like($st) . ' %';
+            } else {
+                $conditions[] = 'search_text LIKE %s';
+                $values[]     = '%' . $wpdb->esc_like($st) . '%';
+            }
+        }
+        if (empty($conditions)) {
+            return array('sql' => '', 'params' => array());
+        }
+        return array('sql' => '(' . implode(' AND ', $conditions) . ')', 'params' => $values);
     }
 
     private static function sanitize_fulltext_token($token) {
@@ -745,22 +793,13 @@ class MyFeeds_Search_Engine {
             return $facets;
         }
 
-        // Build short-token LIKE fragment (same as in main search)
-        $like_conditions = array();
-        $like_values = array();
-        if (!empty($short_tokens)) {
-            foreach ($short_tokens as $st) {
-                if (is_numeric($st)) {
-                    $like_conditions[] = '(search_text REGEXP %s)';
-                    $like_values[] = '[[:<:]]' . $st . '[[:>:]]';
-                } else {
-                    $like_conditions[] = 'search_text LIKE %s';
-                    $like_values[] = '%' . $wpdb->esc_like($st) . '%';
-                }
-            }
-        }
-        $match_sql = !empty($like_conditions)
-            ? '(MATCH(search_text) AGAINST(%s IN BOOLEAN MODE) OR (' . implode(' AND ', $like_conditions) . '))'
+        // Short tokens AND-constrain the FT match (same architecture as the
+        // main search SQL — see build_short_token_constraint for why we no
+        // longer OR them in).
+        $sc = self::build_short_token_constraint($short_tokens);
+        $like_values = $sc['params'];
+        $match_sql = $sc['sql'] !== ''
+            ? '(MATCH(search_text) AGAINST(%s IN BOOLEAN MODE) AND ' . $sc['sql'] . ')'
             : 'MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)';
 
         // Brand facets: apply every filter except brand[]
@@ -1401,45 +1440,37 @@ class MyFeeds_Search_Engine {
         $filter_sql   = $filter_data['sql'];
         $filter_param = $filter_data['params'];
 
-        if ($has_search_text && !empty($ft_query_str)) {
-            if (!empty($short_tokens)) {
-                // LIKE conditions for short tokens (< 4 chars, not indexed by FULLTEXT)
-                $like_conditions = array();
-                $like_values = array();
-                foreach ($short_tokens as $st) {
-                    if (is_numeric($st)) {
-                        // Numeric tokens: use REGEXP word boundary to avoid "1" matching "19149"
-                        $like_conditions[] = '(search_text REGEXP %s)';
-                        $like_values[] = '[[:<:]]' . $st . '[[:>:]]';
-                    } else {
-                        $like_conditions[] = 'search_text LIKE %s';
-                        $like_values[] = '%' . $wpdb->esc_like($st) . '%';
-                    }
-                }
-                $like_sql = implode(' AND ', $like_conditions);
+        // Short tokens (< 4 chars) constrain the FULLTEXT match via AND
+        // instead of OR. Mixing them via OR (the old behaviour) admitted
+        // rows that satisfied only one side of the query — "air force 1"
+        // returned 0 because "+1" zeros the FT clause on InnoDB and the
+        // OR-LIKE branch used broken POSIX word-boundary regex.
+        $short_constraint_data = self::build_short_token_constraint($short_tokens);
+        $has_short_constraint  = $short_constraint_data['sql'] !== '';
+        $has_ft                = !empty($ft_query_str);
 
-                $sql = "SELECT * FROM {$table}
-                        WHERE status = 'active'
-                        {$filter_sql}
-                        AND (
-                            MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)
-                            OR ({$like_sql})
-                        )
-                        LIMIT %d";
-
-                $params = array_merge($filter_param, array($ft_query_str), $like_values, array($fetch_limit));
-                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Dynamic FULLTEXT search query, user tokens sanitized individually via $wpdb->prepare()
-                $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A);
-            } else {
-                $sql = "SELECT * FROM {$table}
-                        WHERE status = 'active'
-                        {$filter_sql}
-                        AND MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)
-                        LIMIT %d";
-                $params = array_merge($filter_param, array($ft_query_str, $fetch_limit));
-                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-                $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A);
+        if ($has_search_text && ($has_ft || $has_short_constraint)) {
+            $sql_parts = array();
+            $params    = array();
+            $params    = array_merge($params, $filter_param);
+            if ($has_ft) {
+                $sql_parts[] = 'MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)';
+                $params[]    = $ft_query_str;
             }
+            if ($has_short_constraint) {
+                $sql_parts[] = $short_constraint_data['sql'];
+                $params      = array_merge($params, $short_constraint_data['params']);
+            }
+            $params[] = $fetch_limit;
+
+            $sql = "SELECT * FROM {$table}
+                    WHERE status = 'active'
+                    {$filter_sql}
+                    AND " . implode(' AND ', $sql_parts) . "
+                    LIMIT %d";
+
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Dynamic FULLTEXT search query, user tokens sanitized individually via $wpdb->prepare()
+            $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A);
 
             if (empty($rows)) {
                 myfeeds_log("SEARCH: FULLTEXT returned 0 results, falling back to LIKE", 'debug');
@@ -1580,35 +1611,23 @@ class MyFeeds_Search_Engine {
         // dedup'd count of the fetched candidate batch (capped at fetch_limit).
         // Falls back to dedup_count if the count query errors out.
         $total_after_dedup = $dedup_count;
-        if (!empty($args['return_meta']) && $has_search_text && !empty($ft_query_str)) {
-            $count_filter = self::build_filter_clause($args);
-            if (!empty($short_tokens)) {
-                $like_conditions_c = array();
-                $like_values_c = array();
-                foreach ($short_tokens as $st) {
-                    if (is_numeric($st)) {
-                        $like_conditions_c[] = '(search_text REGEXP %s)';
-                        $like_values_c[] = '[[:<:]]' . $st . '[[:>:]]';
-                    } else {
-                        $like_conditions_c[] = 'search_text LIKE %s';
-                        $like_values_c[] = '%' . $wpdb->esc_like($st) . '%';
-                    }
-                }
-                $match_for_count = '(MATCH(search_text) AGAINST(%s IN BOOLEAN MODE) OR (' . implode(' AND ', $like_conditions_c) . '))';
-                $count_sql = "SELECT COUNT(DISTINCT product_name, COALESCE(LOWER(colour), '')) AS total
-                              FROM {$table}
-                              WHERE status = 'active'
-                              {$count_filter['sql']}
-                              AND {$match_for_count}";
-                $count_params = array_merge($count_filter['params'], array($ft_query_str), $like_values_c);
-            } else {
-                $count_sql = "SELECT COUNT(DISTINCT product_name, COALESCE(LOWER(colour), '')) AS total
-                              FROM {$table}
-                              WHERE status = 'active'
-                              {$count_filter['sql']}
-                              AND MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)";
-                $count_params = array_merge($count_filter['params'], array($ft_query_str));
+        if (!empty($args['return_meta']) && $has_search_text && ($has_ft || $has_short_constraint)) {
+            $count_filter   = self::build_filter_clause($args);
+            $count_parts    = array();
+            $count_params   = $count_filter['params'];
+            if ($has_ft) {
+                $count_parts[] = 'MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)';
+                $count_params[] = $ft_query_str;
             }
+            if ($has_short_constraint) {
+                $count_parts[] = $short_constraint_data['sql'];
+                $count_params  = array_merge($count_params, $short_constraint_data['params']);
+            }
+            $count_sql = "SELECT COUNT(DISTINCT product_name, COALESCE(LOWER(colour), '')) AS total
+                          FROM {$table}
+                          WHERE status = 'active'
+                          {$count_filter['sql']}
+                          AND " . implode(' AND ', $count_parts);
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
             $real_total = (int) $wpdb->get_var($wpdb->prepare($count_sql, ...$count_params));
             if ($real_total > 0) {
