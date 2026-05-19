@@ -785,22 +785,35 @@ class MyFeeds_Search_Engine {
      * so the user can switch between brands without the count collapsing to
      * just their current pick (Stylight/Algolia OR-facet semantics).
      */
-    private static function compute_facets($table, $ft_query_str, $short_tokens, $args) {
+    private static function compute_facets($table, $ft_query_str, $short_tokens, $args, $phrase_constraints = array()) {
         global $wpdb;
         $facets = array('brand' => array(), 'colour' => array());
 
-        if (empty($ft_query_str)) {
+        $has_ft_local    = !empty($ft_query_str);
+        $sc              = self::build_short_token_constraint($short_tokens);
+        $has_short_local = $sc['sql'] !== '';
+        $has_phr_local   = !empty($phrase_constraints);
+
+        if (!$has_ft_local && !$has_short_local && !$has_phr_local) {
             return $facets;
         }
 
-        // Short tokens AND-constrain the FT match (same architecture as the
-        // main search SQL — see build_short_token_constraint for why we no
-        // longer OR them in).
-        $sc = self::build_short_token_constraint($short_tokens);
+        // Short tokens + quoted phrases AND-constrain the FT match. Same
+        // architecture as the main search SQL — see build_short_token_constraint
+        // for why we no longer OR them in.
         $like_values = $sc['params'];
-        $match_sql = $sc['sql'] !== ''
-            ? '(MATCH(search_text) AGAINST(%s IN BOOLEAN MODE) AND ' . $sc['sql'] . ')'
-            : 'MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)';
+        $match_parts = array();
+        if ($has_ft_local) {
+            $match_parts[] = 'MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)';
+        }
+        if ($has_short_local) {
+            $match_parts[] = $sc['sql'];
+        }
+        foreach ($phrase_constraints as $phrase) {
+            $match_parts[] = 'search_text LIKE %s';
+            $like_values[] = '%' . $wpdb->esc_like($phrase) . '%';
+        }
+        $match_sql = '(' . implode(' AND ', $match_parts) . ')';
 
         // Brand facets: apply every filter except brand[]
         $args_no_brand = array_merge($args, array('brand' => array()));
@@ -814,7 +827,7 @@ class MyFeeds_Search_Engine {
                       GROUP BY LOWER(brand)
                       ORDER BY facet_count DESC
                       LIMIT 50";
-        $params_brand = array_merge($fb['params'], array($ft_query_str), $like_values);
+        $params_brand = array_merge($fb['params'], $has_ft_local ? array($ft_query_str) : array(), $like_values);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows_brand = $wpdb->get_results($wpdb->prepare($sql_brand, ...$params_brand), ARRAY_A);
         foreach ((array) $rows_brand as $r) {
@@ -835,7 +848,7 @@ class MyFeeds_Search_Engine {
                        GROUP BY LOWER(colour)
                        ORDER BY facet_count DESC
                        LIMIT 50";
-        $params_colour = array_merge($fc['params'], array($ft_query_str), $like_values);
+        $params_colour = array_merge($fc['params'], $has_ft_local ? array($ft_query_str) : array(), $like_values);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows_colour = $wpdb->get_results($wpdb->prepare($sql_colour, ...$params_colour), ARRAY_A);
         foreach ((array) $rows_colour as $r) {
@@ -861,7 +874,7 @@ class MyFeeds_Search_Engine {
                          GROUP BY LOWER(category)
                          ORDER BY facet_count DESC
                          LIMIT 200";
-        $params_category = array_merge($fcat['params'], array($ft_query_str), $like_values);
+        $params_category = array_merge($fcat['params'], $has_ft_local ? array($ft_query_str) : array(), $like_values);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows_category = $wpdb->get_results($wpdb->prepare($sql_category, ...$params_category), ARRAY_A);
 
@@ -892,7 +905,7 @@ class MyFeeds_Search_Engine {
                       AND price > 0
                       {$fr['sql']}
                       AND {$match_sql}";
-        $params_range = array_merge($fr['params'], array($ft_query_str), $like_values);
+        $params_range = array_merge($fr['params'], $has_ft_local ? array($ft_query_str) : array(), $like_values);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $row_range = $wpdb->get_row($wpdb->prepare($sql_range, ...$params_range), ARRAY_A);
         if (!empty($row_range) && $row_range['min_price'] !== null) {
@@ -1408,22 +1421,19 @@ class MyFeeds_Search_Engine {
         $ft_query_str = $ft_data['fulltext_query'];
         $short_tokens = $ft_data['short_tokens'];
 
-        // Quoted phrases are appended as BOOLEAN MODE phrase clauses. Each one
-        // becomes a required exact-word-sequence match in addition to the
-        // keyword stage; calculate_score adds a hefty boost when the phrase
-        // appears as a substring inside product_name so phrase hits float to
-        // the top even if the same word soup matches more partial results.
+        // Quoted phrases become LIKE-substring constraints on the search_text,
+        // not BOOLEAN MODE phrase clauses. InnoDB drops sub-min tokens (e.g.
+        // "1") from a phrase clause too, so `+"air force 1"` would silently
+        // fail. A plain LIKE on the concatenated text is portable, doesn't
+        // care about token sizes, and still gets the calculate_score boost
+        // when the phrase appears as a product_name substring.
+        $phrase_constraints = array();
         if (!empty($phrases)) {
-            $phrase_clauses = array();
             foreach ($phrases as $phrase) {
-                $clean = preg_replace('/[+\-><()~*@"]/', '', $phrase);
-                $clean = trim($clean);
+                $clean = trim((string) $phrase);
                 if ($clean !== '' && mb_strpos($clean, ' ') !== false) {
-                    $phrase_clauses[] = '+"' . $clean . '"';
+                    $phrase_constraints[] = $clean;
                 }
-            }
-            if (!empty($phrase_clauses)) {
-                $ft_query_str = trim($ft_query_str . ' ' . implode(' ', $phrase_clauses));
             }
         }
 
@@ -1448,8 +1458,9 @@ class MyFeeds_Search_Engine {
         $short_constraint_data = self::build_short_token_constraint($short_tokens);
         $has_short_constraint  = $short_constraint_data['sql'] !== '';
         $has_ft                = !empty($ft_query_str);
+        $has_phrases           = !empty($phrase_constraints);
 
-        if ($has_search_text && ($has_ft || $has_short_constraint)) {
+        if ($has_search_text && ($has_ft || $has_short_constraint || $has_phrases)) {
             $sql_parts = array();
             $params    = array();
             $params    = array_merge($params, $filter_param);
@@ -1460,6 +1471,10 @@ class MyFeeds_Search_Engine {
             if ($has_short_constraint) {
                 $sql_parts[] = $short_constraint_data['sql'];
                 $params      = array_merge($params, $short_constraint_data['params']);
+            }
+            foreach ($phrase_constraints as $phrase) {
+                $sql_parts[] = 'search_text LIKE %s';
+                $params[]    = '%' . $wpdb->esc_like($phrase) . '%';
             }
             $params[] = $fetch_limit;
 
@@ -1611,7 +1626,7 @@ class MyFeeds_Search_Engine {
         // dedup'd count of the fetched candidate batch (capped at fetch_limit).
         // Falls back to dedup_count if the count query errors out.
         $total_after_dedup = $dedup_count;
-        if (!empty($args['return_meta']) && $has_search_text && ($has_ft || $has_short_constraint)) {
+        if (!empty($args['return_meta']) && $has_search_text && ($has_ft || $has_short_constraint || $has_phrases)) {
             $count_filter   = self::build_filter_clause($args);
             $count_parts    = array();
             $count_params   = $count_filter['params'];
@@ -1622,6 +1637,10 @@ class MyFeeds_Search_Engine {
             if ($has_short_constraint) {
                 $count_parts[] = $short_constraint_data['sql'];
                 $count_params  = array_merge($count_params, $short_constraint_data['params']);
+            }
+            foreach ($phrase_constraints as $phrase) {
+                $count_parts[] = 'search_text LIKE %s';
+                $count_params[] = '%' . $wpdb->esc_like($phrase) . '%';
             }
             $count_sql = "SELECT COUNT(DISTINCT product_name, COALESCE(LOWER(colour), '')) AS total
                           FROM {$table}
@@ -1665,7 +1684,7 @@ class MyFeeds_Search_Engine {
             }
             $facets = null;
             if (!empty($args['include_facets'])) {
-                $facets = self::compute_facets($table, $ft_query_str, $short_tokens, $args);
+                $facets = self::compute_facets($table, $ft_query_str, $short_tokens, $args, $phrase_constraints);
             }
             return array(
                 'products'   => array_values($products),
