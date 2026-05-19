@@ -1552,8 +1552,11 @@ class MyFeeds_Batch_Importer {
             // =====================================================================
             // SEARCH, DON'T CRAWL: Parse feed and extract ONLY needed IDs
             // =====================================================================
-            $result = $this->quick_extract_products_by_ids($body, $feed['mapping'], $remaining_ids, $feed['detected_format'] ?? '');
-            
+            $result = $this->quick_extract_products_by_ids($body, $feed['mapping'], $remaining_ids, $feed['detected_format'] ?? '', $key);
+            if (!empty($result['repaired_mapping'])) {
+                $feed['mapping'] = $result['repaired_mapping'];
+            }
+
             if (!empty($result['products'])) {
                 foreach ($result['products'] as $product_id => $product_data) {
                     if ($use_db) {
@@ -1690,27 +1693,42 @@ class MyFeeds_Batch_Importer {
      * @param array $needed_ids Hash of IDs we're looking for (ID => true)
      * @return array ['products' => [...], 'scanned_rows' => int]
      */
-    private function quick_extract_products_by_ids($feed_content, $mapping, $needed_ids, $format_hint = '') {
+    private function quick_extract_products_by_ids($feed_content, $mapping, $needed_ids, $format_hint = '', $feed_key = null) {
         $products = array();
         $scanned_rows = 0;
         $needed_count = count($needed_ids);
-        
+        $repaired_mapping = null;
+        $mapping_validated = false;
+
         // Write content to temp file for Feed Reader
         $tmp_path = wp_tempnam('myfeeds_qs_');
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Temp file for Feed Reader
         file_put_contents($tmp_path, $feed_content);
-        
+
         $reader = new MyFeeds_Feed_Reader();
         if (!$reader->open($tmp_path, $format_hint)) {
             wp_delete_file($tmp_path);
             return array('products' => array(), 'scanned_rows' => 0);
         }
-        
+
         $total_rows = $reader->count_items();
-        
+
         while (($raw = $reader->read_next()) !== false) {
             $scanned_rows++;
-            
+
+            if (!$mapping_validated) {
+                $mapping_validated = true;
+                if ($feed_key !== null && $this->smart_mapper && is_array($raw)) {
+                    $repaired = $this->smart_mapper->repair_persisted_feed_mapping($feed_key, $raw);
+                    if (is_array($repaired)) {
+                        if ($repaired !== $mapping) {
+                            $repaired_mapping = $repaired;
+                        }
+                        $mapping = $repaired;
+                    }
+                }
+            }
+
             $row_id = $this->extract_product_id_fast($raw);
             
             // Skip if not an ID we're looking for
@@ -1784,9 +1802,10 @@ class MyFeeds_Batch_Importer {
             'products' => $products,
             'scanned_rows' => $scanned_rows,
             'total_rows' => $total_rows,
+            'repaired_mapping' => $repaired_mapping,
         );
     }
-    
+
     /**
      * Find the index of the ID column in the header for fast lookup
      */
@@ -2451,40 +2470,56 @@ class MyFeeds_Batch_Importer {
         
         // =====================================================================
         // AUTO-MAPPING: If feed has no mapping, create one from first data row.
+        // Otherwise re-validate the saved mapping against the first row so a
+        // stale source path (e.g. AWIN's signature picked 'in_stock' but the
+        // live feed only carries 'availability') gets corrected before the
+        // sync writes a whole table of in_stock=1 defaults.
         // =====================================================================
-        if (empty($mapping) && $this->smart_mapper) {
+        if ($this->smart_mapper) {
             $first_row = $reader->read_next();
-            
+
             if ($first_row !== false) {
-                $new_mapping = $this->smart_mapper->auto_map_fields($first_row, $feed_url);
-                if ($new_mapping) {
-                    $mapping = $new_mapping;
-                    
-                    // Save mapping to feed config
-                    $auto_feed_key = $current_feed['feed_key'] ?? null;
-                    if ($auto_feed_key !== null) {
-                        $auto_feeds = get_option('myfeeds_feeds', array());
-                        if (isset($auto_feeds[$auto_feed_key])) {
-                            $auto_feeds[$auto_feed_key]['mapping'] = $new_mapping;
-                            $auto_feeds[$auto_feed_key]['detected_fields'] = $header;
-                            $auto_feeds[$auto_feed_key]['detected_format'] = $detected_format;
-                            $auto_feeds[$auto_feed_key]['mapping_updated'] = current_time('mysql');
-                            $auto_feeds[$auto_feed_key]['mapping_confidence'] = $this->smart_mapper->get_mapping_confidence($new_mapping);
-                            update_option('myfeeds_feeds', $auto_feeds);
+                if (empty($mapping)) {
+                    $new_mapping = $this->smart_mapper->auto_map_fields($first_row, $feed_url);
+                    if ($new_mapping) {
+                        $mapping = $new_mapping;
+
+                        // Save mapping to feed config
+                        $auto_feed_key = $current_feed['feed_key'] ?? null;
+                        if ($auto_feed_key !== null) {
+                            $auto_feeds = get_option('myfeeds_feeds', array());
+                            if (isset($auto_feeds[$auto_feed_key])) {
+                                $auto_feeds[$auto_feed_key]['mapping'] = $new_mapping;
+                                $auto_feeds[$auto_feed_key]['detected_fields'] = $header;
+                                $auto_feeds[$auto_feed_key]['detected_format'] = $detected_format;
+                                $auto_feeds[$auto_feed_key]['mapping_updated'] = current_time('mysql');
+                                $auto_feeds[$auto_feed_key]['mapping_confidence'] = $this->smart_mapper->get_mapping_confidence($new_mapping);
+                                update_option('myfeeds_feeds', $auto_feeds);
+                            }
+                        }
+
+                        // Update queue entry with new mapping
+                        $queue[$feed_index]['mapping'] = $new_mapping;
+                        update_option(self::OPTION_IMPORT_QUEUE, $queue, false);
+
+                        $clean_name = preg_replace('/\s*\(Priority\)\s*$/', '', $feed_name);
+                        myfeeds_log("Auto-mapping created for feed '{$clean_name}' (stable_id={$stable_id_for_upsert}) during import", 'info');
+                    } else {
+                        myfeeds_log("Auto-mapping failed for feed '{$feed_name}' (stable_id={$stable_id_for_upsert}) — smart_mapper returned empty", 'error');
+                    }
+                } else {
+                    $existing_feed_key = $current_feed['feed_key'] ?? null;
+                    if ($existing_feed_key !== null) {
+                        $repaired = $this->smart_mapper->repair_persisted_feed_mapping($existing_feed_key, $first_row);
+                        if (is_array($repaired) && $repaired !== $mapping) {
+                            $mapping = $repaired;
+                            $queue[$feed_index]['mapping'] = $repaired;
+                            update_option(self::OPTION_IMPORT_QUEUE, $queue, false);
                         }
                     }
-                    
-                    // Update queue entry with new mapping
-                    $queue[$feed_index]['mapping'] = $new_mapping;
-                    update_option(self::OPTION_IMPORT_QUEUE, $queue, false);
-                    
-                    $clean_name = preg_replace('/\s*\(Priority\)\s*$/', '', $feed_name);
-                    myfeeds_log("Auto-mapping created for feed '{$clean_name}' (stable_id={$stable_id_for_upsert}) during import", 'info');
-                } else {
-                    myfeeds_log("Auto-mapping failed for feed '{$feed_name}' (stable_id={$stable_id_for_upsert}) — smart_mapper returned empty", 'error');
                 }
             }
-            
+
             // Close and reopen to start from the beginning
             $reader->close();
             $reader->open($cache_path, $format_hint);

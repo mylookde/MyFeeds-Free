@@ -376,12 +376,18 @@ class MyFeeds_Smart_Mapper {
         
         // Generate universal mapping with confidence scoring
         $mapping = $this->generate_universal_mapping($available_fields, $detected_network);
-        
+
         if (!$mapping) {
             MyFeeds_Affiliate_Product_Picker::log('Smart Mapper: Could not generate mapping');
             return false;
         }
-        
+
+        $repair = $this->validate_and_repair_mapping($mapping, $sample_data);
+        if (!empty($repair['changes'])) {
+            MyFeeds_Affiliate_Product_Picker::log('Smart Mapper repair: ' . wp_json_encode($repair['changes']));
+        }
+        $mapping = $repair['mapping'];
+
         // Validate critical fields
         $validation_result = $this->validate_critical_fields($mapping);
         if (is_wp_error($validation_result)) {
@@ -678,6 +684,244 @@ class MyFeeds_Smart_Mapper {
         return null;
     }
     
+    /**
+     * Cross-checks every mapping entry against an actual sample row.
+     *
+     * Smart-mapper picks source fields by matching field NAMES against
+     * patterns. AWIN's signature mapping for example lists
+     *   availability => ['in_stock', 'stock_status']
+     * and the first alternative that appears in the sample's top-level
+     * keys wins — without ever calling extract_field_value() to confirm
+     * the chosen source actually carries data. When a feed lists a key
+     * but stores its real stock signal under a different one, the saved
+     * mapping points at a hollow source field and every product writes
+     * the DB default in_stock=1.
+     *
+     * This pass walks the finished mapping with the sample row in hand
+     * and replaces (or drops) any source path that resolves to null.
+     * Returns ['mapping' => repaired, 'changes' => [...]].
+     */
+    public function validate_and_repair_mapping($mapping, $sample_data) {
+        $changes = array();
+        if (!is_array($mapping) || !is_array($sample_data) || empty($sample_data)) {
+            return array('mapping' => $mapping, 'changes' => $changes);
+        }
+
+        $available_fields = array_keys($sample_data);
+        $field_usage = array();
+        foreach ($mapping as $std => $src) {
+            if (is_string($src)) {
+                $field_usage[$src] = $std;
+            }
+        }
+
+        foreach ($mapping as $standard_field => $source_field) {
+            if ($standard_field === 'attributes' && is_array($source_field)) {
+                foreach ($source_field as $attr_name => $attr_src) {
+                    if (!is_string($attr_src)) {
+                        continue;
+                    }
+                    if ($this->field_has_value($sample_data, $attr_src)) {
+                        continue;
+                    }
+                    $alt = $this->find_alternative_for($standard_field, $attr_name, $available_fields, $field_usage, $sample_data);
+                    if ($alt !== null) {
+                        unset($field_usage[$attr_src]);
+                        $field_usage[$alt] = "attributes.{$attr_name}";
+                        $mapping['attributes'][$attr_name] = $alt;
+                        $changes[] = array('field' => "attributes.{$attr_name}", 'old' => $attr_src, 'new' => $alt);
+                    }
+                    // No better alternative found. Keep the existing
+                    // mapping rather than dropping it — the sample row
+                    // we inspect is just one of thousands, the column
+                    // may be populated in the rest of the feed.
+                }
+                continue;
+            }
+
+            if (!is_string($source_field) || $source_field === '') {
+                continue;
+            }
+            if ($this->field_has_value($sample_data, $source_field)) {
+                continue;
+            }
+
+            $alt = $this->find_alternative_for($standard_field, null, $available_fields, $field_usage, $sample_data);
+            if ($alt !== null) {
+                unset($field_usage[$source_field]);
+                $field_usage[$alt] = $standard_field;
+                $mapping[$standard_field] = $alt;
+                $changes[] = array('field' => $standard_field, 'old' => $source_field, 'new' => $alt);
+            }
+            // No better alternative found. Keep the existing mapping
+            // intact — the inspected sample row is just one of many,
+            // the source column may still be populated in the rest of
+            // the feed. Dropping the mapping would make every row look
+            // "unmapped" in the quality modal even though the column
+            // lights up for most products.
+        }
+
+        return array('mapping' => $mapping, 'changes' => $changes);
+    }
+
+    /**
+     * Walk available fields against the universal pattern for the
+     * standard field (or attribute) and return the first one that
+     * actually resolves to a non-null value in the sample row. Picks
+     * the highest-confidence candidate that is genuinely populated,
+     * walking down the full ranking instead of stopping at the top.
+     */
+    private function find_alternative_for($standard_field, $attribute_name, $available_fields, $field_usage, $sample_data) {
+        if ($standard_field === 'attributes') {
+            if (!isset($this->universal_field_patterns['attributes'][$attribute_name])) {
+                return null;
+            }
+            $pattern_config = $this->universal_field_patterns['attributes'][$attribute_name];
+        } else {
+            if (!isset($this->universal_field_patterns[$standard_field])) {
+                return null;
+            }
+            $pattern_config = $this->universal_field_patterns[$standard_field];
+        }
+
+        $usage_with_holes_dropped = array();
+        foreach ($field_usage as $field => $std) {
+            if ($this->field_has_value($sample_data, $field)) {
+                $usage_with_holes_dropped[$field] = $std;
+            }
+        }
+
+        $candidates = $this->score_field_candidates(
+            $available_fields,
+            $pattern_config,
+            $usage_with_holes_dropped,
+            $this->last_detected_network
+        );
+        foreach ($candidates as $cand) {
+            if ($this->field_has_value($sample_data, $cand['field'])) {
+                return $cand['field'];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Rank every available source column by how well it matches the
+     * given pattern, highest confidence first. Mirrors the scoring
+     * inside find_best_field_match but returns the full sorted list
+     * so the repair pass can walk past the top scorer if it is empty.
+     */
+    private function score_field_candidates($available_fields, $pattern_config, $field_usage, $detected_network) {
+        $candidates = array();
+        foreach ($available_fields as $index => $field) {
+            if (isset($field_usage[$field])) {
+                continue;
+            }
+
+            $confidence = 0;
+
+            if (in_array(strtolower($field), array_map('strtolower', $pattern_config['exact_matches']))) {
+                $confidence += $this->confidence_weights['exact_match'];
+            }
+            if (isset($pattern_config['contains_patterns'])) {
+                foreach ($pattern_config['contains_patterns'] as $pattern) {
+                    if (stripos($field, $pattern) !== false) {
+                        $confidence += $this->confidence_weights['contains_pattern'];
+                        break;
+                    }
+                }
+            }
+            if (isset($pattern_config['prefix_patterns'])) {
+                foreach ($pattern_config['prefix_patterns'] as $pattern) {
+                    if (stripos($field, $pattern) === 0) {
+                        $confidence += $this->confidence_weights['prefix_pattern'];
+                        break;
+                    }
+                }
+            }
+            if (isset($pattern_config['suffix_patterns'])) {
+                foreach ($pattern_config['suffix_patterns'] as $pattern) {
+                    if (stripos($field, $pattern) === (strlen($field) - strlen($pattern))) {
+                        $confidence += $this->confidence_weights['suffix_pattern'];
+                        break;
+                    }
+                }
+            }
+            if (isset($pattern_config['exclusion_patterns'])) {
+                foreach ($pattern_config['exclusion_patterns'] as $exclusion) {
+                    if (stripos($field, $exclusion) !== false) {
+                        $confidence -= 50;
+                        break;
+                    }
+                }
+            }
+            $position_bonus = (count($available_fields) > 0)
+                ? max(0, (count($available_fields) - $index) / count($available_fields) * $this->confidence_weights['position_bonus'])
+                : 0;
+            $confidence += $position_bonus;
+
+            if ($detected_network && isset($this->network_signatures[$detected_network]['field_prefixes'])) {
+                foreach ($this->network_signatures[$detected_network]['field_prefixes'] as $prefix) {
+                    if (stripos($field, $prefix) === 0) {
+                        $confidence += $this->confidence_weights['network_signature_bonus'];
+                        break;
+                    }
+                }
+            }
+
+            if ($confidence > 30) {
+                $candidates[] = array(
+                    'field' => $field,
+                    'confidence' => $confidence,
+                );
+            }
+        }
+
+        usort($candidates, function ($a, $b) {
+            return $b['confidence'] <=> $a['confidence'];
+        });
+        return $candidates;
+    }
+
+    /**
+     * Re-validates the saved mapping for a single feed against a fresh
+     * sample row, persists any changes, and returns the working mapping
+     * for in-memory use during the rest of the sync. Cost: one walk
+     * over the mapping plus one update_option write iff changes happen.
+     */
+    public function repair_persisted_feed_mapping($feed_key, $sample_data) {
+        if (!is_array($sample_data) || empty($sample_data)) {
+            return null;
+        }
+        $feeds = get_option('myfeeds_feeds', array());
+        if (!is_array($feeds) || !isset($feeds[$feed_key]) || empty($feeds[$feed_key]['mapping'])) {
+            return null;
+        }
+
+        $current_mapping = $feeds[$feed_key]['mapping'];
+        $result = $this->validate_and_repair_mapping($current_mapping, $sample_data);
+
+        if (empty($result['changes'])) {
+            return $current_mapping;
+        }
+
+        $feeds[$feed_key]['mapping'] = $result['mapping'];
+        update_option('myfeeds_feeds', $feeds, false);
+
+        $feed_name = isset($feeds[$feed_key]['name']) ? (string) $feeds[$feed_key]['name'] : 'feed_' . $feed_key;
+        myfeeds_log(
+            sprintf(
+                'STOCK-DIAG repair feed="%s" key=%s changes=%s',
+                $feed_name,
+                (string) $feed_key,
+                wp_json_encode($result['changes'])
+            ),
+            'info'
+        );
+
+        return $result['mapping'];
+    }
+
     /**
      * Map attribute fields (color, size, etc.)
      */
@@ -1029,6 +1273,27 @@ class MyFeeds_Smart_Mapper {
         return [$value];
     }
     
+    /**
+     * Stricter "is this populated?" check used by the repair pass.
+     * Treats null, empty strings, whitespace-only strings and empty
+     * arrays all as missing — CSV readers hand back "" for columns
+     * that exist in the header but carry no value, which the plain
+     * extract_field_value would accept as populated.
+     */
+    public function field_has_value($item, $path) {
+        $v = $this->extract_field_value($item, $path);
+        if ($v === null) {
+            return false;
+        }
+        if (is_string($v)) {
+            return trim($v) !== '';
+        }
+        if (is_array($v)) {
+            return !empty($v);
+        }
+        return true;
+    }
+
     /**
      * Extract field value using various notation methods (public method)
      */
