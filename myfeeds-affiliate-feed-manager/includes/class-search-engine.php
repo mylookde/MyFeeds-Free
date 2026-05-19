@@ -766,7 +766,7 @@ class MyFeeds_Search_Engine {
         // Brand facets: apply every filter except brand[]
         $args_no_brand = array_merge($args, array('brand' => array()));
         $fb = self::build_filter_clause($args_no_brand);
-        $sql_brand = "SELECT LOWER(brand) AS facet_value, COUNT(*) AS facet_count
+        $sql_brand = "SELECT LOWER(brand) AS facet_value, COUNT(DISTINCT product_name, COALESCE(LOWER(colour), '')) AS facet_count
                       FROM {$table}
                       WHERE status = 'active'
                       AND brand IS NOT NULL AND brand <> ''
@@ -787,7 +787,7 @@ class MyFeeds_Search_Engine {
         // Colour facets: apply every filter except colour[]
         $args_no_colour = array_merge($args, array('colour' => array()));
         $fc = self::build_filter_clause($args_no_colour);
-        $sql_colour = "SELECT LOWER(colour) AS facet_value, COUNT(*) AS facet_count
+        $sql_colour = "SELECT LOWER(colour) AS facet_value, COUNT(DISTINCT product_name, COALESCE(LOWER(colour), '')) AS facet_count
                        FROM {$table}
                        WHERE status = 'active'
                        AND colour IS NOT NULL AND colour <> ''
@@ -813,7 +813,7 @@ class MyFeeds_Search_Engine {
         $args_no_category = array_merge($args, array('category' => array()));
         $fcat = self::build_filter_clause($args_no_category);
         $facets['category'] = array();
-        $sql_category = "SELECT LOWER(category) AS facet_value, COUNT(*) AS facet_count
+        $sql_category = "SELECT LOWER(category) AS facet_value, COUNT(DISTINCT product_name, COALESCE(LOWER(colour), '')) AS facet_count
                          FROM {$table}
                          WHERE status = 'active'
                          AND category IS NOT NULL AND category <> ''
