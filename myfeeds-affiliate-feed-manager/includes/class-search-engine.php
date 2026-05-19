@@ -781,6 +781,38 @@ class MyFeeds_Search_Engine {
     }
 
     /**
+     * Bucket (facet_value, product_name, colour_norm) tuples into facet
+     * counts, deduplicating size variants through the same strip_size_suffix
+     * pipeline as the result set. Rows must expose facet_value, product_name
+     * and colour_norm. Returned counts are sorted descending; the caller is
+     * responsible for any final slice/limit.
+     */
+    private static function tally_facet_with_size_strip($rows) {
+        $buckets = array();
+        foreach ((array) $rows as $r) {
+            $value = $r['facet_value'] ?? '';
+            if ($value === '') continue;
+            $key  = mb_strtolower(self::strip_size_suffix($r['product_name'] ?? ''));
+            $key .= '|' . ($r['colour_norm'] ?? '');
+            if (!isset($buckets[$value])) {
+                $buckets[$value] = array();
+            }
+            $buckets[$value][$key] = true;
+        }
+        $out = array();
+        foreach ($buckets as $value => $set) {
+            $out[] = array('value' => $value, 'count' => count($set));
+        }
+        usort($out, function ($a, $b) {
+            if ($b['count'] === $a['count']) {
+                return strcmp($a['value'], $b['value']);
+            }
+            return $b['count'] - $a['count'];
+        });
+        return $out;
+    }
+
+    /**
      * Count products matching the keyword query + filters, grouped by brand
      * and colour. For each dimension the filter on THAT dimension is omitted
      * so the user can switch between brands without the count collapsing to
@@ -816,79 +848,81 @@ class MyFeeds_Search_Engine {
         }
         $match_sql = '(' . implode(' AND ', $match_parts) . ')';
 
+        // Facet counts go through the same strip_size_suffix() pipeline as
+        // the result deduplicator: we fetch DISTINCT (facet, name, colour)
+        // tuples and tally them in PHP. A SQL-side COUNT(DISTINCT name,
+        // colour) inflates the buckets because size variants of the same
+        // product are counted separately ("Bape (15)" promised but the
+        // brand filter delivered 3 once dedup collapsed them).
+
         // Brand facets: apply every filter except brand[]
         $args_no_brand = array_merge($args, array('brand' => array()));
         $fb = self::build_filter_clause($args_no_brand);
-        $sql_brand = "SELECT LOWER(brand) AS facet_value, COUNT(DISTINCT product_name, COALESCE(LOWER(colour), '')) AS facet_count
+        $sql_brand = "SELECT LOWER(brand) AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm
                       FROM {$table}
                       WHERE status = 'active'
                       AND brand IS NOT NULL AND brand <> ''
                       {$fb['sql']}
                       AND {$match_sql}
-                      GROUP BY LOWER(brand)
-                      ORDER BY facet_count DESC
-                      LIMIT 50";
+                      GROUP BY LOWER(brand), product_name, colour_norm
+                      LIMIT 10000";
         $params_brand = array_merge($fb['params'], $has_ft_local ? array($ft_query_str) : array(), $like_values);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows_brand = $wpdb->get_results($wpdb->prepare($sql_brand, ...$params_brand), ARRAY_A);
-        foreach ((array) $rows_brand as $r) {
-            if (!empty($r['facet_value'])) {
-                $facets['brand'][] = array('value' => $r['facet_value'], 'count' => (int) $r['facet_count']);
-            }
-        }
+        $facets['brand'] = array_slice(self::tally_facet_with_size_strip($rows_brand), 0, 50);
 
         // Colour facets: apply every filter except colour[]
         $args_no_colour = array_merge($args, array('colour' => array()));
         $fc = self::build_filter_clause($args_no_colour);
-        $sql_colour = "SELECT LOWER(colour) AS facet_value, COUNT(DISTINCT product_name, COALESCE(LOWER(colour), '')) AS facet_count
+        $sql_colour = "SELECT LOWER(colour) AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm
                        FROM {$table}
                        WHERE status = 'active'
                        AND colour IS NOT NULL AND colour <> ''
                        {$fc['sql']}
                        AND {$match_sql}
-                       GROUP BY LOWER(colour)
-                       ORDER BY facet_count DESC
-                       LIMIT 50";
+                       GROUP BY LOWER(colour), product_name, colour_norm
+                       LIMIT 10000";
         $params_colour = array_merge($fc['params'], $has_ft_local ? array($ft_query_str) : array(), $like_values);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows_colour = $wpdb->get_results($wpdb->prepare($sql_colour, ...$params_colour), ARRAY_A);
-        foreach ((array) $rows_colour as $r) {
-            if (!empty($r['facet_value'])) {
-                $facets['colour'][] = array('value' => $r['facet_value'], 'count' => (int) $r['facet_count']);
-            }
-        }
+        $facets['colour'] = array_slice(self::tally_facet_with_size_strip($rows_colour), 0, 50);
 
         // Category facets: apply every filter except category[]. Categories
-        // are raw merchant labels (no taxonomy mapping yet). We pull a wider
-        // candidate set than we display because the next step collapses
-        // brand-leaf duplicates ("Lifestyle > T-Shirts > Nike" +
-        // "Lifestyle > T-Shirts > Adidas" → "Lifestyle > T-Shirts").
+        // are raw merchant labels (no taxonomy mapping yet). normalize_category_path
+        // collapses brand-leaf duplicates ("Lifestyle > T-Shirts > Nike" +
+        // "Lifestyle > T-Shirts > Adidas" → "Lifestyle > T-Shirts") so we
+        // bucket by the normalized path while still deduplicating products.
         $args_no_category = array_merge($args, array('category' => array()));
         $fcat = self::build_filter_clause($args_no_category);
         $facets['category'] = array();
-        $sql_category = "SELECT LOWER(category) AS facet_value, COUNT(DISTINCT product_name, COALESCE(LOWER(colour), '')) AS facet_count
+        $sql_category = "SELECT LOWER(category) AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm
                          FROM {$table}
                          WHERE status = 'active'
                          AND category IS NOT NULL AND category <> ''
                          {$fcat['sql']}
                          AND {$match_sql}
-                         GROUP BY LOWER(category)
-                         ORDER BY facet_count DESC
-                         LIMIT 200";
+                         GROUP BY LOWER(category), product_name, colour_norm
+                         LIMIT 10000";
         $params_category = array_merge($fcat['params'], $has_ft_local ? array($ft_query_str) : array(), $like_values);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows_category = $wpdb->get_results($wpdb->prepare($sql_category, ...$params_category), ARRAY_A);
 
         $brand_lookup = self::get_brand_lookup();
-        $grouped_cats = array();
+        $cat_buckets = array();
         foreach ((array) $rows_category as $r) {
             if (empty($r['facet_value'])) continue;
             $norm = self::normalize_category_path($r['facet_value'], $brand_lookup);
             if ($norm === '') continue;
-            if (!isset($grouped_cats[$norm])) {
-                $grouped_cats[$norm] = 0;
+            $key  = mb_strtolower(self::strip_size_suffix($r['product_name'] ?? ''));
+            $key .= '|' . ($r['colour_norm'] ?? '');
+            if (!isset($cat_buckets[$norm])) {
+                $cat_buckets[$norm] = array();
             }
-            $grouped_cats[$norm] += (int) $r['facet_count'];
+            $cat_buckets[$norm][$key] = true;
+        }
+        $grouped_cats = array();
+        foreach ($cat_buckets as $norm => $set) {
+            $grouped_cats[$norm] = count($set);
         }
         arsort($grouped_cats);
         $slice_i = 0;
