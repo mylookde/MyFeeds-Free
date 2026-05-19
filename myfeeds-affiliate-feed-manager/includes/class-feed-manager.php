@@ -106,14 +106,39 @@ class MyFeeds_Feed_Manager {
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
     }
     
+    /**
+     * Per-file cache-buster for admin assets. Returns the file's
+     * mtime so a single CSS/JS tweak invalidates the browser cache
+     * without having to bump MYFEEDS_VERSION (which is reserved for
+     * wp.org releases). Falls back to MYFEEDS_VERSION when the file
+     * is missing — defensive guard, shouldn't trigger in practice.
+     */
+    private static function asset_version($relative_path) {
+        $abs = MYFEEDS_PLUGIN_DIR . ltrim($relative_path, '/');
+        if (file_exists($abs)) {
+            return (string) filemtime($abs);
+        }
+        return defined('MYFEEDS_VERSION') ? MYFEEDS_VERSION : false;
+    }
+
     public function enqueue_admin_scripts($hook) {
         if (strpos($hook, 'myfeeds') === false) {
             return;
         }
 
+        // Cache-bust admin assets per-file via filemtime so polish
+        // changes to a single .css / .js land in the browser between
+        // wp.org releases — without bumping MYFEEDS_VERSION on every
+        // tweak. Falls back to the constant if the file is missing
+        // (defensive — should never happen in practice).
+        $admin_css_ver = self::asset_version('assets/admin.css');
+        $admin_js_ver  = self::asset_version('assets/admin.js');
+        $feeds_css_ver = self::asset_version('assets/feed-manager.css');
+        $feeds_js_ver  = self::asset_version('assets/feed-manager.js');
+
         // Shared admin bootstrap on every myfeeds screen
-        wp_enqueue_style('myfeeds-admin', MYFEEDS_PLUGIN_URL . 'assets/admin.css', array(), MYFEEDS_VERSION);
-        wp_enqueue_script('myfeeds-admin', MYFEEDS_PLUGIN_URL . 'assets/admin.js', array('jquery'), MYFEEDS_VERSION, true);
+        wp_enqueue_style('myfeeds-admin', MYFEEDS_PLUGIN_URL . 'assets/admin.css', array(), $admin_css_ver);
+        wp_enqueue_script('myfeeds-admin', MYFEEDS_PLUGIN_URL . 'assets/admin.js', array('jquery'), $admin_js_ver, true);
         wp_localize_script('myfeeds-admin', 'myfeedsAdmin', array(
             'nonce'   => wp_create_nonce('myfeeds_nonce'),
             'ajaxUrl' => admin_url('admin-ajax.php'),
@@ -125,13 +150,13 @@ class MyFeeds_Feed_Manager {
                 'myfeeds-feed-manager',
                 MYFEEDS_PLUGIN_URL . 'assets/feed-manager.css',
                 array('myfeeds-admin'),
-                MYFEEDS_VERSION
+                $feeds_css_ver
             );
             wp_enqueue_script(
                 'myfeeds-feed-manager',
                 MYFEEDS_PLUGIN_URL . 'assets/feed-manager.js',
                 array('jquery', 'myfeeds-admin'),
-                MYFEEDS_VERSION,
+                $feeds_js_ver,
                 true
             );
 
