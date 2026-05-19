@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 6.9
-Stable tag: 1.0.5
+Stable tag: 1.0.6
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -157,6 +157,11 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.6 =
+* Smart Search: fixed a recall bug where any query containing a short token (e.g. "air force 1" or "nike 1") returned zero results because the FULLTEXT engine drops sub-min tokens from required clauses and the LIKE fallback was using a MySQL 5.x word-boundary regex that broke on 8.0.4+. Short tokens now AND-constrain the FULLTEXT match via a portable space-padded LIKE.
+* Smart Search: quoted-phrase queries ("air force 1") now use a substring LIKE constraint instead of a FULLTEXT phrase clause, so phrases that contain short tokens work too. Quote characters are also properly stripped before tokenization.
+* Smart Search: phrase + filter combinations now honour the phrase in facet aggregation and the honest-total count, so the result number and the facet pills stay in sync when you have a quoted phrase active.
+
 = 1.0.5 =
 * Smart Search: the picker can now narrow a result set without leaving the page. Brand, colour, category and price all live as one-click filters with live counts that respect every other active filter. Sort by best match, price, biggest discount or newest.
 * Smart Search: results-as-you-type. The picker refetches after a short pause so you stop having to hit Enter every time you change your mind.
@@ -214,6 +219,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * AWIN Publisher API integration for credential and feed-URL resolution.
 
 == Upgrade Notice ==
+
+= 1.0.6 =
+Recall fix: queries with a short token like "air force 1" or "nike 1" now return matches instead of an empty list. Recommended for anyone running MySQL 8 (most modern hosts).
 
 = 1.0.5 =
 The product picker grew a real search surface: filters for brand, colour, category and price, a sort dropdown, did-you-mean recovery, phrase matching and a visual colour swatch picker. Type-and-search-live; the results refetch as you change your mind.
