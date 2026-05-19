@@ -1280,7 +1280,11 @@
                 // facet row hover. Kept inline so the bundle stays self-contained.
                 React.createElement("style", null,
                   ".myfeeds-fp{margin-top:10px;padding:16px;background:#fafafa;border:1px solid #e5e7eb;border-radius:10px}" +
-                  ".myfeeds-fp__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px}" +
+                  ".myfeeds-fp__grid{display:grid;grid-template-columns:1.15fr 1.15fr 1.15fr 220px;gap:18px;align-items:start}" +
+                  "@media (max-width:980px){.myfeeds-fp__grid{grid-template-columns:1fr 1fr}.myfeeds-fp__right-stack{grid-column:span 2;flex-direction:row}}" +
+                  "@media (max-width:600px){.myfeeds-fp__grid{grid-template-columns:1fr}.myfeeds-fp__right-stack{grid-column:auto;flex-direction:column}}" +
+                  ".myfeeds-fp__right-stack{display:flex;flex-direction:column;gap:12px;min-width:0}" +
+                  ".myfeeds-fp__right-stack > .myfeeds-fp__section{flex:1;min-width:0}" +
                   ".myfeeds-fp__section{display:flex;flex-direction:column;min-height:0;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px}" +
                   ".myfeeds-fp__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:11px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.06em}" +
                   ".myfeeds-fp__head .total{font-weight:500;color:#9ca3af;font-size:11px;text-transform:none;letter-spacing:0}" +
@@ -1368,28 +1372,32 @@
                           )
                         : React.createElement("div", { className: "myfeeds-fp__empty" }, "Run a search to see categories")
                     ),
-                    // Price range
-                    React.createElement("div", { className: "myfeeds-fp__section" },
-                      React.createElement("div", { className: "myfeeds-fp__head" },
-                        React.createElement("span", null, "Price"),
-                        facets && facets.price_range ? React.createElement("span", { className: "total" }, Math.floor(facets.price_range.min) + " – " + Math.ceil(facets.price_range.max) + "€") : null
+                    // Right column stack: Price on top, Show Only below.
+                    // Both sections are compact, so stacking them in a single
+                    // narrow column saves the dead whitespace they leave behind
+                    // when each owns a full equal-width grid track.
+                    React.createElement("div", { className: "myfeeds-fp__right-stack" },
+                      React.createElement("div", { className: "myfeeds-fp__section" },
+                        React.createElement("div", { className: "myfeeds-fp__head" },
+                          React.createElement("span", null, "Price"),
+                          facets && facets.price_range ? React.createElement("span", { className: "total" }, Math.floor(facets.price_range.min) + " – " + Math.ceil(facets.price_range.max) + "€") : null
+                        ),
+                        React.createElement("div", { className: "myfeeds-fp__price" },
+                          React.createElement("input", { type: "number", placeholder: "Min", value: filterMinPrice, onChange: function (e) { setFilterMinPrice(e.target.value); } }),
+                          React.createElement("span", { style: { color: "#9ca3af" } }, "–"),
+                          React.createElement("input", { type: "number", placeholder: "Max", value: filterMaxPrice, onChange: function (e) { setFilterMaxPrice(e.target.value); } })
+                        )
                       ),
-                      React.createElement("div", { className: "myfeeds-fp__price" },
-                        React.createElement("input", { type: "number", placeholder: "Min", value: filterMinPrice, onChange: function (e) { setFilterMinPrice(e.target.value); } }),
-                        React.createElement("span", { style: { color: "#9ca3af" } }, "–"),
-                        React.createElement("input", { type: "number", placeholder: "Max", value: filterMaxPrice, onChange: function (e) { setFilterMaxPrice(e.target.value); } })
-                      )
-                    ),
-                    // Show only toggles
-                    React.createElement("div", { className: "myfeeds-fp__section" },
-                      React.createElement("div", { className: "myfeeds-fp__head" }, "Show only"),
-                      React.createElement("label", { className: "myfeeds-fp__row" },
-                        React.createElement("input", { type: "checkbox", checked: filterOnSale, onChange: function () { setFilterOnSale(!filterOnSale); } }),
-                        React.createElement("span", { className: "label" }, "On sale")
-                      ),
-                      React.createElement("label", { className: "myfeeds-fp__row" },
-                        React.createElement("input", { type: "checkbox", checked: filterInStock, onChange: function () { setFilterInStock(!filterInStock); } }),
-                        React.createElement("span", { className: "label" }, "In stock")
+                      React.createElement("div", { className: "myfeeds-fp__section" },
+                        React.createElement("div", { className: "myfeeds-fp__head" }, "Show only"),
+                        React.createElement("label", { className: "myfeeds-fp__row" },
+                          React.createElement("input", { type: "checkbox", checked: filterOnSale, onChange: function () { setFilterOnSale(!filterOnSale); } }),
+                          React.createElement("span", { className: "label" }, "On sale")
+                        ),
+                        React.createElement("label", { className: "myfeeds-fp__row" },
+                          React.createElement("input", { type: "checkbox", checked: filterInStock, onChange: function () { setFilterInStock(!filterInStock); } }),
+                          React.createElement("span", { className: "label" }, "In stock")
+                        )
                       )
                     )
                   )

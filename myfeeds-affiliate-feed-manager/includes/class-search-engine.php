@@ -698,11 +698,19 @@ class MyFeeds_Search_Engine {
         if (!empty($args['category']) && is_array($args['category'])) {
             $cats = array_values(array_filter(array_map('strval', $args['category']), 'strlen'));
             if (!empty($cats)) {
-                $placeholders = implode(',', array_fill(0, count($cats), '%s'));
-                $sql .= " AND LOWER(category) IN ({$placeholders})";
+                // Tree match: a selected category "lifestyle > t-shirts" must
+                // also match deeper variants like "lifestyle > t-shirts > nike"
+                // because the facet aggregation collapsed those leaf-as-brand
+                // suffixes away. Without the LIKE-prefix branch the user would
+                // pick a category and see zero rows.
+                $clauses = array();
                 foreach ($cats as $c) {
-                    $params[] = mb_strtolower($c);
+                    $c_lower = mb_strtolower($c);
+                    $clauses[] = '(LOWER(category) = %s OR LOWER(category) LIKE %s)';
+                    $params[] = $c_lower;
+                    $params[] = $wpdb->esc_like($c_lower) . ' > %';
                 }
+                $sql .= ' AND (' . implode(' OR ', $clauses) . ')';
             }
         }
         if ($args['min_price'] !== null && (float) $args['min_price'] > 0) {
@@ -798,9 +806,10 @@ class MyFeeds_Search_Engine {
         }
 
         // Category facets: apply every filter except category[]. Categories
-        // are raw merchant labels (no taxonomy mapping yet) — useful enough
-        // for the picker context where the user only narrows within a single
-        // post's worth of products.
+        // are raw merchant labels (no taxonomy mapping yet). We pull a wider
+        // candidate set than we display because the next step collapses
+        // brand-leaf duplicates ("Lifestyle > T-Shirts > Nike" +
+        // "Lifestyle > T-Shirts > Adidas" → "Lifestyle > T-Shirts").
         $args_no_category = array_merge($args, array('category' => array()));
         $fcat = self::build_filter_clause($args_no_category);
         $facets['category'] = array();
@@ -812,14 +821,27 @@ class MyFeeds_Search_Engine {
                          AND {$match_sql}
                          GROUP BY LOWER(category)
                          ORDER BY facet_count DESC
-                         LIMIT 50";
+                         LIMIT 200";
         $params_category = array_merge($fcat['params'], array($ft_query_str), $like_values);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows_category = $wpdb->get_results($wpdb->prepare($sql_category, ...$params_category), ARRAY_A);
+
+        $brand_lookup = self::get_brand_lookup();
+        $grouped_cats = array();
         foreach ((array) $rows_category as $r) {
-            if (!empty($r['facet_value'])) {
-                $facets['category'][] = array('value' => $r['facet_value'], 'count' => (int) $r['facet_count']);
+            if (empty($r['facet_value'])) continue;
+            $norm = self::normalize_category_path($r['facet_value'], $brand_lookup);
+            if ($norm === '') continue;
+            if (!isset($grouped_cats[$norm])) {
+                $grouped_cats[$norm] = 0;
             }
+            $grouped_cats[$norm] += (int) $r['facet_count'];
+        }
+        arsort($grouped_cats);
+        $slice_i = 0;
+        foreach ($grouped_cats as $value => $count) {
+            if ($slice_i++ >= 50) break;
+            $facets['category'][] = array('value' => $value, 'count' => $count);
         }
 
         // Price range hint (min/max in the keyword-matched set, respecting brand+colour filters)
@@ -842,6 +864,39 @@ class MyFeeds_Search_Engine {
         }
 
         return $facets;
+    }
+
+    /**
+     * Drop a trailing brand-name segment off a hierarchical category path.
+     * Merchants frequently end their taxonomy with the brand
+     * ("Lifestyle > T-Shirts > Nike") which produces facet redundancy in
+     * the picker — the brand filter already covers it. We collapse those
+     * variants to the parent path so "Lifestyle > T-Shirts > Nike (191)"
+     * and "Lifestyle > T-Shirts > Adidas (227)" share one facet bucket.
+     */
+    private static function normalize_category_path($category, $brands_lookup) {
+        $cat = trim(mb_strtolower((string) $category));
+        if ($cat === '') {
+            return '';
+        }
+        $segments = preg_split('/\s*>\s*/u', $cat);
+        if (is_array($segments) && count($segments) > 1) {
+            $last = trim((string) end($segments));
+            if ($last !== '' && isset($brands_lookup[$last])) {
+                array_pop($segments);
+            }
+        }
+        return implode(' > ', array_map('trim', $segments));
+    }
+
+    /**
+     * Returns the lowercase-brand lookup, populating the cache if needed.
+     */
+    private static function get_brand_lookup() {
+        if (self::$known_brands_cache === null) {
+            self::is_known_brand('__warmup__');
+        }
+        return is_array(self::$known_brands_cache) ? self::$known_brands_cache : array();
     }
 
     /**
