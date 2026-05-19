@@ -624,11 +624,12 @@ class MyFeeds_Search_Engine {
             // "air force 1 → 0 results" bug. Route them to the LIKE constraint
             // instead, where they get AND'd onto the FT match.
             if (mb_strlen($clean_token) < 4) {
-                $short_tokens[] = $token;
+                $short_tokens[] = $clean_token;
                 if (isset($synonym_map[$token])) {
                     foreach ($synonym_map[$token] as $syn) {
-                        if (mb_strlen($syn) < 4 && $syn !== '') {
-                            $short_tokens[] = $syn;
+                        $clean_syn = self::sanitize_fulltext_token($syn);
+                        if ($clean_syn !== '' && mb_strlen($clean_syn) < 4) {
+                            $short_tokens[] = $clean_syn;
                         }
                     }
                 }
@@ -1346,10 +1347,23 @@ class MyFeeds_Search_Engine {
         // SMART QUERY PARSER: pull "unter 80€" / "im sale" / phrases out before
         // tokenization so the keyword stage only sees actual keywords.
         // =====================================================================
-        $parsed = is_array($args['parsed_query']) ? $args['parsed_query'] : self::parse_smart_query($query);
+        $parsed      = is_array($args['parsed_query']) ? $args['parsed_query'] : self::parse_smart_query($query);
         $phrase_data = self::extract_phrases($parsed['query']);
-        $clean_query = $phrase_data['query'] !== '' ? $phrase_data['query'] : $parsed['query'];
         $phrases     = $phrase_data['phrases'];
+
+        // When phrases were extracted, use the CLEANED remainder (which had the
+        // quoted segments stripped out) as the keyword query, not the parsed
+        // string — that still carries the quote characters and would seed the
+        // tokenizer with junk like `"air` and `1"`. Fall back to the phrase
+        // text itself only if nothing else remains.
+        if (!empty($phrases)) {
+            $clean_query = $phrase_data['query'];
+            if ($clean_query === '') {
+                $clean_query = implode(' ', $phrases);
+            }
+        } else {
+            $clean_query = $parsed['query'];
+        }
 
         // Fold smart-parser-derived filters into $args. Explicit caller-provided
         // filters win over parsed defaults so the picker UI can override the
@@ -1362,12 +1376,6 @@ class MyFeeds_Search_Engine {
         }
         if (!$args['on_sale'] && !empty($parsed['on_sale'])) {
             $args['on_sale'] = true;
-        }
-
-        // If smart parser stripped everything except phrases, keep the phrases
-        // as the keyword fallback so the FULLTEXT stage has something to match.
-        if ($clean_query === '' && !empty($phrases)) {
-            $clean_query = implode(' ', $phrases);
         }
         if ($clean_query === '') {
             return $args['return_meta']
