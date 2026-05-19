@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 6.9
-Stable tag: 1.0.2
+Stable tag: 1.0.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -162,6 +162,14 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.3 =
+* Content Health: new read-only card on the MyFeeds page that surfaces published posts referencing products no longer in your feed. Shows the count, lists the affected post titles with how many products are missing each, and refreshes itself after every sync.
+* Importer: Quick Sync now self-heals from a crashed background worker. If the worker is killed mid-feed (PHP timeout, host OOM, feed-download stall), a watchdog auto-cancels the stale "running" state after 5 minutes so the UI stops looping on a phantom progress bar.
+* Importer: Cancel during a large batch is now respected. Previously a Cancel click that landed mid-feed could be silently overwritten by the in-flight batch finishing, leaving the UI showing IMPORTING for a sync that was actually done.
+* Importer: each Quick Sync now writes a starting-feed and finished-feed log line so a future stall points directly at the culprit feed.
+* Admin assets: per-file cache-buster so a single CSS or JS tweak invalidates the browser cache instantly between releases.
+* Listing copy: short description and feature list rewritten to focus on what changes for you (prices stop lying, posts stop rotting, you publish faster) instead of technical plumbing.
+
 = 1.0.2 =
 * Mapping Editor: new pill-style mapping quality bar with three buckets (>=90 green, >=70 orange, <70 red) - same palette as the feed-status badges.
 * Mapping Editor: click the quality bar to open a detail modal that lists every standard field with its actual source column from the feed (`<source_column>` to `<db_column>`) plus per-field tier and missing-row counts. Makes it obvious when the mapper picked the wrong source slot.
@@ -196,6 +204,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * AWIN Publisher API integration for credential and feed-URL resolution.
 
 == Upgrade Notice ==
+
+= 1.0.3 =
+A new Content Health card on the MyFeeds page tells you when a post still links to products that have dropped out of your feed. Quick Sync now self-heals from a crashed background worker, and a Cancel mid-batch is finally respected.
 
 = 1.0.2 =
 Mapping Editor overhaul: redesigned with the plugin's brand, a new pill-style quality bar that opens a detail modal showing the actual source column for every field, plus fixes for stale dropdown entries and select-overflow with long column names.
