@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 6.9
-Stable tag: 1.0.3
+Stable tag: 1.0.4
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -157,6 +157,10 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.4 =
+* Smart Mapper: self-healing repair pass. After the initial auto-map the mapper now checks each chosen source column against a real sample row. If the column is empty for that row, the mapper walks the full ranked candidate list and swaps in the next column that genuinely carries data. Same pass runs at the start of every sync so a stale mapping (column dropped by the merchant after the feed was first added) gets corrected before the import writes default values into the DB.
+* Smart Mapper: kept-not-dropped policy. When no better alternative shows up in the inspected sample row, the existing mapping is kept rather than removed - the inspected row is one of thousands and the column may be populated for most products even if empty in the first row.
+
 = 1.0.3 =
 * Content Health: new read-only card on the MyFeeds page that surfaces published posts referencing products no longer in your feed. Shows the count, lists the affected post titles with how many products are missing each, and refreshes itself after every sync.
 * Importer: Quick Sync now self-heals from a crashed background worker. If the worker is killed mid-feed (PHP timeout, host OOM, feed-download stall), a watchdog auto-cancels the stale "running" state after 5 minutes so the UI stops looping on a phantom progress bar.
@@ -199,6 +203,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * AWIN Publisher API integration for credential and feed-URL resolution.
 
 == Upgrade Notice ==
+
+= 1.0.4 =
+The Smart Mapper now double-checks its picks against a real sample row and swaps in the next-best column when its first choice is empty - so a merchant dropping a column after the feed was first added stops silently writing default values into your DB.
 
 = 1.0.3 =
 A new Content Health card on the MyFeeds page tells you when a post still links to products that have dropped out of your feed. Quick Sync now self-heals from a crashed background worker, and a Cancel mid-batch is finally respected.
