@@ -1388,7 +1388,7 @@ class MyFeeds_Search_Engine {
             }
         }
 
-        $fetch_limit = max($limit * 4, 200);
+        $fetch_limit = max($limit * 10, 500);
         $rows = array();
 
         $has_search_text = $wpdb->get_var("SHOW COLUMNS FROM {$table} LIKE 'search_text'");
@@ -1574,7 +1574,48 @@ class MyFeeds_Search_Engine {
         $dedup_count = count($scored_rows);
         myfeeds_log("SEARCH: After dedup={$dedup_count}", 'debug');
 
+        // Honest total: when the caller asked for meta we run a tiny
+        // COUNT(DISTINCT name, colour) over the full filtered match set so the
+        // UI can show the real number of products in the DB, not just the
+        // dedup'd count of the fetched candidate batch (capped at fetch_limit).
+        // Falls back to dedup_count if the count query errors out.
         $total_after_dedup = $dedup_count;
+        if (!empty($args['return_meta']) && $has_search_text && !empty($ft_query_str)) {
+            $count_filter = self::build_filter_clause($args);
+            if (!empty($short_tokens)) {
+                $like_conditions_c = array();
+                $like_values_c = array();
+                foreach ($short_tokens as $st) {
+                    if (is_numeric($st)) {
+                        $like_conditions_c[] = '(search_text REGEXP %s)';
+                        $like_values_c[] = '[[:<:]]' . $st . '[[:>:]]';
+                    } else {
+                        $like_conditions_c[] = 'search_text LIKE %s';
+                        $like_values_c[] = '%' . $wpdb->esc_like($st) . '%';
+                    }
+                }
+                $match_for_count = '(MATCH(search_text) AGAINST(%s IN BOOLEAN MODE) OR (' . implode(' AND ', $like_conditions_c) . '))';
+                $count_sql = "SELECT COUNT(DISTINCT product_name, COALESCE(LOWER(colour), '')) AS total
+                              FROM {$table}
+                              WHERE status = 'active'
+                              {$count_filter['sql']}
+                              AND {$match_for_count}";
+                $count_params = array_merge($count_filter['params'], array($ft_query_str), $like_values_c);
+            } else {
+                $count_sql = "SELECT COUNT(DISTINCT product_name, COALESCE(LOWER(colour), '')) AS total
+                              FROM {$table}
+                              WHERE status = 'active'
+                              {$count_filter['sql']}
+                              AND MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)";
+                $count_params = array_merge($count_filter['params'], array($ft_query_str));
+            }
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $real_total = (int) $wpdb->get_var($wpdb->prepare($count_sql, ...$count_params));
+            if ($real_total > 0) {
+                $total_after_dedup = $real_total;
+            }
+        }
+
         $scored_rows = array_slice($scored_rows, $offset, $limit);
 
         // Log top 3 results with tier info

@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 6.9
-Stable tag: 1.0.4
+Stable tag: 1.0.5
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -157,6 +157,17 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.5 =
+* Smart Search: the picker can now narrow a result set without leaving the page. Brand, colour, category and price all live as one-click filters with live counts that respect every other active filter. Sort by best match, price, biggest discount or newest.
+* Smart Search: results-as-you-type. The picker refetches after a short pause so you stop having to hit Enter every time you change your mind.
+* Smart Search: did-you-mean. Type "addidas" and the picker offers "adidas" instead of returning nothing. Powered by edit-distance against your own product vocabulary, so it learns from the feeds you import.
+* Smart Search: phrase support. Put "nike air max" in double quotes and exact matches float to the top.
+* Smart Search: smart query parser. Type "schwarze sneaker unter 80 euro im sale" and the price + sale intent get pulled out of the query automatically.
+* Smart Search: visual colour picker. Tick a colour swatch instead of typing the colour name.
+* Smart Search: recently used products show up as quick-insert chips before you type anything, so a product you used yesterday is one click away.
+* Smart Search: honest result count. The total at the top now reflects the real number of products in your feed that match, not just the dedup'd top of the fetched batch.
+* Smart Mapper: self-healing repair pass at every sync (previously released in 1.0.4) — corrects a stale mapping when a merchant drops a column instead of writing default values into your DB.
+
 = 1.0.4 =
 * Smart Mapper: self-healing repair pass. After the initial auto-map the mapper now checks each chosen source column against a real sample row. If the column is empty for that row, the mapper walks the full ranked candidate list and swaps in the next column that genuinely carries data. Same pass runs at the start of every sync so a stale mapping (column dropped by the merchant after the feed was first added) gets corrected before the import writes default values into the DB.
 * Smart Mapper: kept-not-dropped policy. When no better alternative shows up in the inspected sample row, the existing mapping is kept rather than removed - the inspected row is one of thousands and the column may be populated for most products even if empty in the first row.
@@ -203,6 +214,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * AWIN Publisher API integration for credential and feed-URL resolution.
 
 == Upgrade Notice ==
+
+= 1.0.5 =
+The product picker grew a real search surface: filters for brand, colour, category and price, a sort dropdown, did-you-mean recovery, phrase matching and a visual colour swatch picker. Type-and-search-live; the results refetch as you change your mind.
 
 = 1.0.4 =
 The Smart Mapper now double-checks its picks against a real sample row and swaps in the next-best column when its first choice is empty - so a merchant dropping a column after the feed was first added stops silently writing default values into your DB.
