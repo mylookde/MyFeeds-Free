@@ -8,21 +8,21 @@ Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Stop pasting affiliate links by hand. Your network's product feed becomes a searchable catalog inside WordPress — insert cards from the block editor.
+Stop pasting affiliate links by hand. Your network's product feed becomes a searchable catalog inside WordPress, with cards you drop in from the block editor.
 
 == Description ==
 
 **Stop copy-pasting affiliate products. Stop fixing dead links by hand. Start writing.**
 
-You write about products you recommend. You drop them into your posts. A few weeks pass, and half the prices are off, a couple of products went out of stock without telling you, and one merchant quietly disappeared from your network. Every roundup, every gift guide, every product page tells the same story — slowly going stale while you write the next one.
+You write about products you recommend. You drop them into your posts. A few weeks pass, and half the prices are off, a couple of products went out of stock without telling you, and one merchant quietly disappeared from your network. Every roundup, every gift guide, every product page tells the same story. Quietly going stale while you write the next one.
 
 MyFeeds takes your affiliate program's product feed and quietly keeps it in sync with your site. You pick a product inside the block editor the way you'd pick an image, hit publish, and move on. The next morning the prices are still right. The dead products are flagged. Your readers see what the merchant is actually selling today.
 
-You get to stay where the value is — writing — instead of pasting URLs at midnight.
+You get to stay where the value is. Writing. Instead of pasting URLs at midnight.
 
 = Who is this for =
 
-Anyone earning a cut when readers click and buy. Whatever you cover — clothing, gear, books, beauty, supplements, tools, baby, garden, hobbies, niche electronics, deals — if there's an affiliate program for it, there's a product feed somewhere, and MyFeeds can read it.
+Anyone earning a cut when readers click and buy. Whatever you cover, from clothing and gear to books, beauty, supplements, tools, baby, garden, hobbies, niche electronics, or deals: if there's an affiliate program for it, there's a product feed somewhere, and MyFeeds can read it.
 
 The block editor stays your block editor. The plugin works in the background.
 
@@ -39,20 +39,20 @@ The block editor stays your block editor. The plugin works in the background.
 1. Drop your **affiliate product feed URL** into MyFeeds.
 2. Every product is imported and stored locally in your WordPress database. The plugin figures out the column structure on its own.
 3. In any post or page, add the **MyFeeds Product Picker** block. Search by name, brand, or category. Click to insert.
-4. The published page renders a responsive product card with the current price, image, brand, shipping, and your affiliate link — direct from your database, no external call on render.
+4. The published page renders a responsive product card with the current price, image, brand, shipping, and your affiliate link. All served direct from your database, with no external call on render.
 
 The next day the nightly sync refreshes what changed. The week after, a full import catches everything else. You don't think about it.
 
 = What's in the box =
 
-* Universal feed import — almost any format your program hands you, detected automatically.
-* Smart Mapping — automatic recognition of common feed structures, with a manual editor for anything custom.
+* Universal feed import. Almost any format your program hands you, detected automatically.
+* Smart Mapping. Automatic recognition of common feed structures, with a manual editor for anything custom.
 * Smart Search inside the block editor with synonym handling and multi-language support.
 * Native Gutenberg **Product Picker** block with live in-editor search.
 * Responsive product grid with prices, brands, shipping, and your affiliate links.
-* Background imports — large feeds process without locking your admin.
+* Background imports. Large feeds process without locking your admin.
 * Nightly auto-sync and weekly full re-import, scheduled and quiet.
-* Honest pricing — what the feed publishes is what visitors see. No silent currency assumptions.
+* Honest pricing. What the feed publishes is what visitors see. No silent currency assumptions.
 * Works with any WordPress theme that supports the block editor.
 
 = A few things worth saying out loud =
@@ -63,7 +63,7 @@ The next day the nightly sync refreshes what changed. The week after, a full imp
 
 = Related paid plugins =
 
-This plugin is fully functional on its own. Separate, independent paid plugins called **MyFeeds Pro** and **MyFeeds Business** are available at [myfeeds.site](https://myfeeds.site) — they add things like a carousel block, a visual card designer with Google Fonts, click and conversion analytics, and a full multi-feed shop system. They are not required to use this plugin.
+This plugin is fully functional on its own. Separate, independent paid plugins called **MyFeeds Pro** and **MyFeeds Business** are available at [myfeeds.site](https://myfeeds.site). They add things like a carousel block, a visual card designer with Google Fonts, click and conversion analytics, and a full multi-feed shop system. They are not required to use this plugin.
 
 == Installation ==
 
@@ -76,7 +76,7 @@ This plugin is fully functional on its own. Separate, independent paid plugins c
 
 = Where do I get a product feed URL? =
 
-Sign up with an affiliate network (such as AWIN, CJ Affiliate, Rakuten, or Impact), navigate to the product feed section — usually labelled "Create a feed" or "Product feeds" — and copy the feed URL.
+Sign up with an affiliate network (such as AWIN, CJ Affiliate, Rakuten, or Impact), navigate to the product feed section (usually labelled "Create a feed" or "Product feeds"), and copy the feed URL.
 
 == Frequently Asked Questions ==
 
@@ -90,7 +90,7 @@ Only products with valid data (title, price, image, and affiliate link) are impo
 
 = Does MyFeeds slow down my site? =
 
-No. All product data is stored locally in your WordPress database. The frontend makes no external API calls — your site stays fast.
+No. All product data is stored locally in your WordPress database. The frontend makes no external API calls, so your site stays fast.
 
 = Does MyFeeds work with any theme? =
 
@@ -106,7 +106,7 @@ If your affiliate program hands you a product feed URL you can download, MyFeeds
 
 = Does the plugin make any external requests? =
 
-Yes — see **External Services** below. In short: when you add an AWIN feed, the plugin talks to the official AWIN Publisher API to confirm your credentials and look up feed URLs. No data leaves your site on the frontend.
+Yes. See **External Services** below. In short: when you add an AWIN feed, the plugin talks to the official AWIN Publisher API to confirm your credentials and look up feed URLs. No data leaves your site on the frontend.
 
 == External Services ==
 
@@ -118,7 +118,7 @@ When you add an AWIN feed in the WordPress admin, the plugin calls the AWIN Publ
 
 * **What data is sent:** your AWIN publisher ID, the advertiser ID, and your AWIN API key (passed as an HTTP header). No WordPress user data, no visitor data, and nothing from the frontend is transmitted.
 * **When it is sent:** only in the WordPress admin, when you open the AWIN feed setup dialog, verify credentials, or trigger a feed refresh. No frontend page view ever calls this API.
-* **Where it is sent:** `https://api.awin.com/` — AWIN's official publisher API endpoint.
+* **Where it is sent:** `https://api.awin.com/`, AWIN's official publisher API endpoint.
 * **Why:** AWIN requires publishers to fetch feed download URLs via their API rather than hard-coding them, because the URLs are rotated and tied to your publisher account.
 
 AWIN's terms of service and privacy policy apply to this data exchange:
@@ -126,20 +126,15 @@ AWIN's terms of service and privacy policy apply to this data exchange:
 * Terms of Service: <https://www.awin.com/gb/publisher-terms>
 * Privacy Policy: <https://www.awin.com/gb/legal/privacy-policy>
 
-= Configured product feed URL (any affiliate network) =
+= Configured product feed URL (your affiliate network) =
 
-To import products, the plugin downloads the feed file from the URL you save in the Feed Manager. The feed URL points to your affiliate network's product feed export — for example AWIN (`https://productdata.awin.com/...`), Tradedoubler (`https://fr.tradedoubler.com/...`), Webgains, Rakuten, Admitad, or any other network that hands you a CSV/TSV/XML/JSON feed URL.
+To import products, the plugin downloads the feed file from the URL you save in the Feed Manager. The feed URL points to your affiliate network's product feed export, in CSV, TSV, XML, or JSON format.
 
 * **What data is sent:** an HTTP GET request to the feed URL with a `User-Agent` header identifying the WordPress site and plugin version. No publisher credentials, user data, or visitor data are sent in the request body.
 * **When it is sent:** in the WordPress admin only, when you click "Reimport", and on the configured cron schedule (nightly quick sync and weekly full import). The frontend never calls the feed URL.
 * **Where it is sent:** to the host in the feed URL you configure. The plugin does not share that URL with any third party.
 
-Because the feed URL itself is provided by an affiliate network, the privacy and terms of that download are governed by that network. The two networks listed in our test matrix publish their terms and privacy policies at:
-
-* **Tradedoubler** — Terms: <https://www.tradedoubler.com/terms-conditions>, Privacy Policy: <https://www.tradedoubler.com/privacy-policy>
-* **AWIN** — Terms: <https://www.awin.com/gb/publisher-terms>, Privacy Policy: <https://www.awin.com/gb/legal/privacy-policy>
-
-If you configure a feed URL from a different network (Webgains, Rakuten, Admitad, etc.), the terms and privacy policy of that network apply to the feed download. Please refer to your network's documentation.
+Because the feed URL itself is provided by an affiliate network, the privacy and terms of that download are governed by that network. Please refer to your network's terms of service and privacy policy for details on what they record about feed downloads.
 
 No data is sent to any other external service. The plugin stores imported products in your own WordPress database and serves them from there; the frontend never contacts an external host to render a product.
 
@@ -154,11 +149,11 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Screenshots ==
 
-1. Feed Manager — configure your affiliate product feed with status, product count, and mapping quality.
-2. Background Import — imports run in the background with a real-time progress bar. Continue working while products are imported.
-3. Smart Mapping — automatic field detection with manual override. Maps any CSV/TSV/XML/JSON feed to product fields.
-4. MyFeeds – Product Picker block — search the local product index and select products inline in the editor.
-5. Grid layout — products rendered in a responsive grid with prices, brands, shipping info, and affiliate links.
+1. Feed Manager. Configure your affiliate product feed with status, product count, and mapping quality.
+2. Background Import. Imports run in the background with a real-time progress bar. Continue working while products are imported.
+3. Smart Mapping. Automatic field detection with manual override. Maps any CSV/TSV/XML/JSON feed to product fields.
+4. MyFeeds Product Picker block. Search the local product index and select products inline in the editor.
+5. Grid layout. Products rendered in a responsive grid with prices, brands, shipping info, and affiliate links.
 
 == Changelog ==
 
