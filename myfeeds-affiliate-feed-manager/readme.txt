@@ -2,8 +2,8 @@
 Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
-Tested up to: 6.9
-Stable tag: 1.0.7
+Tested up to: 7.0
+Stable tag: 1.0.8
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -157,6 +157,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.8 =
+* Compatibility: tested with WordPress 7.0. No code changes — the new "Modern" admin theme renders MyFeeds screens cleanly, and the iframed editor falls back to non-iframe mode for posts containing the product-picker block (block-API v3 upgrade is a future-proofing item, not a regression).
+
 = 1.0.7 =
 * Smart Search: the result counter and the facet pills now report the same number of products the grid actually renders. Previously, every size variant of a product was tallied separately in the header total and in the brand/colour/category pills, so a search for "head" could promise "17 results" or "Bape (15)" and then deliver 5 and 3 once the result deduplicator collapsed the sizes. Counts now flow through the same size-suffix pipeline as the result set.
 
@@ -222,6 +225,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * AWIN Publisher API integration for credential and feed-URL resolution.
 
 == Upgrade Notice ==
+
+= 1.0.8 =
+WordPress 7.0 compatibility confirmed. No code changes, just a tested-up-to bump so the plugin keeps its clean WordPress.org listing.
 
 = 1.0.7 =
 Honest counts: the result total and facet pills in the product picker now match the grid below them. Size variants are no longer double-counted in the header.
