@@ -304,23 +304,23 @@
 /* ---------- LIGHTBOX ---------- */
 
 /*
- * The lightbox is anchored to the right of the WordPress admin sidebar so
- * the zoomed screenshot ends up centered in the area the user actually
- * sees, not the absolute viewport (which would push the image partly
- * behind the wp-admin menu on the left).
+ * The lightbox is anchored to the right edge of the WordPress admin
+ * sidebar so the zoomed screenshot ends up centered in the area the
+ * user actually sees, not the absolute viewport (which would push the
+ * dark overlay over the wp-admin menu and the image off-center).
  *
- * Sidebar width mirrors WordPress core:
- *   default            → 160px
- *   body.folded        →  36px
- *   body.auto-fold     →  36px (only when WP collapses it itself, ≤960px)
- *   mobile (<783px)    →  off-canvas, content takes the full width
+ * The width comes from --myfeeds-sidebar-width which feature-previews.js
+ * sets by live-measuring #adminmenuwrap (and updates on resize). This is
+ * robust against custom admin themes, auto-fold/folded states, hover-
+ * expand of the auto-fold menu, and mobile off-canvas (where the JS
+ * resolves to 0).
  */
 .myfeeds-preview-lightbox {
     position: fixed;
     top: 0;
     right: 0;
     bottom: 0;
-    left: 160px;
+    left: var(--myfeeds-sidebar-width, 160px);
     z-index: 99999;
     display: flex;
     align-items: center;
@@ -333,25 +333,6 @@
     visibility: hidden;
     transition: opacity 0.22s ease, visibility 0s linear 0.22s;
     cursor: zoom-out;
-}
-
-body.folded .myfeeds-preview-lightbox,
-body.auto-fold .myfeeds-preview-lightbox {
-    left: 36px;
-}
-
-@media screen and (max-width: 960px) {
-    /* WordPress auto-folds the sidebar to 36px in this range. */
-    .myfeeds-preview-lightbox {
-        left: 36px;
-    }
-}
-
-@media screen and (max-width: 782px) {
-    /* Below this width WP hides the sidebar entirely (off-canvas menu). */
-    .myfeeds-preview-lightbox {
-        left: 0;
-    }
 }
 
 .myfeeds-preview-lightbox.is-visible {

@@ -21,7 +21,39 @@
     var closeBtn = lightbox.querySelector('.myfeeds-preview-lightbox-close');
     var lastTrigger = null;
 
+    /**
+     * Live-measure the wp-admin sidebar width and publish it as a CSS
+     * variable on <body>. This is more robust than CSS-only breakpoints
+     * because:
+     *   - custom admin themes can have non-default widths
+     *   - WordPress's auto-fold trigger doesn't always match the simple
+     *     960px media-query rule (themes can override; the body class is
+     *     set later than the first paint)
+     *   - the user can collapse/expand mid-session, or open the lightbox
+     *     after dragging the window
+     * The lightbox CSS reads `var(--myfeeds-sidebar-width, 160px)` and
+     * positions its `left:` edge accordingly.
+     */
+    function syncSidebarWidth() {
+        var menu = document.getElementById('adminmenuwrap');
+        var width = 0;
+        if (menu) {
+            var rect = menu.getBoundingClientRect();
+            // On mobile WP renders the menu off-canvas (transform off the
+            // left edge). In that case rect.right is <= 0 so the visible
+            // contribution is zero.
+            width = Math.max(0, rect.right);
+        }
+        document.body.style.setProperty('--myfeeds-sidebar-width', width + 'px');
+    }
+
+    syncSidebarWidth();
+    window.addEventListener('resize', syncSidebarWidth);
+
     function open(triggerEl) {
+        // Re-measure on open in case the user toggled the sidebar
+        // between renders.
+        syncSidebarWidth();
         var src = triggerEl.getAttribute('data-myfeeds-zoom-src');
         var caption = triggerEl.getAttribute('data-myfeeds-zoom-caption') || '';
         if (!src) {

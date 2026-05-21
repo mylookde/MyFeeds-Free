@@ -51,18 +51,24 @@ class MyFeeds_Feature_Previews {
         if (!in_array($hook, $allowed, true)) {
             return;
         }
-        $version = defined('MYFEEDS_VERSION') ? MYFEEDS_VERSION : null;
+        // Use filemtime() so a CSS/JS tweak between releases busts the
+        // browser cache immediately, rather than waiting for the next
+        // MYFEEDS_VERSION bump.
+        $css_path = plugin_dir_path(__FILE__) . '../assets/feature-previews.css';
+        $js_path  = plugin_dir_path(__FILE__) . '../assets/feature-previews.js';
+        $css_ver  = file_exists($css_path) ? filemtime($css_path) : (defined('MYFEEDS_VERSION') ? MYFEEDS_VERSION : null);
+        $js_ver   = file_exists($js_path) ? filemtime($js_path) : (defined('MYFEEDS_VERSION') ? MYFEEDS_VERSION : null);
         wp_enqueue_style(
             'myfeeds-feature-previews',
             plugins_url('../assets/feature-previews.css', __FILE__),
             array(),
-            $version
+            $css_ver
         );
         wp_enqueue_script(
             'myfeeds-feature-previews',
             plugins_url('../assets/feature-previews.js', __FILE__),
             array(),
-            $version,
+            $js_ver,
             true
         );
     }
