@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 7.0
-Stable tag: 1.0.10
+Stable tag: 1.0.11
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -159,6 +159,10 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 5. Grid layout. Products rendered in a responsive grid with prices, brands, shipping info, and affiliate links.
 
 == Changelog ==
+
+= 1.0.11 =
+* Feature preview pages: the screenshot zoom lightbox now measures the wp-admin sidebar live with JavaScript and anchors its left edge to the sidebar's right edge. The previous pixel-based offsets (160 / 36 / 0) didn't survive custom admin themes, hover-expand of the auto-fold menu, or admin-theme plugins that set their body classes after first paint, so the overlay still covered the sidebar on some setups. The image now centers cleanly inside the visible content area regardless of which admin theme you run.
+* Feature preview pages: CSS and JS now version themselves with file modification time, so a layout tweak between releases shows up on the next page load instead of waiting for the next plugin version bump.
 
 = 1.0.10 =
 * Listing copy: short description rewritten to name the actual mechanic up front. "Insert live affiliate product tiles into your posts. Prices and stock stay current, automatically." The old version said "searchable product cards" which buried the visual format under a feature word.
