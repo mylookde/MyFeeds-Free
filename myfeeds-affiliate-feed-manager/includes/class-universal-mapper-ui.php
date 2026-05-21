@@ -62,13 +62,19 @@ class MyFeeds_Universal_Mapper_UI {
             'autoDetectUrl'  => admin_url('admin.php?page=myfeeds-mapping-editor'),
             'initialFeedKey' => $feed_key,
             'i18n'           => array(
-                'mappingSaved'     => __('Mapping saved successfully!', 'myfeeds-affiliate-feed-manager'),
-                'enterTemplateName'=> __('Please enter a template name', 'myfeeds-affiliate-feed-manager'),
-                'templateSaved'    => __('Template saved!', 'myfeeds-affiliate-feed-manager'),
-                'selectTemplate'   => __('Please select a template', 'myfeeds-affiliate-feed-manager'),
-                'selectFeedFirst'  => __('Please select a feed first', 'myfeeds-affiliate-feed-manager'),
-                'templateApplied'  => __('Template applied! Reloading...', 'myfeeds-affiliate-feed-manager'),
-                'detecting'        => __('Detecting...', 'myfeeds-affiliate-feed-manager'),
+                'mappingSaved'      => __('Mapping saved.', 'myfeeds-affiliate-feed-manager'),
+                'enterTemplateName' => __('Please enter a template name.', 'myfeeds-affiliate-feed-manager'),
+                'templateSaved'     => __('Template saved.', 'myfeeds-affiliate-feed-manager'),
+                'selectTemplate'    => __('Please select a template.', 'myfeeds-affiliate-feed-manager'),
+                'selectFeedFirst'   => __('Please select a feed first.', 'myfeeds-affiliate-feed-manager'),
+                'templateApplied'   => __('Template applied. Reloading...', 'myfeeds-affiliate-feed-manager'),
+                'templateDeleted'   => __('Template deleted.', 'myfeeds-affiliate-feed-manager'),
+                'detecting'         => __('Detecting...', 'myfeeds-affiliate-feed-manager'),
+                'columnTagHint'     => __('Pick this column in one of the dropdowns on the right.', 'myfeeds-affiliate-feed-manager'),
+                'genericError'      => __('Something went wrong. Please try again.', 'myfeeds-affiliate-feed-manager'),
+                'confirmDeleteTpl'  => __('Delete the template "%s"? This can\'t be undone.', 'myfeeds-affiliate-feed-manager'),
+                'confirmDeleteOk'   => __('Delete', 'myfeeds-affiliate-feed-manager'),
+                'confirmCancel'     => __('Cancel', 'myfeeds-affiliate-feed-manager'),
             ),
         ));
     }
@@ -110,10 +116,35 @@ class MyFeeds_Universal_Mapper_UI {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $active_tab = isset($_GET['tab']) ? sanitize_text_field(wp_unslash($_GET['tab'])) : 'editor';
         
+        $feeds_url = admin_url('admin.php?page=myfeeds-feeds');
         ?>
         <div class="wrap myfeeds-mapping-editor">
             <h1><?php esc_html_e('Universal Mapping Editor', 'myfeeds-affiliate-feed-manager'); ?></h1>
-            
+
+            <div class="myfeeds-intro-card">
+                <div class="myfeeds-intro-card__icon" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L3 7v6c0 5 3.5 8.5 9 10 5.5-1.5 9-5 9-10V7l-9-5z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                        <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <div class="myfeeds-intro-card__body">
+                    <h2><?php esc_html_e('You usually don\'t need this', 'myfeeds-affiliate-feed-manager'); ?></h2>
+                    <p>
+                        <?php
+                        echo wp_kses(
+                            sprintf(
+                                /* translators: %s: link to the Feeds list */
+                                __('When you add a feed, MyFeeds auto-maps the columns for you. Open this editor only when a feed shows less than 100%% in the <strong>Quality</strong> column on the <a href="%s">Feeds page</a> &mdash; then point any missing field at the right column.', 'myfeeds-affiliate-feed-manager'),
+                                esc_url($feeds_url)
+                            ),
+                            array('a' => array('href' => array()), 'strong' => array())
+                        );
+                        ?>
+                    </p>
+                </div>
+            </div>
+
             <h2 class="nav-tab-wrapper">
                 <a href="<?php echo esc_url(admin_url('admin.php?page=myfeeds-mapping-editor')); ?>" class="nav-tab <?php echo $active_tab === 'editor' ? 'nav-tab-active' : ''; ?>">
                     <?php esc_html_e('Mapping Editor', 'myfeeds-affiliate-feed-manager'); ?>
@@ -122,12 +153,30 @@ class MyFeeds_Universal_Mapper_UI {
                     <?php esc_html_e('Templates', 'myfeeds-affiliate-feed-manager'); ?>
                 </a>
             </h2>
-            
+
+            <div id="myfeeds-notice-host" class="myfeeds-notice-host" aria-live="polite"></div>
+
             <?php if ($active_tab === 'templates'): ?>
                 <?php $this->render_templates_content(); ?>
             <?php else: ?>
                 <?php $this->render_mapping_editor_content(); ?>
             <?php endif; ?>
+
+            <!-- Brand-styled confirm modal -->
+            <div id="myfeeds-confirm-modal" class="myfeeds-modal myfeeds-confirm-modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="myfeeds-confirm-title">
+                <div class="myfeeds-modal-content">
+                    <h3 id="myfeeds-confirm-title"><?php esc_html_e('Are you sure?', 'myfeeds-affiliate-feed-manager'); ?></h3>
+                    <p id="myfeeds-confirm-message"></p>
+                    <div class="myfeeds-modal-actions">
+                        <button type="button" class="button myfeeds-confirm-cancel">
+                            <?php esc_html_e('Cancel', 'myfeeds-affiliate-feed-manager'); ?>
+                        </button>
+                        <button type="button" class="button button-primary myfeeds-confirm-ok" data-testid="confirm-ok">
+                            <?php esc_html_e('Delete', 'myfeeds-affiliate-feed-manager'); ?>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
         <?php
     }
@@ -177,7 +226,7 @@ class MyFeeds_Universal_Mapper_UI {
                                     </option>
                                 <?php endforeach; ?>
                             </select>
-                            <button type="button" id="myfeeds-apply-template" class="button">
+                            <button type="button" id="myfeeds-apply-template" class="button myfeeds-button-secondary">
                                 <?php esc_html_e('Apply Template', 'myfeeds-affiliate-feed-manager'); ?>
                             </button>
                         </div>
@@ -246,11 +295,11 @@ class MyFeeds_Universal_Mapper_UI {
                             <?php esc_html_e('Save Mapping', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
                         
-                        <button type="button" id="myfeeds-save-as-template" class="button">
+                        <button type="button" id="myfeeds-save-as-template" class="button myfeeds-button-secondary">
                             <?php esc_html_e('Save as Template', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
-                        
-                        <button type="button" id="myfeeds-auto-detect" class="button">
+
+                        <button type="button" id="myfeeds-auto-detect" class="button myfeeds-button-secondary">
                             <?php esc_html_e('Auto-Detect', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
                     </div>
@@ -302,24 +351,16 @@ class MyFeeds_Universal_Mapper_UI {
      */
     public function render_templates_content() {
         $templates = MyFeeds_Settings_Manager::get_mapping_templates();
-        
-        // Handle delete action
-        if (isset($_GET['delete_template']) && isset($_GET['_wpnonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 'delete_template')) {
-            $template_id = sanitize_text_field(wp_unslash($_GET['delete_template']));
-            MyFeeds_Settings_Manager::delete_mapping_template($template_id);
-            echo '<div class="notice notice-success"><p>' . esc_html__('Template deleted', 'myfeeds-affiliate-feed-manager') . '</p></div>';
-            $templates = MyFeeds_Settings_Manager::get_mapping_templates();
-        }
-        
+
         ?>
-            <p><?php esc_html_e('Reusable mapping configurations for different affiliate networks.', 'myfeeds-affiliate-feed-manager'); ?></p>
-            
+            <p class="myfeeds-templates-lede"><?php esc_html_e('Reusable mapping configurations for different affiliate networks.', 'myfeeds-affiliate-feed-manager'); ?></p>
+
             <?php if (empty($templates)): ?>
-                <div class="notice notice-info">
+                <div class="myfeeds-empty-state">
                     <p><?php esc_html_e('No templates yet. Create one from the Mapping Editor by clicking "Save as Template".', 'myfeeds-affiliate-feed-manager'); ?></p>
                 </div>
             <?php else: ?>
-                <table class="wp-list-table widefat fixed striped">
+                <table class="wp-list-table widefat fixed striped myfeeds-templates-table">
                     <thead>
                         <tr>
                             <th><?php esc_html_e('Template Name', 'myfeeds-affiliate-feed-manager'); ?></th>
@@ -331,20 +372,18 @@ class MyFeeds_Universal_Mapper_UI {
                     </thead>
                     <tbody>
                         <?php foreach ($templates as $tid => $template): ?>
-                            <tr>
+                            <tr data-template-row="<?php echo esc_attr($tid); ?>">
                                 <td><strong><?php echo esc_html($template['name']); ?></strong></td>
                                 <td><?php echo esc_html($template['network'] ?: '-'); ?></td>
                                 <td><?php echo count($template['mapping'] ?? array()); ?> fields</td>
                                 <td><?php echo esc_html($template['created_at']); ?></td>
                                 <td>
-                                    <a href="<?php echo esc_url(wp_nonce_url(
-                                        admin_url('admin.php?page=myfeeds-mapping-editor&tab=templates&delete_template=' . $tid),
-                                        'delete_template'
-                                    )); ?>" 
-                                       class="button button-small" 
-                                       onclick="return confirm('<?php esc_html_e('Delete this template?', 'myfeeds-affiliate-feed-manager'); ?>');">
+                                    <button type="button"
+                                        class="button button-small myfeeds-button-danger myfeeds-delete-template"
+                                        data-template-id="<?php echo esc_attr($tid); ?>"
+                                        data-template-name="<?php echo esc_attr($template['name']); ?>">
                                         <?php esc_html_e('Delete', 'myfeeds-affiliate-feed-manager'); ?>
-                                    </a>
+                                    </button>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
