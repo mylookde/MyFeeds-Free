@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 7.0
-Stable tag: 1.0.8
+Stable tag: 1.0.9
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -156,6 +156,14 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 5. Grid layout. Products rendered in a responsive grid with prices, brands, shipping info, and affiliate links.
 
 == Changelog ==
+
+= 1.0.9 =
+* Mapping Editor: new intro card at the top of the page that frames the editor as a polish tool, not a setup step. Auto-mapping handles your columns at import time. You only open the editor when a feed shows less than 100% in the Quality column on the Feeds page, and the card links straight there.
+* Mapping Editor: Apply Template, Save as Template, Auto-Detect and the modal Save Template button now share a coherent brand look (outlined indigo for secondary actions, gradient indigo for primary). The bare WordPress grey button no longer sits next to the brand-gradient Save Mapping CTA.
+* Mapping Editor: deleting a template no longer fires a native browser confirm dialog. A brand-styled confirm modal asks once with the template name spelled out, and the destructive action uses a red gradient so it reads as different from the indigo save actions.
+* Mapping Editor: every alert() in the editor is gone. Save, apply, delete and validation feedback now use auto-dismissing toast notices in the top-right corner, including a clean error message for network or server failures.
+* Mapping Editor: deleting a template removes the row inline (fade-out, no page reload) and only triggers a refresh when the list becomes empty so the friendly empty state can render.
+* Feature preview pages: the screenshot zoom lightbox now centers in the visible content area instead of the full viewport. The wp-admin sidebar (160px expanded, 36px folded, 0 on mobile) is accounted for, so a screenshot you click no longer drifts behind the menu on the left.
 
 = 1.0.8 =
 * Compatibility: tested with WordPress 7.0. No code changes — the new "Modern" admin theme renders MyFeeds screens cleanly, and the iframed editor falls back to non-iframe mode for posts containing the product-picker block (block-API v3 upgrade is a future-proofing item, not a regression).
