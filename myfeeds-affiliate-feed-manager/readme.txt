@@ -3,16 +3,18 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 7.0
-Stable tag: 1.0.9
+Stable tag: 1.0.10
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Turn any affiliate product feed into searchable product cards you insert from the WordPress block editor.
+Insert live affiliate product tiles into your posts. Prices and stock stay current, automatically.
 
 == Description ==
 
 **Stop copy-pasting affiliate products. Stop fixing dead links by hand. Start writing.**
+
+**MyFeeds drops live product tiles into your posts. The prices, stock and links update themselves, so you write once and stop maintaining.**
 
 You write about products you recommend. You drop them into your posts. A few weeks pass, and half the prices are off, a couple of products went out of stock without telling you, and one merchant quietly disappeared from your network. Every roundup, every gift guide, every product page tells the same story. Quietly going stale while you write the next one.
 
@@ -28,6 +30,7 @@ The block editor stays your block editor. The plugin works in the background.
 
 = What changes for you =
 
+* **Your posts get product tiles, not paragraphs of pasted links.** A visual grid your readers can scan: image, brand, price, discount, shipping, affiliate link. You compose it in seconds inside the block editor.
 * **Your prices stop lying.** The price your reader sees today is the price on the merchant's checkout right now.
 * **Your posts stop rotting.** Dead products surface so you can replace them. Stock that comes back lights up again. Nothing decays silently.
 * **You publish faster.** Two letters in the editor, the product appears, you click, the card is in. No new tab, no copy, no paste.
@@ -156,6 +159,12 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 5. Grid layout. Products rendered in a responsive grid with prices, brands, shipping info, and affiliate links.
 
 == Changelog ==
+
+= 1.0.10 =
+* Listing copy: short description rewritten to name the actual mechanic up front. "Insert live affiliate product tiles into your posts. Prices and stock stay current, automatically." The old version said "searchable product cards" which buried the visual format under a feature word.
+* Listing copy: new bridge paragraph at the top of the long description makes the core mechanic visible in the first 50 words ("MyFeeds drops live product tiles into your posts. The prices, stock and links update themselves..."). The pain-first narrative below stays as-is.
+* Listing copy: "What changes for you" now leads with a product-tile bullet so the visual nature of the plugin is no longer a paragraph-3 discovery.
+* wp.org listing banners refreshed (772×250 + 1544×500) with a clearer subhead that mirrors the new copy.
 
 = 1.0.9 =
 * Mapping Editor: new intro card at the top of the page that frames the editor as a polish tool, not a setup step. Auto-mapping handles your columns at import time. You only open the editor when a feed shows less than 100% in the Quality column on the Feeds page, and the card links straight there.
