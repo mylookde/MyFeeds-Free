@@ -494,7 +494,7 @@ class MyFeeds_Product_Picker {
             : $this->format_shipping_info_raw((string) ($product['shipping'] ?? ''), $currency_symbol_raw);
 
         // ── Output composition. Every dynamic value is escaped here. ──
-        $card_html  = '<a class="myfeeds-product-card" href="' . esc_url($affiliate_link) . '" target="_blank" rel="nofollow noopener">';
+        $card_html  = '<a class="myfeeds-product-card" href="' . esc_url($affiliate_link) . '" target="_blank" rel="nofollow sponsored noopener">';
 
         $card_html .= '<div class="myfeeds-product-image">';
         if ($discount_percent > 0) {
