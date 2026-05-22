@@ -1008,10 +1008,13 @@
           .myfeeds-modal-body { flex: 1; overflow-y: auto; padding: 12px 20px 20px; }
           
           /* PROFESSIONAL DETAIL VIEW SCROLLING - COMPLETELY FIXED */
-          .myfeeds-detail-content { 
-            height: 100% !important; 
-            overflow-y: auto !important; 
-            padding: 30px 20px 100px 20px !important; /* CRITICAL: 30px top padding for title visibility */
+          .myfeeds-detail-content {
+            height: 100% !important;
+            overflow-y: auto !important;
+            /* Generous top + bottom padding so the title eyebrow doesn't
+               glue itself to the modal frame edge and the last block has
+               breathing room above the scroll bottom. */
+            padding: 50px 28px 100px 28px !important;
             scroll-behavior: smooth !important;
             /* CRITICAL: Full viewport height minus modal header */
             max-height: calc(100vh - 100px) !important;
@@ -1059,11 +1062,14 @@
             height: 100% !important;
             object-fit: cover !important;
           }
-          .myfeeds-product-info { 
-            flex: 1 !important; 
+          .myfeeds-product-info {
+            flex: 1 !important;
             /* CRITICAL: Remove any overflow restrictions */
             overflow: visible !important;
-            padding-right: 0 !important;
+            /* Padding-right gives the inner Description / Available Colors
+               boxes breathing room from the modal frame's right edge,
+               instead of stretching all the way to the border. */
+            padding-right: 24px !important;
             min-height: fit-content !important;
             height: auto !important;
           }
@@ -1475,8 +1481,12 @@
                     var t = r.title || r.product_name || r.name || "Product";
                     return React.createElement("button", {
                       key: "rec-" + idx,
-                      onClick: function () { toggleProduct(r); },
-                      title: t,
+                      // Click on a recent: push its title into the search bar.
+                      // The debounced search-as-you-type effect (280ms) then
+                      // refetches automatically so the user sees that product
+                      // (plus any size/colour variants) in the result grid.
+                      onClick: function () { setSearchTerm(t); },
+                      title: "Search for: " + t,
                       style: { display: "flex", alignItems: "center", gap: "6px", padding: "4px 8px 4px 4px", border: "1px solid #e5e7eb", borderRadius: "999px", background: "#fff", cursor: "pointer", fontSize: "12px", color: "#374151" }
                     },
                       React.createElement("img", { src: img, alt: "", style: { width: "22px", height: "22px", borderRadius: "50%", objectFit: "cover", background: "#f3f4f6" } }),
