@@ -256,11 +256,69 @@
         .catch(function() { /* Silently fail */ });
       }, []);
 
-      // Body class while modal open (for scoped CSS)
+      // Body class while modal open (for scoped CSS) + live-measure the
+      // wp-admin sidebar width so the modal can offset against it (otherwise
+      // the modal frame and the dark overlay center on the full viewport
+      // and cover the sidebar, which looks shifted).
+      //
+      // The block editor mounts inside an iframe since WP 5.9, so
+      // #adminmenuwrap is in the PARENT document, not the iframe's. We
+      // resolve to whichever document has it. Cross-origin parents (rare on
+      // wp-admin same-origin) safely fall through to the default 160px.
       useEffect(function() {
-        if (showModal || !!showProductDetail) { document.body.classList.add('myfeeds-modal-open'); }
-        else { document.body.classList.remove('myfeeds-modal-open'); }
-        return function cleanup(){ document.body.classList.remove('myfeeds-modal-open'); };
+        var modalOpen = showModal || !!showProductDetail;
+
+        var resolveAdminMenuRoot = function () {
+          // Walk up window.parent until we find the admin doc with the menu,
+          // or we hit a cross-origin barrier.
+          var win = window;
+          for (var i = 0; i < 5; i++) {
+            try {
+              var doc = win.document;
+              if (doc && doc.getElementById && doc.getElementById('adminmenuwrap')) {
+                return doc;
+              }
+              if (win.parent && win.parent !== win) {
+                win = win.parent;
+                continue;
+              }
+            } catch (e) {
+              // cross-origin — give up
+              break;
+            }
+            break;
+          }
+          return null;
+        };
+
+        var syncSidebarWidth = function () {
+          var sidebarWidth = 0;
+          var doc = resolveAdminMenuRoot();
+          if (doc) {
+            var menu = doc.getElementById('adminmenuwrap');
+            if (menu) {
+              var rect = menu.getBoundingClientRect();
+              // rect.right gives us the right edge of the sidebar relative to
+              // its own document's viewport. Mobile off-canvas pushes the
+              // menu off the left edge so rect.right goes to ~0 or negative.
+              sidebarWidth = Math.max(0, rect.right);
+            }
+          }
+          document.body.style.setProperty('--myfeeds-sidebar-width', sidebarWidth + 'px');
+        };
+
+        if (modalOpen) {
+          document.body.classList.add('myfeeds-modal-open');
+          syncSidebarWidth();
+          window.addEventListener('resize', syncSidebarWidth);
+        } else {
+          document.body.classList.remove('myfeeds-modal-open');
+        }
+
+        return function cleanup() {
+          document.body.classList.remove('myfeeds-modal-open');
+          window.removeEventListener('resize', syncSidebarWidth);
+        };
       }, [showModal, showProductDetail]);
 
       // Fetch available sizes when detail view opens (for deduplicated results)
@@ -939,8 +997,12 @@
           .myfeeds-editor-wrapper .myfeeds-selected-product-tile { position: relative; }
           .myfeeds-editor-wrapper .myfeeds-remove-button { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid #d63638; background: #fff; color: #d63638; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; font-weight: 600; z-index: 10; }
           .myfeeds-editor-wrapper .myfeeds-remove-button:hover { background: #d63638; color: #fff; }
-          body.myfeeds-modal-open .components-modal__screen-overlay { inset: 0 !important; background: rgba(0,0,0,0.5) !important; }
-          body.myfeeds-modal-open .components-modal__frame { position: fixed !important; top: 48px !important; left: 40px !important; right: 40px !important; bottom: 48px !important; width: calc(100vw - 80px) !important; height: calc(100vh - 96px) !important; max-width: none !important; max-height: none !important; margin: 0 !important; border-radius: 10px !important; background: #fff !important; box-shadow: 0 20px 40px rgba(0,0,0,0.25) !important; transform: none !important; }
+          /* Overlay + modal frame anchor to the right edge of the wp-admin
+             sidebar (set by syncSidebarWidth() on modal open). Falls back to
+             160px when the variable is unset so the layout still degrades
+             gracefully if the JS measurement is blocked. */
+          body.myfeeds-modal-open .components-modal__screen-overlay { position: fixed !important; top: 0 !important; right: 0 !important; bottom: 0 !important; left: var(--myfeeds-sidebar-width, 160px) !important; background: rgba(0,0,0,0.5) !important; }
+          body.myfeeds-modal-open .components-modal__frame { position: fixed !important; top: 48px !important; left: calc(var(--myfeeds-sidebar-width, 160px) + 40px) !important; right: 40px !important; bottom: 48px !important; width: auto !important; height: calc(100vh - 96px) !important; max-width: none !important; max-height: none !important; margin: 0 !important; border-radius: 10px !important; background: #fff !important; box-shadow: 0 20px 40px rgba(0,0,0,0.25) !important; transform: none !important; }
           body.myfeeds-modal-open .components-modal__content { width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; display: flex !important; flex-direction: column !important; }
           body.myfeeds-modal-open .components-modal__header { flex-shrink: 0 !important; padding: 8px 14px !important; border-bottom: 1px solid #e5e7eb !important; background: #f8f9fa !important; }
           .myfeeds-modal-body { flex: 1; overflow-y: auto; padding: 12px 20px 20px; }

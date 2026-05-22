@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 7.0
-Stable tag: 1.0.12
+Stable tag: 1.0.13
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -159,6 +159,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 5. Grid layout. Products rendered in a responsive grid with prices, brands, shipping info, and affiliate links.
 
 == Changelog ==
+
+= 1.0.13 =
+* Product Picker: the product detail view (the "i" icon next to a search result) now centers inside the visible content area instead of the full viewport. The wp-admin sidebar stays uncovered, and the modal and its dark overlay only span the area to the right of it. JS measures the sidebar live (including when the block editor runs inside an iframe, by walking up to the parent admin document) and reapplies the offset on window resize.
 
 = 1.0.12 =
 * Feature preview pages: marketing copy rewritten across Shop, Card Design and Analytics. Em-dashes traded for periods so the cadence stops reading like AI. The card-design subtitle no longer leans on the "no CSS, no theme overrides, no broken mobile layouts" reassurance triplet that flagged in voice review. Benefit bullets moved from feature-listy to outcome-first ("Your blog gets a real storefront on its own domain. Visitors browse, click out, and you keep the commission.") so the reader sees what changes for them, not what the feature is.
