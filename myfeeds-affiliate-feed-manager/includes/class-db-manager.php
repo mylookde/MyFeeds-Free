@@ -1017,7 +1017,7 @@ class MyFeeds_DB_Manager {
             // through if it errors.
             $like_match = '%"' . $wpdb->esc_like($group_key) . '":"' . $wpdb->esc_like($group_value) . '"%';
             $rows = $wpdb->get_results($wpdb->prepare(
-                "SELECT external_id, colour, image_url, affiliate_link, in_stock, price, original_price, currency
+                "SELECT external_id, product_name, colour, image_url, affiliate_link, in_stock, price, original_price, currency
                  FROM {$table}
                  WHERE feed_id = %d AND status = 'active' AND raw_data LIKE %s
                  LIMIT 200",
@@ -1033,7 +1033,7 @@ class MyFeeds_DB_Manager {
         // ---------------------------------------------------------------
         if (empty($candidates) && $product_name !== '') {
             $rows = $wpdb->get_results($wpdb->prepare(
-                "SELECT external_id, colour, image_url, affiliate_link, in_stock, price, original_price, currency
+                "SELECT external_id, product_name, colour, image_url, affiliate_link, in_stock, price, original_price, currency
                  FROM {$table}
                  WHERE feed_id = %d AND status = 'active' AND product_name = %s
                  LIMIT 200",
@@ -1098,6 +1098,7 @@ class MyFeeds_DB_Manager {
             if (!isset($by_colour[$key]) || (intval($r['in_stock']) === 1 && intval($by_colour[$key]['in_stock']) !== 1)) {
                 $by_colour[$key] = array(
                     'external_id'    => (string) $r['external_id'],
+                    'product_name'   => (string) ($r['product_name'] ?? $product_name),
                     'colour'         => $c,
                     'image_url'      => (string) ($r['image_url'] ?? ''),
                     'affiliate_link' => (string) ($r['affiliate_link'] ?? ''),

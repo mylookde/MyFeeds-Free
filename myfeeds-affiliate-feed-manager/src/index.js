@@ -188,6 +188,10 @@
       const [isLoadingMore, setIsLoadingMore] = useState(false);
       const [currentVariant, setCurrentVariant] = useState({ color: '', size: '' });
       const [detailSizes, setDetailSizes] = useState([]);
+      // DB-backed colour siblings for the currently open detail product.
+      // Empty array means: no DB siblings (single-colour product or
+      // colour data unavailable) — fall back to the local-parse pills.
+      const [colorSiblings, setColorSiblings] = useState([]);
 
       // Search-meta state: did-you-mean suggestion, structured filters,
       // sort mode, OR-faceted aggregates, smart-parser extracted hint.
@@ -321,7 +325,9 @@
         };
       }, [showModal, showProductDetail]);
 
-      // Fetch available sizes when detail view opens (for deduplicated results)
+      // Fetch available sizes + colour-sibling variants when the detail
+      // view opens. Both are read-only lookups and don't touch the
+      // search result-set or any dedup count.
       useEffect(function() {
         if (showProductDetail) {
           var productName = showProductDetail.title || showProductDetail.product_name || '';
@@ -339,8 +345,28 @@
             .then(function(sizes) { if (Array.isArray(sizes)) setDetailSizes(sizes); })
             .catch(function() { setDetailSizes([]); });
           }
+
+          // Colour-siblings: backend returns an array only when there
+          // are at least two distinct colours for this product family;
+          // otherwise it returns []. Either way we set state without
+          // breaking the local-parse fallback.
+          var productId = showProductDetail.id || showProductDetail.aw_product_id || showProductDetail.external_id || '';
+          if (productId && apiUrl) {
+            fetch(apiUrl + 'product-color-siblings?id=' + encodeURIComponent(String(productId)), {
+              credentials: 'include',
+              headers: { 'X-WP-Nonce': nonce }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(siblings) {
+              setColorSiblings(Array.isArray(siblings) ? siblings : []);
+            })
+            .catch(function() { setColorSiblings([]); });
+          } else {
+            setColorSiblings([]);
+          }
         } else {
           setDetailSizes([]);
+          setColorSiblings([]);
         }
       }, [showProductDetail]);
 
@@ -949,31 +975,50 @@
         return colorMap[normalizedColor] || '#cccccc';
       };
 
-      // ENHANCED: Function to switch color variant in detail view
-      // This will attempt to find a different product with the same base name but different color
+      // Display-only variant state for the local-parse colour pills
+      // (the fallback when the DB has no sibling rows for this product).
       const switchColorVariant = function(newColor, newSize) {
-        console.log("🔄 MYFEEDS DEBUG: Switching variant to color:", newColor, "size:", newSize);
-        
         if (!showProductDetail) return;
-        
-        // Update current variant state
-        const updatedVariant = {
+        setCurrentVariant({
           color: newColor || currentVariant.color,
           size: newSize !== undefined ? newSize : currentVariant.size
-        };
-        setCurrentVariant(updatedVariant);
-        
-        console.log("✅ MYFEEDS DEBUG: Variant state updated:", updatedVariant);
-        
-        // FUTURE ENHANCEMENT: Search for actual product variant in results
-        // For now, we just update the display state
-        // In a full implementation, you would:
-        // 1. Query the backend for the same product in different color
-        // 2. Update the showProductDetail with the new product data
-        // 3. This would include different prices, images, affiliate links
-        
-        // Visual feedback that color was selected
-        console.log("💡 MYFEEDS INFO: Color selected -", newColor, "- this variant will be saved when you click 'Add to Selection'");
+        });
+      };
+
+      // Real variant switch: when the user clicks a DB-backed colour
+      // sibling, we replace showProductDetail with the sibling's data so
+      // every downstream field (affiliate_link, image, price, title,
+      // selection on Add) reflects the chosen colour. We merge into the
+      // existing object instead of replacing it so unchanged fields
+      // (description, brand, category) carry over.
+      const switchToColorSibling = function (sibling) {
+        if (!showProductDetail || !sibling) return;
+        const merged = Object.assign({}, showProductDetail, {
+          id: sibling.external_id,
+          aw_product_id: sibling.external_id,
+          external_id: sibling.external_id,
+          title: sibling.product_name || showProductDetail.title,
+          product_name: sibling.product_name || showProductDetail.product_name,
+          colour: sibling.colour,
+          color: sibling.colour,
+          image_url: sibling.image_url || showProductDetail.image_url,
+          large_image: sibling.image_url || showProductDetail.large_image,
+          merchant_image_url: sibling.image_url || showProductDetail.merchant_image_url,
+          aw_image_url: sibling.image_url || showProductDetail.aw_image_url,
+          affiliate_link: sibling.affiliate_link || showProductDetail.affiliate_link,
+          aw_deep_link: sibling.affiliate_link || showProductDetail.aw_deep_link,
+          price: sibling.price != null ? sibling.price : showProductDetail.price,
+          search_price: sibling.price != null ? sibling.price : showProductDetail.search_price,
+          original_price: sibling.original_price != null ? sibling.original_price : showProductDetail.original_price,
+          rrp_price: sibling.original_price != null ? sibling.original_price : showProductDetail.rrp_price,
+          currency: sibling.currency || showProductDetail.currency,
+          in_stock: sibling.in_stock
+        });
+        setCurrentVariant({ color: sibling.colour, size: '' });
+        // Triggering setShowProductDetail re-runs the size-fetch and
+        // sibling-fetch effects with the new id, so any per-colour size
+        // availability also refreshes.
+        setShowProductDetail(merged);
       };
 
       // Build detail images upfront
@@ -1602,18 +1647,91 @@
                 
                 // Product Attributes - ENHANCED WITH CLICKABLE COLORS
                 React.createElement("div", { className: "myfeeds-product-attributes" },
-                  // Colors - Interactive Color Selection
+                  // Colors: prefer DB-backed siblings (real switchable
+                  // variants) when available, otherwise fall back to the
+                  // local-parse colour pills (display-only).
                   (function(){
+                    // ----- DB-backed sibling swatches -----
+                    if (Array.isArray(colorSiblings) && colorSiblings.length > 1) {
+                      return React.createElement("div", { className: "myfeeds-attribute-section" },
+                        React.createElement("div", { className: "myfeeds-attribute-title" }, "Available Colors:"),
+                        React.createElement("div", { className: "myfeeds-color-selection", style: { display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px" } },
+                          colorSiblings.map(function (sibling, idx) {
+                            var isCurrent = !!sibling.is_current;
+                            var outOfStock = sibling.in_stock !== 1 && sibling.in_stock !== '1' && sibling.in_stock !== true;
+                            return React.createElement("button", {
+                              key: 'sibling-' + (sibling.external_id || idx),
+                              type: 'button',
+                              title: sibling.colour + (outOfStock ? ' (out of stock)' : ''),
+                              onClick: function () {
+                                if (isCurrent) return;
+                                switchToColorSibling(sibling);
+                              },
+                              style: {
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                gap: "6px",
+                                padding: "6px 8px 8px 8px",
+                                border: isCurrent ? "2px solid #667eea" : "1px solid #e5e7eb",
+                                borderRadius: "10px",
+                                background: isCurrent ? "#f5f3ff" : "#fff",
+                                cursor: isCurrent ? "default" : "pointer",
+                                fontSize: "12px",
+                                fontWeight: isCurrent ? 600 : 500,
+                                color: "#1d2327",
+                                transition: "all 0.18s ease",
+                                opacity: outOfStock ? 0.55 : 1
+                              }
+                            }, [
+                              // Mini thumbnail of the sibling's image (so
+                              // users see the actual product photo of the
+                              // colour they're switching to).
+                              React.createElement("div", {
+                                key: 'thumb',
+                                style: {
+                                  width: "56px",
+                                  height: "56px",
+                                  borderRadius: "6px",
+                                  border: "1px solid #f3f4f6",
+                                  background: "#fff url('" + (sibling.image_url || PLACEHOLDER_IMG) + "') center/contain no-repeat",
+                                  flexShrink: 0
+                                }
+                              }),
+                              React.createElement("div", { key: 'row', style: { display: "flex", alignItems: "center", gap: "5px" } }, [
+                                React.createElement("span", {
+                                  key: 'dot',
+                                  style: {
+                                    width: "10px",
+                                    height: "10px",
+                                    borderRadius: "50%",
+                                    background: getColorHex(sibling.colour),
+                                    border: "1px solid rgba(0,0,0,0.2)",
+                                    display: "inline-block"
+                                  }
+                                }),
+                                React.createElement("span", { key: 'label' }, sibling.colour)
+                              ])
+                            ]);
+                          })
+                        ),
+                        React.createElement("div", {
+                          style: { marginTop: "8px", fontSize: "11px", color: "#71717a" }
+                        }, "Click a colour to switch the affiliate link and price to that variant.")
+                      );
+                    }
+
+                    // ----- Fallback: local-parse colour pills (display) -----
                     const variants = getAllProductVariants(showProductDetail || {});
                     if (variants.colors.length === 0) return null;
-                    
+
                     return React.createElement("div", { className: "myfeeds-attribute-section" },
                       React.createElement("div", { className: "myfeeds-attribute-title" }, "Available Colors:"),
-                      React.createElement("div", { className: "myfeeds-color-selection", style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" } }, 
+                      React.createElement("div", { className: "myfeeds-color-selection", style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" } },
                         variants.colors.map(function(color, idx){
                           const isCurrentColor = currentVariant.color === color || (!currentVariant.color && idx === 0);
-                          
-                          return React.createElement("div", { 
+
+                          return React.createElement("div", {
                             key: 'color-option-' + idx,
                             className: "myfeeds-color-option",
                             style: {
@@ -1630,24 +1748,11 @@
                               transition: "all 0.2s ease"
                             },
                             onClick: function() {
-                              console.log("🎨 MYFEEDS DEBUG: Color clicked:", color);
                               switchColorVariant(color, null);
-                            },
-                            onMouseEnter: function(e) {
-                              if (!isCurrentColor) {
-                                e.target.style.backgroundColor = "#f8f9fa";
-                                e.target.style.borderColor = "#667eea";
-                              }
-                            },
-                            onMouseLeave: function(e) {
-                              if (!isCurrentColor) {
-                                e.target.style.backgroundColor = "#fff";
-                                e.target.style.borderColor = "#ddd";
-                              }
                             }
                           }, [
-                            // Color circle indicator
                             React.createElement("div", {
+                              key: 'circle',
                               style: {
                                 width: "16px",
                                 height: "16px",
@@ -1657,8 +1762,7 @@
                                 flexShrink: 0
                               }
                             }),
-                            // Color name
-                            React.createElement("span", null, color.toString().trim())
+                            React.createElement("span", { key: 'name' }, color.toString().trim())
                           ]);
                         })
                       )
