@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 7.0
-Stable tag: 1.0.13
+Stable tag: 1.0.14
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -159,6 +159,10 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 5. Grid layout. Products rendered in a responsive grid with prices, brands, shipping info, and affiliate links.
 
 == Changelog ==
+
+= 1.0.14 =
+* Product Picker: the detail modal now shows clickable colour-variant swatches when a product has siblings in the same feed. Each swatch carries a thumbnail of that colour's actual product image, the colour name, and the colour-dot indicator. Click a swatch and the modal switches to that variant — image, price, affiliate link and title update in place. Add-to-Selection then picks up the chosen variant. Single-colour products and feeds where no family can be detected fall back to the existing display-only colour pill. The home-page counts, importer counts, feed-list stats and search result dedup are untouched: this is purely additive on the detail-modal-open path.
+* Product Picker: variant family detection uses a three-step strategy chain. First, an explicit family id from the feed's raw payload (item_group_id, parent_sku, aw_group_id and friends). Second, exact product_name match within the same feed when at least two distinct colours exist (Carhartt-style merchants). Third, a conservative name-strip fallback that removes size suffixes and common colour words, then groups by the cleaned base — only triggered when the first two return nothing and the base is long enough that false-positives are unlikely. All matches are scoped to the same feed_id so colours never cross feeds.
 
 = 1.0.13 =
 * Product Picker: the product detail view (the "i" icon next to a search result) now centers inside the visible content area instead of the full viewport. The wp-admin sidebar stays uncovered, and the modal and its dark overlay only span the area to the right of it. JS measures the sidebar live (including when the block editor runs inside an iframe, by walking up to the parent admin document) and reapplies the offset on window resize.
