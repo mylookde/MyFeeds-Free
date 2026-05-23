@@ -1022,10 +1022,13 @@
             box-sizing: border-box !important;
             position: relative !important;
           }
-          .myfeeds-product-detail { 
-            display: flex !important; 
-            gap: 30px !important; 
-            padding: 0 !important;
+          .myfeeds-product-detail {
+            display: flex !important;
+            gap: 30px !important;
+            /* Inner padding so the image card on the left and the brand
+               eyebrow on the right don't sit flush against the card's
+               border-radius corners. */
+            padding: 32px !important;
             /* CRITICAL: Allow content to expand beyond viewport */
             min-height: fit-content !important;
             height: auto !important;
