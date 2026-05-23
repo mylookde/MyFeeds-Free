@@ -1055,7 +1055,9 @@ class MyFeeds_DB_Manager {
         // Strategy C: stripped-name fallback
         // ---------------------------------------------------------------
         if (empty($candidates) && $product_name !== '') {
-            $base = self::strip_name_for_sibling_match($product_name);
+            $parsed = self::strip_name_for_sibling_match($product_name);
+            $base = $parsed['base'];
+            $current_derived_colour = $parsed['derived_colour'];
             if ($base !== '' && mb_strlen($base) >= 4) {
                 $rows = $wpdb->get_results($wpdb->prepare(
                     "SELECT external_id, product_name, colour, image_url, affiliate_link, in_stock, price, original_price, currency
@@ -1065,19 +1067,31 @@ class MyFeeds_DB_Manager {
                     $feed_id,
                     '%' . $wpdb->esc_like($base) . '%'
                 ), ARRAY_A);
-                // Filter by stripped match + collect distinct colours
                 $filtered = array();
                 $colours_lower = array();
                 foreach ($rows as $r) {
-                    $cleaned = self::strip_name_for_sibling_match((string) $r['product_name']);
-                    if ($cleaned === $base) {
-                        $filtered[] = $r;
-                        $c = trim((string) $r['colour']);
-                        if ($c !== '') { $colours_lower[mb_strtolower($c)] = true; }
-                    }
+                    $other = self::strip_name_for_sibling_match((string) $r['product_name']);
+                    if ($other['base'] !== $base) { continue; }
+                    // Prefer the DB colour column when it carries a value,
+                    // otherwise fall back to the colour we extracted from
+                    // the product name. The Afewvibe / Denim-Tears case
+                    // hits exactly this branch: DB colour is empty but
+                    // the name carries "Light Wash" / "Black".
+                    $db_colour = trim((string) $r['colour']);
+                    $effective = $db_colour !== '' ? $db_colour : $other['derived_colour'];
+                    if ($effective === '') { continue; }
+                    $r['_effective_colour'] = $effective;
+                    $filtered[] = $r;
+                    $colours_lower[mb_strtolower($effective)] = true;
                 }
                 if (count($colours_lower) >= 2) {
                     $candidates = $filtered;
+                    // If the current product also had no DB colour, lift
+                    // the name-derived colour into $current_colour so the
+                    // is_current flag below can match the right bucket.
+                    if ($current_colour === '' && $current_derived_colour !== '') {
+                        $current_colour = $current_derived_colour;
+                    }
                 }
             }
         }
@@ -1092,7 +1106,12 @@ class MyFeeds_DB_Manager {
         $by_colour   = array();
         $current_low = mb_strtolower(trim($current_colour));
         foreach ($candidates as $r) {
-            $c = trim((string) $r['colour']);
+            // Strategy C may have stashed a name-derived colour on the
+            // row when the DB column was empty. Fall back to the column
+            // in every other case.
+            $c = isset($r['_effective_colour']) && $r['_effective_colour'] !== ''
+                ? (string) $r['_effective_colour']
+                : trim((string) ($r['colour'] ?? ''));
             if ($c === '') { continue; }
             $key = mb_strtolower($c);
             if (!isset($by_colour[$key]) || (intval($r['in_stock']) === 1 && intval($by_colour[$key]['in_stock']) !== 1)) {
@@ -1136,36 +1155,67 @@ class MyFeeds_DB_Manager {
     }
 
     /**
-     * Strip both size suffixes and common colour words from a product
-     * name, so two rows that only differ by colour/size collapse to the
-     * same base. Used by strategy C in get_color_siblings().
+     * Strip size suffixes + colour words/phrases from a product name and
+     * return BOTH the cleaned base AND the colour we removed.
+     *
+     * Returns ['base' => string, 'derived_colour' => string]
+     *
+     * Used by strategy C in get_color_siblings(). The derived_colour is
+     * a fallback for feeds (Afewvibe, several niche AWIN merchants)
+     * that leave the colour column empty and only carry the colour in
+     * the name like "Denim Tears Wreath Jean Short Light Wash - S".
+     *
+     * Multi-word phrases ("Light Wash", "Off White", "Dark Blue") are
+     * matched before single words so "Light Wash" wins over "Light"
+     * alone. The phrase list is intentionally short and fashion-specific
+     * to keep false-positives low.
      */
     private static function strip_name_for_sibling_match($name) {
         $cleaned = (string) $name;
-        // Reuse the search engine's size-strip if available
         if (class_exists('MyFeeds_Search_Engine') && method_exists('MyFeeds_Search_Engine', 'strip_size_suffix_public')) {
             $cleaned = MyFeeds_Search_Engine::strip_size_suffix_public($cleaned);
         } else {
-            // Local copy of the size-suffix regex chain
             $cleaned = preg_replace('/\s*[-\x{2013}\x{2014}]\s*(XXXL|XXL|XL|XS|S|M|L|EU\s*\d+|US\s*\d+|UK\s*\d+|\d{2,3})\s*$/iu', '', $cleaned);
             $cleaned = preg_replace('/\s+[A-Z]\d{2,4}\s*$/i', '', $cleaned);
         }
-        // Strip common colour words (EN + DE) as whole words, anywhere
-        // in the name. Conservative list to avoid false hits like
-        // "Greenwich" or "Whitewash".
-        $colours = array(
+
+        // Multi-word phrases first (longest-match wins), then singletons.
+        // Conservative list — anything broader risks false positives.
+        $colour_phrases = array(
+            // denim washes
+            'light wash','dark wash','medium wash','stone wash','acid wash','black wash','blue wash',
+            // light/dark + colour combos
+            'light blue','dark blue','navy blue','royal blue',
+            'light grey','dark grey','light gray','dark gray',
+            'light green','dark green','olive green',
+            'off white','bone white','natural white',
+            'hot pink','dusty pink',
+            // single-word colours (EN + DE)
             'black','white','red','blue','green','yellow','brown','gray','grey',
             'pink','purple','orange','navy','beige','khaki','olive','cream','ivory',
             'maroon','burgundy','teal','turquoise','mint','lime','gold','silver',
+            'indigo','vintage','faded',
             'schwarz','weiss','weiß','rot','blau','gruen','grün','gelb','braun','grau',
             'rosa','lila','türkis','tuerkis'
         );
-        $pattern = '/\b(' . implode('|', array_map('preg_quote', $colours)) . ')\b/iu';
+        // Build regex with spaces as flexible whitespace; longest-first
+        // is preserved by usort on length.
+        usort($colour_phrases, function ($a, $b) { return strlen($b) - strlen($a); });
+        $alt = array_map(function ($c) { return str_replace(' ', '\\s+', preg_quote($c, '/')); }, $colour_phrases);
+        $pattern = '/\b(' . implode('|', $alt) . ')\b/iu';
+
+        $derived = '';
+        if (preg_match($pattern, $cleaned, $m)) {
+            $derived = trim(preg_replace('/\s+/u', ' ', $m[0]));
+        }
         $cleaned = preg_replace($pattern, '', $cleaned);
-        // Collapse whitespace + trim trailing punctuation
         $cleaned = preg_replace('/\s+/u', ' ', $cleaned);
         $cleaned = trim($cleaned, " \t\n\r\0\x0B-,.");
-        return mb_strtolower($cleaned);
+
+        return array(
+            'base'           => mb_strtolower($cleaned),
+            'derived_colour' => $derived,
+        );
     }
 
     // =========================================================================
