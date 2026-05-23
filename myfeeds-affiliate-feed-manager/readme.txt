@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 7.0
-Stable tag: 1.0.14
+Stable tag: 1.0.15
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -159,6 +159,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 5. Grid layout. Products rendered in a responsive grid with prices, brands, shipping info, and affiliate links.
 
 == Changelog ==
+
+= 1.0.15 =
+* Product Picker: colour-variant swatches now catch the case where the feed leaves the colour column empty but spells the colour out in the product name. Example from a real merchant: "Denim Tears Wreath Jean Short Light Wash - S" and "Denim Tears Wreath Jean Short Black - S" both arrive with empty colour and identical attributes; we now extract "Light Wash" and "Black" from the names themselves and present them as switchable swatches. Multi-word colour phrases (Light Wash, Dark Wash, Off White, Light Blue, Hot Pink, etc.) are matched longest-first so "Light Wash" wins over "Light".
 
 = 1.0.14 =
 * Product Picker: the detail modal now shows clickable colour-variant swatches when a product has siblings in the same feed. Each swatch carries a thumbnail of that colour's actual product image, the colour name, and the colour-dot indicator. Click a swatch and the modal switches to that variant — image, price, affiliate link and title update in place. Add-to-Selection then picks up the chosen variant. Single-colour products and feeds where no family can be detected fall back to the existing display-only colour pill. The home-page counts, importer counts, feed-list stats and search result dedup are untouched: this is purely additive on the detail-modal-open path.
