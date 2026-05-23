@@ -922,6 +922,251 @@ class MyFeeds_DB_Manager {
         return $sizes;
     }
 
+    /**
+     * Get colour-sibling variants for a given product.
+     *
+     * Strategy chain (cheapest + most reliable first):
+     *
+     *  A. Group-ID inside raw_data — many feeds carry an explicit
+     *     family/parent identifier (Google Shopping uses item_group_id,
+     *     AWIN sometimes carries group_id, CJ/Impact use parent_sku, etc).
+     *     If we can match one in the sample row's raw_data, we look up
+     *     every active row in the same feed whose raw_data has the same
+     *     value. Robust against products whose name embeds the colour
+     *     (e.g. "Nike Polo Blau F451" vs "Nike Polo Schwarz 0").
+     *
+     *  B. Exact product_name + different colour. Works for feeds that
+     *     keep one name across colours and put the colour only in the
+     *     dedicated column (Carhartt-style merchants).
+     *
+     *  C. Stripped name fallback. We strip size suffixes and a list of
+     *     common colour words from the name, then group by the cleaned
+     *     base name. Only used if A and B return nothing AND at least
+     *     two rows survive the strip — it's the riskiest path so we
+     *     gate it conservatively.
+     *
+     * Each row is collapsed by colour: the first in-stock row per
+     * colour wins, falling back to the first row if no in-stock variant
+     * exists. Returns the array shape the picker frontend consumes.
+     *
+     * Counts on the home page / importer / feed-list stay completely
+     * untouched: this helper is read-only and only triggered when the
+     * detail modal opens in the block editor.
+     *
+     * @param string $external_id The current product's external_id.
+     * @return array[] Each entry: external_id, colour, image_url,
+     *                 affiliate_link, in_stock, price, original_price,
+     *                 currency, is_current.
+     */
+    public static function get_color_siblings($external_id) {
+        global $wpdb;
+        $table = self::table_name();
+
+        $external_id = (string) $external_id;
+        if ($external_id === '') {
+            return array();
+        }
+
+        $current = $wpdb->get_row($wpdb->prepare(
+            "SELECT external_id, feed_id, feed_name, product_name, colour, raw_data
+             FROM {$table} WHERE external_id = %s AND status = 'active' LIMIT 1",
+            $external_id
+        ), ARRAY_A);
+
+        if (!$current) {
+            return array();
+        }
+
+        $product_name   = (string) ($current['product_name'] ?? '');
+        $current_colour = (string) ($current['colour'] ?? '');
+        $feed_id        = (int) ($current['feed_id'] ?? 0);
+
+        // ---------------------------------------------------------------
+        // Strategy A: group-id field in raw_data
+        // ---------------------------------------------------------------
+        $group_keys = array(
+            'item_group_id',    // Google Shopping standard
+            'group_id',
+            'product_group_id',
+            'parent_sku',       // CJ / Impact
+            'master_product_id',
+            'base_product_id',
+            'aw_group_id',
+            'parent_id',
+        );
+
+        $current_raw = json_decode((string) ($current['raw_data'] ?? ''), true);
+        $group_value = null;
+        $group_key   = null;
+        if (is_array($current_raw)) {
+            foreach ($group_keys as $k) {
+                if (isset($current_raw[$k]) && is_scalar($current_raw[$k]) && (string) $current_raw[$k] !== '') {
+                    $group_value = (string) $current_raw[$k];
+                    $group_key   = $k;
+                    break;
+                }
+            }
+        }
+
+        $candidates = array();
+
+        if ($group_value !== null) {
+            // JSON_EXTRACT works on MySQL 5.7+ and MariaDB 10.2+. The
+            // wp.org floor is MySQL 5.6 (effectively), so we feature-
+            // detect first by trying the query and silently falling
+            // through if it errors.
+            $like_match = '%"' . $wpdb->esc_like($group_key) . '":"' . $wpdb->esc_like($group_value) . '"%';
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT external_id, colour, image_url, affiliate_link, in_stock, price, original_price, currency
+                 FROM {$table}
+                 WHERE feed_id = %d AND status = 'active' AND raw_data LIKE %s
+                 LIMIT 200",
+                $feed_id, $like_match
+            ), ARRAY_A);
+            if (!empty($rows)) {
+                $candidates = $rows;
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Strategy B: exact product_name match
+        // ---------------------------------------------------------------
+        if (empty($candidates) && $product_name !== '') {
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT external_id, colour, image_url, affiliate_link, in_stock, price, original_price, currency
+                 FROM {$table}
+                 WHERE feed_id = %d AND status = 'active' AND product_name = %s
+                 LIMIT 200",
+                $feed_id, $product_name
+            ), ARRAY_A);
+            // Only useful as a colour-variants source if there are
+            // multiple distinct colours.
+            $distinct = array();
+            foreach ($rows as $r) {
+                $c = trim((string) $r['colour']);
+                if ($c !== '') { $distinct[mb_strtolower($c)] = true; }
+            }
+            if (count($distinct) >= 2) {
+                $candidates = $rows;
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Strategy C: stripped-name fallback
+        // ---------------------------------------------------------------
+        if (empty($candidates) && $product_name !== '') {
+            $base = self::strip_name_for_sibling_match($product_name);
+            if ($base !== '' && mb_strlen($base) >= 4) {
+                $rows = $wpdb->get_results($wpdb->prepare(
+                    "SELECT external_id, product_name, colour, image_url, affiliate_link, in_stock, price, original_price, currency
+                     FROM {$table}
+                     WHERE feed_id = %d AND status = 'active' AND product_name LIKE %s
+                     LIMIT 500",
+                    $feed_id,
+                    '%' . $wpdb->esc_like($base) . '%'
+                ), ARRAY_A);
+                // Filter by stripped match + collect distinct colours
+                $filtered = array();
+                $colours_lower = array();
+                foreach ($rows as $r) {
+                    $cleaned = self::strip_name_for_sibling_match((string) $r['product_name']);
+                    if ($cleaned === $base) {
+                        $filtered[] = $r;
+                        $c = trim((string) $r['colour']);
+                        if ($c !== '') { $colours_lower[mb_strtolower($c)] = true; }
+                    }
+                }
+                if (count($colours_lower) >= 2) {
+                    $candidates = $filtered;
+                }
+            }
+        }
+
+        if (empty($candidates)) {
+            return array();
+        }
+
+        // ---------------------------------------------------------------
+        // Collapse candidates by colour: prefer in-stock row per bucket
+        // ---------------------------------------------------------------
+        $by_colour   = array();
+        $current_low = mb_strtolower(trim($current_colour));
+        foreach ($candidates as $r) {
+            $c = trim((string) $r['colour']);
+            if ($c === '') { continue; }
+            $key = mb_strtolower($c);
+            if (!isset($by_colour[$key]) || (intval($r['in_stock']) === 1 && intval($by_colour[$key]['in_stock']) !== 1)) {
+                $by_colour[$key] = array(
+                    'external_id'    => (string) $r['external_id'],
+                    'colour'         => $c,
+                    'image_url'      => (string) ($r['image_url'] ?? ''),
+                    'affiliate_link' => (string) ($r['affiliate_link'] ?? ''),
+                    'in_stock'       => (int) ($r['in_stock'] ?? 1),
+                    'price'          => isset($r['price']) ? (float) $r['price'] : null,
+                    'original_price' => !empty($r['original_price']) ? (float) $r['original_price'] : null,
+                    'currency'       => (string) ($r['currency'] ?? ''),
+                    'is_current'     => ($key === $current_low),
+                );
+            }
+        }
+
+        // We only return a useful result if there are at least two
+        // distinct colours — otherwise the picker has nothing to switch
+        // between.
+        if (count($by_colour) < 2) {
+            return array();
+        }
+
+        // Stable order: current colour first, others alphabetical.
+        $current_entry = null;
+        $others = array();
+        foreach ($by_colour as $key => $entry) {
+            if ($entry['is_current']) { $current_entry = $entry; continue; }
+            $others[] = $entry;
+        }
+        usort($others, function ($a, $b) {
+            return strcasecmp($a['colour'], $b['colour']);
+        });
+
+        $out = array();
+        if ($current_entry !== null) { $out[] = $current_entry; }
+        foreach ($others as $o) { $out[] = $o; }
+        return $out;
+    }
+
+    /**
+     * Strip both size suffixes and common colour words from a product
+     * name, so two rows that only differ by colour/size collapse to the
+     * same base. Used by strategy C in get_color_siblings().
+     */
+    private static function strip_name_for_sibling_match($name) {
+        $cleaned = (string) $name;
+        // Reuse the search engine's size-strip if available
+        if (class_exists('MyFeeds_Search_Engine') && method_exists('MyFeeds_Search_Engine', 'strip_size_suffix_public')) {
+            $cleaned = MyFeeds_Search_Engine::strip_size_suffix_public($cleaned);
+        } else {
+            // Local copy of the size-suffix regex chain
+            $cleaned = preg_replace('/\s*[-\x{2013}\x{2014}]\s*(XXXL|XXL|XL|XS|S|M|L|EU\s*\d+|US\s*\d+|UK\s*\d+|\d{2,3})\s*$/iu', '', $cleaned);
+            $cleaned = preg_replace('/\s+[A-Z]\d{2,4}\s*$/i', '', $cleaned);
+        }
+        // Strip common colour words (EN + DE) as whole words, anywhere
+        // in the name. Conservative list to avoid false hits like
+        // "Greenwich" or "Whitewash".
+        $colours = array(
+            'black','white','red','blue','green','yellow','brown','gray','grey',
+            'pink','purple','orange','navy','beige','khaki','olive','cream','ivory',
+            'maroon','burgundy','teal','turquoise','mint','lime','gold','silver',
+            'schwarz','weiss','weiß','rot','blau','gruen','grün','gelb','braun','grau',
+            'rosa','lila','türkis','tuerkis'
+        );
+        $pattern = '/\b(' . implode('|', array_map('preg_quote', $colours)) . ')\b/iu';
+        $cleaned = preg_replace($pattern, '', $cleaned);
+        // Collapse whitespace + trim trailing punctuation
+        $cleaned = preg_replace('/\s+/u', ' ', $cleaned);
+        $cleaned = trim($cleaned, " \t\n\r\0\x0B-,.");
+        return mb_strtolower($cleaned);
+    }
+
     // =========================================================================
     // WRITE OPERATIONS (Import)
     // =========================================================================

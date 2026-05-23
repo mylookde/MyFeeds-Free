@@ -1637,7 +1637,13 @@ class MyFeeds_Feed_Manager {
             'callback' => array($this, 'rest_get_product_sizes'),
             'permission_callback' => function() { return current_user_can('edit_posts'); },
         ));
-        
+
+        register_rest_route('myfeeds/v1', '/product-color-siblings', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_product_color_siblings'),
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
+        ));
+
         register_rest_route('myfeeds/v1', '/plan-limits', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_plan_limits'),
@@ -1678,19 +1684,41 @@ class MyFeeds_Feed_Manager {
     public function rest_get_product_sizes(WP_REST_Request $req) {
         $name = sanitize_text_field($req->get_param('name'));
         $colour = sanitize_text_field($req->get_param('colour'));
-        
+
         if (empty($name)) {
             return rest_ensure_response(array());
         }
-        
+
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
             $sizes = MyFeeds_DB_Manager::get_available_sizes($name, $colour);
             return rest_ensure_response($sizes);
         }
-        
+
         return rest_ensure_response(array());
     }
-    
+
+    /**
+     * REST API: Return colour-sibling variants for a product so the
+     * detail modal in the picker can render clickable swatches.
+     *
+     * Read-only — does not touch the search result set, the deduplicator,
+     * or any cached counts. Strictly additive on top of the existing
+     * pipeline.
+     */
+    public function rest_get_product_color_siblings(WP_REST_Request $req) {
+        $id = sanitize_text_field($req->get_param('id'));
+        if ($id === '') {
+            return rest_ensure_response(array());
+        }
+
+        if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
+            $siblings = MyFeeds_DB_Manager::get_color_siblings($id);
+            return rest_ensure_response($siblings);
+        }
+
+        return rest_ensure_response(array());
+    }
+
     /**
      * REST API: Report the plan label for the editor upsell card.
      */
