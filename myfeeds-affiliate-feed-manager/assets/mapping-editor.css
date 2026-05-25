@@ -329,6 +329,44 @@
     justify-content: flex-end;
 }
 
+/* Per-feed default currency override panel */
+.myfeeds-default-currency-panel .myfeeds-default-currency-help {
+    color: #4b5563;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0 0 14px 0;
+    max-width: 720px;
+}
+.myfeeds-default-currency-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.myfeeds-default-currency-row .myfeeds-select {
+    padding: 8px 12px;
+    border: 1px solid #d4d4d8;
+    border-radius: 6px;
+    font-size: 14px;
+    background: #fff;
+    min-width: 240px;
+}
+.myfeeds-default-currency-row input[type="text"] {
+    padding: 8px 12px;
+    border: 1px solid #d4d4d8;
+    border-radius: 6px;
+    font-size: 14px;
+    width: 100px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.myfeeds-default-currency-row input[type="text"]:focus,
+.myfeeds-default-currency-row .myfeeds-select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
 /* Intro hint card - "you usually don't need this" */
 .myfeeds-intro-card {
     display: flex;

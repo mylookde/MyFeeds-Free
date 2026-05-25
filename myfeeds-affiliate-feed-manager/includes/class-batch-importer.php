@@ -1749,7 +1749,8 @@ class MyFeeds_Batch_Importer {
             } else {
                 $mapped = $this->process_critical_fields_fallback($mapped, $raw);
             }
-            
+            $mapped = $this->apply_default_currency_fallback($mapped, $feed_key);
+
             $mapped['id'] = $row_id;
             
             // FIX 4: FORCE OVERWRITE critical fields from raw feed data.
@@ -2599,13 +2600,14 @@ class MyFeeds_Batch_Importer {
                 } else {
                     $mapped = $this->process_critical_fields_fallback($mapped, $raw);
                 }
-                
+                $mapped = $this->apply_default_currency_fallback($mapped, $feed_name);
+
                 $mapped['id'] = $product_id;
-                
+
                 $batch_items[$product_id] = $mapped;
                 $processed_count++;
             }
-            
+
             // Fix P1: Log batch build complete
             myfeeds_log("BATCH_BUILD_DONE: iteration={$iteration}, batch_size=" . count($batch_items) . ", processed={$processed_count}, skipped_priority={$skipped_priority}", 'debug');
             
@@ -2995,7 +2997,8 @@ class MyFeeds_Batch_Importer {
             } else {
                 $mapped = $this->process_critical_fields_fallback($mapped, $raw);
             }
-            
+            $mapped = $this->apply_default_currency_fallback($mapped, isset($feed) && is_array($feed) ? $feed : (isset($feed_name) ? $feed_name : ''));
+
             $mapped['id'] = $product_id;
             $batch_items[$product_id] = $mapped;
             $processed_count++;
@@ -3395,7 +3398,8 @@ class MyFeeds_Batch_Importer {
             } else {
                 $mapped = $this->process_critical_fields_fallback($mapped, $raw);
             }
-            
+            $mapped = $this->apply_default_currency_fallback($mapped, $url);
+
             if (!empty($mapped['id'])) {
                 $product_id = (string) $mapped['id'];
                 
@@ -3550,6 +3554,61 @@ class MyFeeds_Batch_Importer {
         return isset($item[$path]) ? $item[$path] : '';
     }
     
+    /**
+     * Resolve the per-feed default currency override.
+     *
+     * Returns a 3-letter ISO currency code when the user has set one
+     * for this feed in the mapping editor, otherwise an empty string.
+     * Used as the last fallback in the currency-resolution chain so
+     * feeds that silently omit a currency column can still publish
+     * prices with the right symbol on the front-end.
+     *
+     * Accepts either a feed key (int/string) or the feed array itself,
+     * for flexibility at the various call sites in the importer.
+     */
+    private function resolve_feed_default_currency($feed_or_key_or_name) {
+        $code = '';
+        if (is_array($feed_or_key_or_name)) {
+            $code = isset($feed_or_key_or_name['default_currency']) ? (string) $feed_or_key_or_name['default_currency'] : '';
+        } else {
+            $feeds = get_option('myfeeds_feeds', array());
+            // First try as feed key (int or string array key)
+            if (isset($feeds[$feed_or_key_or_name]['default_currency'])) {
+                $code = (string) $feeds[$feed_or_key_or_name]['default_currency'];
+            }
+            // Fall back to lookup by feed name or feed url (some call
+            // sites only carry one of those — process_feed_batch only
+            // sees the url, as_process_batch_inner sees the name).
+            if ($code === '' && is_string($feed_or_key_or_name) && $feed_or_key_or_name !== '') {
+                foreach ($feeds as $f) {
+                    $matches = (isset($f['name']) && $f['name'] === $feed_or_key_or_name)
+                        || (isset($f['url']) && $f['url'] === $feed_or_key_or_name);
+                    if ($matches) {
+                        $code = isset($f['default_currency']) ? (string) $f['default_currency'] : '';
+                        break;
+                    }
+                }
+            }
+        }
+        $code = strtoupper(trim($code));
+        return preg_match('/^[A-Z]{3}$/', $code) ? $code : '';
+    }
+
+    /**
+     * Apply the per-feed default currency to a mapped product if the
+     * feed itself was silent on currency. No-op otherwise.
+     */
+    private function apply_default_currency_fallback(array $mapped, $feed_or_key) {
+        if (!empty($mapped['currency'])) {
+            return $mapped;
+        }
+        $code = $this->resolve_feed_default_currency($feed_or_key);
+        if ($code !== '') {
+            $mapped['currency'] = $code;
+        }
+        return $mapped;
+    }
+
     /**
      * Process critical fields (FALLBACK version)
      */

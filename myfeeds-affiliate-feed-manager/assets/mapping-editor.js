@@ -105,8 +105,10 @@ jQuery(document).ready(function($) {
             currentFeedKey = feedKey;
             loadFeedColumns(feedKey);
             $('#myfeeds-mapping-interface').show();
+            $('#myfeeds-default-currency-panel').show();
         } else {
             $('#myfeeds-mapping-interface').hide();
+            $('#myfeeds-default-currency-panel').hide();
         }
     });
 
@@ -126,6 +128,7 @@ jQuery(document).ready(function($) {
                 populateDropdowns(feedColumns);
                 applyCurrentMapping(currentMapping);
                 renderPreview(response.data.sample_data);
+                applyDefaultCurrency(response.data.default_currency || '');
             } else {
                 $('#myfeeds-feed-columns').html('<p class="error">' + ajaxErrorMessage(response) + '</p>');
                 noticeError(ajaxErrorMessage(response));
@@ -349,6 +352,71 @@ jQuery(document).ready(function($) {
 
         $(this).text(i18n.detecting);
         window.location.href = cfg.autoDetectUrl + '&feed_key=' + currentFeedKey + '&action=auto_detect';
+    });
+
+    // ---------------------------------------------------------------------
+    // Per-feed default-currency override
+    // ---------------------------------------------------------------------
+
+    function applyDefaultCurrency(code) {
+        var $select = $('#myfeeds-default-currency-select');
+        var $custom = $('#myfeeds-default-currency-custom');
+        code = (code || '').toUpperCase();
+        $custom.hide().val('');
+        if (!code) {
+            $select.val('');
+            return;
+        }
+        // If the code matches one of the listed options, select it.
+        // Otherwise drop into the "Custom..." path with the value pre-filled.
+        var matched = false;
+        $select.find('option').each(function () {
+            if ($(this).val() === code) { matched = true; }
+        });
+        if (matched) {
+            $select.val(code);
+        } else {
+            $select.val('__custom__');
+            $custom.val(code).show();
+        }
+    }
+
+    $('#myfeeds-default-currency-select').on('change', function () {
+        if ($(this).val() === '__custom__') {
+            $('#myfeeds-default-currency-custom').show().focus();
+        } else {
+            $('#myfeeds-default-currency-custom').hide();
+        }
+    });
+
+    $('#myfeeds-save-default-currency').on('click', function () {
+        if (!currentFeedKey) {
+            noticeError(i18n.selectFeedFirst);
+            return;
+        }
+        var $select = $('#myfeeds-default-currency-select');
+        var $custom = $('#myfeeds-default-currency-custom');
+        var code = $select.val() === '__custom__' ? $custom.val() : $select.val();
+        code = (code || '').toUpperCase().trim();
+
+        if (code !== '' && !/^[A-Z]{3}$/.test(code)) {
+            noticeError(i18n.invalidCurrencyCode);
+            return;
+        }
+
+        $.post(ajaxurl, {
+            action: 'myfeeds_save_feed_default_currency',
+            feed_key: currentFeedKey,
+            currency: code,
+            nonce: myfeedsAdmin.nonce
+        }, function (response) {
+            if (response.success) {
+                applyDefaultCurrency(response.data.default_currency || '');
+                noticeSuccess(code === '' ? i18n.defaultCurrencyCleared : i18n.defaultCurrencySaved);
+            } else {
+                noticeError(ajaxErrorMessage(response));
+            }
+        }).fail(function () { noticeError(i18n.genericError); });
     });
 
     // Auto-load if feed_key in URL

@@ -23,6 +23,7 @@ class MyFeeds_Universal_Mapper_UI {
         add_action('wp_ajax_myfeeds_save_template', array($this, 'ajax_save_template'));
         add_action('wp_ajax_myfeeds_apply_template', array($this, 'ajax_apply_template'));
         add_action('wp_ajax_myfeeds_delete_template', array($this, 'ajax_delete_template'));
+        add_action('wp_ajax_myfeeds_save_feed_default_currency', array($this, 'ajax_save_feed_default_currency'));
 
         // Admin page for mapping editor
         add_action('admin_menu', array($this, 'register_mapping_page'));
@@ -75,6 +76,9 @@ class MyFeeds_Universal_Mapper_UI {
                 'confirmDeleteTpl'  => __('Delete the template "%s"? This can\'t be undone.', 'myfeeds-affiliate-feed-manager'),
                 'confirmDeleteOk'   => __('Delete', 'myfeeds-affiliate-feed-manager'),
                 'confirmCancel'     => __('Cancel', 'myfeeds-affiliate-feed-manager'),
+                'defaultCurrencySaved' => __('Default currency saved. Re-import this feed to apply the change to existing products.', 'myfeeds-affiliate-feed-manager'),
+                'defaultCurrencyCleared' => __('Default currency cleared. Re-import this feed to apply the change to existing products.', 'myfeeds-affiliate-feed-manager'),
+                'invalidCurrencyCode' => __('Please enter a valid 3-letter ISO currency code (e.g. USD, EUR, GBP).', 'myfeeds-affiliate-feed-manager'),
             ),
         ));
     }
@@ -233,6 +237,44 @@ class MyFeeds_Universal_Mapper_UI {
                     <?php endif; ?>
                 </div>
                 
+                <!-- Default-currency override for the selected feed.
+                     Useful for feeds that silently omit a currency column
+                     (Afewvibe-style merchants) — without this the price
+                     renders without a symbol. ISO 4217 3-letter codes. -->
+                <div class="myfeeds-panel myfeeds-default-currency-panel" id="myfeeds-default-currency-panel" style="display: none;">
+                    <h2><?php esc_html_e('Default currency for this feed', 'myfeeds-affiliate-feed-manager'); ?></h2>
+                    <p class="myfeeds-default-currency-help">
+                        <?php esc_html_e('Used when the feed itself does not carry a currency column. Leave empty to render prices without a symbol. ISO 4217 three-letter code (USD, EUR, GBP...).', 'myfeeds-affiliate-feed-manager'); ?>
+                    </p>
+                    <div class="myfeeds-default-currency-row">
+                        <select id="myfeeds-default-currency-select" class="myfeeds-select">
+                            <option value=""><?php esc_html_e('— none —', 'myfeeds-affiliate-feed-manager'); ?></option>
+                            <option value="USD">USD — US Dollar</option>
+                            <option value="EUR">EUR — Euro</option>
+                            <option value="GBP">GBP — British Pound</option>
+                            <option value="CHF">CHF — Swiss Franc</option>
+                            <option value="CAD">CAD — Canadian Dollar</option>
+                            <option value="AUD">AUD — Australian Dollar</option>
+                            <option value="NZD">NZD — New Zealand Dollar</option>
+                            <option value="SEK">SEK — Swedish Krona</option>
+                            <option value="NOK">NOK — Norwegian Krone</option>
+                            <option value="DKK">DKK — Danish Krone</option>
+                            <option value="PLN">PLN — Polish Zloty</option>
+                            <option value="CZK">CZK — Czech Koruna</option>
+                            <option value="JPY">JPY — Japanese Yen</option>
+                            <option value="CNY">CNY — Chinese Yuan</option>
+                            <option value="INR">INR — Indian Rupee</option>
+                            <option value="BRL">BRL — Brazilian Real</option>
+                            <option value="MXN">MXN — Mexican Peso</option>
+                            <option value="__custom__"><?php esc_html_e('Custom (3-letter code)...', 'myfeeds-affiliate-feed-manager'); ?></option>
+                        </select>
+                        <input type="text" id="myfeeds-default-currency-custom" placeholder="e.g. SGD" maxlength="3" pattern="[A-Za-z]{3}" style="display:none;">
+                        <button type="button" id="myfeeds-save-default-currency" class="button myfeeds-button-secondary">
+                            <?php esc_html_e('Save', 'myfeeds-affiliate-feed-manager'); ?>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Mapping Interface -->
                 <div class="myfeeds-panel" id="myfeeds-mapping-interface" style="display: none;">
                     <h2><?php esc_html_e('2. Map Feed Columns to Fields', 'myfeeds-affiliate-feed-manager'); ?></h2>
@@ -557,6 +599,44 @@ class MyFeeds_Universal_Mapper_UI {
             'columns' => $header,
             'current_mapping' => $feed['mapping'] ?? array(),
             'sample_data' => $sample_data,
+            'default_currency' => isset($feed['default_currency']) ? (string) $feed['default_currency'] : '',
+        ));
+    }
+
+    /**
+     * Save (or clear) the per-feed default-currency override.
+     *
+     * Empty / "none" payload clears the override so the feed falls back
+     * to the importer's silent-currency behaviour. ISO 4217 3-letter
+     * code otherwise. Persisted in the same myfeeds_feeds option blob
+     * that holds the rest of the feed's settings; no schema change.
+     */
+    public function ajax_save_feed_default_currency() {
+        check_ajax_referer('myfeeds_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+
+        $feed_key = isset($_POST['feed_key']) ? intval(wp_unslash($_POST['feed_key'])) : 0;
+        $raw_code = isset($_POST['currency']) ? sanitize_text_field(wp_unslash($_POST['currency'])) : '';
+        $code     = strtoupper(trim($raw_code));
+
+        if ($code !== '' && !preg_match('/^[A-Z]{3}$/', $code)) {
+            wp_send_json_error(array('message' => 'Invalid currency code'));
+        }
+
+        $feeds = get_option('myfeeds_feeds', array());
+        if (!isset($feeds[$feed_key])) {
+            wp_send_json_error(array('message' => 'Feed not found'));
+        }
+
+        $feeds[$feed_key]['default_currency'] = $code;
+        update_option('myfeeds_feeds', $feeds);
+
+        wp_send_json_success(array(
+            'message' => $code === '' ? 'Default currency cleared' : 'Default currency saved',
+            'default_currency' => $code,
         ));
     }
     

@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 7.0
-Stable tag: 1.0.15
+Stable tag: 1.0.16
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -159,6 +159,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 5. Grid layout. Products rendered in a responsive grid with prices, brands, shipping info, and affiliate links.
 
 == Changelog ==
+
+= 1.0.16 =
+* Mapping Editor: new "Default currency for this feed" panel. Lets you pick an ISO 4217 three-letter code (USD, EUR, GBP, CHF, JPY, INR and many more, plus a custom code option) for feeds that silently omit a currency column. Without an override those feeds end up with empty currency in the database and the front-end renders the price without a symbol. Setting the override per feed restores the right currency symbol on every card. Persisted per feed, not globally, so different merchants on different currencies stay accurate. Existing imported rows pick up the override at the next sync.
 
 = 1.0.15 =
 * Product Picker: colour-variant swatches now catch the case where the feed leaves the colour column empty but spells the colour out in the product name. Example from a real merchant: "Denim Tears Wreath Jean Short Light Wash - S" and "Denim Tears Wreath Jean Short Black - S" both arrive with empty colour and identical attributes; we now extract "Light Wash" and "Black" from the names themselves and present them as switchable swatches. Multi-word colour phrases (Light Wash, Dark Wash, Off White, Light Blue, Hot Pink, etc.) are matched longest-first so "Light Wash" wins over "Light".
