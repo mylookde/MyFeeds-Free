@@ -264,13 +264,27 @@ jQuery(document).ready(function($) {
     // Save mapping
     // ---------------------------------------------------------------------
 
+    function collectDefaultCurrency() {
+        var $select = $('#myfeeds-default-currency-select');
+        var $custom = $('#myfeeds-default-currency-custom');
+        var code = $select.val() === '__custom__' ? $custom.val() : $select.val();
+        return (code || '').toUpperCase().trim();
+    }
+
     $('#myfeeds-save-mapping').on('click', function() {
         var mapping = collectMapping();
+        var defaultCurrency = collectDefaultCurrency();
+
+        if (defaultCurrency !== '' && !/^[A-Z]{3}$/.test(defaultCurrency)) {
+            noticeError(i18n.invalidCurrencyCode);
+            return;
+        }
 
         $.post(ajaxurl, {
             action: 'myfeeds_save_mapping',
             feed_key: currentFeedKey,
             mapping: JSON.stringify(mapping),
+            default_currency: defaultCurrency,
             nonce: myfeedsAdmin.nonce
         }, function(response) {
             if (response.success) {
@@ -451,36 +465,6 @@ jQuery(document).ready(function($) {
         } else {
             $('#myfeeds-default-currency-custom').hide();
         }
-    });
-
-    $('#myfeeds-save-default-currency').on('click', function () {
-        if (!currentFeedKey) {
-            noticeError(i18n.selectFeedFirst);
-            return;
-        }
-        var $select = $('#myfeeds-default-currency-select');
-        var $custom = $('#myfeeds-default-currency-custom');
-        var code = $select.val() === '__custom__' ? $custom.val() : $select.val();
-        code = (code || '').toUpperCase().trim();
-
-        if (code !== '' && !/^[A-Z]{3}$/.test(code)) {
-            noticeError(i18n.invalidCurrencyCode);
-            return;
-        }
-
-        $.post(ajaxurl, {
-            action: 'myfeeds_save_feed_default_currency',
-            feed_key: currentFeedKey,
-            currency: code,
-            nonce: myfeedsAdmin.nonce
-        }, function (response) {
-            if (response.success) {
-                applyDefaultCurrency(response.data.default_currency || '');
-                noticeSuccess(code === '' ? i18n.defaultCurrencyCleared : i18n.defaultCurrencySaved);
-            } else {
-                noticeError(ajaxErrorMessage(response));
-            }
-        }).fail(function () { noticeError(i18n.genericError); });
     });
 
     // Auto-load if feed_key in URL

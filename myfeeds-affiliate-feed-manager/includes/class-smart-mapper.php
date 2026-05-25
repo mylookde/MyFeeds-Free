@@ -1114,11 +1114,14 @@ class MyFeeds_Smart_Mapper {
      * Apply fallbacks for missing data
      */
     private function apply_fallbacks($product) {
-        // Fallback currency
-        if (empty($product['currency'])) {
-            $product['currency'] = 'EUR';
-        }
-        
+        // Currency: NO hardcoded 'EUR' fallback here. Stamping a default
+        // here silently mislabels feeds that omit a currency column —
+        // the front-end then renders "€" on cards linking to a USD
+        // checkout. The per-feed default_currency override (mapping
+        // editor's Default Currency card, 1.0.16) is applied later in
+        // the importer pipeline, after this method returns. Leave the
+        // column empty so that override can do its job.
+
         // Fallback availability
         if (empty($product['availability'])) {
             $product['availability'] = 'in stock';

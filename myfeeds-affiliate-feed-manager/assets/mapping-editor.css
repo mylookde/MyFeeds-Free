@@ -238,13 +238,38 @@
     pointer-events: none;
 }
 
-/* Preview panel */
+/* Preview panel - collapsible details element */
 .myfeeds-preview-panel {
     background: #f8fafc;
-    padding: 16px 18px;
+    padding: 4px 18px;
     margin: 16px 0;
     border-radius: 8px;
     border: 1px solid #e5e7eb;
+}
+.myfeeds-preview-panel > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1d2327;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
+}
+.myfeeds-preview-panel > summary::-webkit-details-marker { display: none; }
+.myfeeds-preview-panel > summary::before {
+    content: '';
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 5px 0 5px 7px;
+    border-color: transparent transparent transparent #6b7280;
+    transition: transform 0.15s ease;
+}
+.myfeeds-preview-panel[open] > summary::before {
+    transform: rotate(90deg);
 }
 .myfeeds-preview-panel pre {
     background: #fff;
@@ -370,6 +395,12 @@
     outline: none;
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+.myfeeds-default-currency-hint {
+    color: #71717a;
+    font-size: 12px;
+    margin: 10px 0 0 0;
+    font-style: italic;
 }
 
 /* Drag & drop visual feedback */

@@ -339,20 +339,20 @@ class MyFeeds_Universal_Mapper_UI {
                                     <option value="__custom__"><?php esc_html_e('Custom (3-letter code)...', 'myfeeds-affiliate-feed-manager'); ?></option>
                                 </select>
                                 <input type="text" id="myfeeds-default-currency-custom" placeholder="e.g. SGD" maxlength="3" pattern="[A-Za-z]{3}" style="display:none;">
-                                <button type="button" id="myfeeds-save-default-currency" class="button myfeeds-button-secondary">
-                                    <?php esc_html_e('Save', 'myfeeds-affiliate-feed-manager'); ?>
-                                </button>
                             </div>
+                            <p class="myfeeds-default-currency-hint"><?php esc_html_e('Saved together with the mapping when you click Save Mapping below.', 'myfeeds-affiliate-feed-manager'); ?></p>
                         </div>
                     </div>
 
-                    <!-- Sample Data Preview -->
-                    <div class="myfeeds-preview-panel">
-                        <h3><?php esc_html_e('Preview', 'myfeeds-affiliate-feed-manager'); ?></h3>
+                    <!-- Sample Data Preview - collapsible details element,
+                         closed by default so the editor isn't dominated by
+                         the raw-JSON sample row. -->
+                    <details class="myfeeds-preview-panel">
+                        <summary><?php esc_html_e('Preview', 'myfeeds-affiliate-feed-manager'); ?></summary>
                         <div id="myfeeds-mapping-preview">
                             <p class="description"><?php esc_html_e('Select a feed to see sample data', 'myfeeds-affiliate-feed-manager'); ?></p>
                         </div>
-                    </div>
+                    </details>
                     
                     <!-- Actions -->
                     <div class="myfeeds-mapping-actions">
@@ -694,9 +694,23 @@ class MyFeeds_Universal_Mapper_UI {
         $feeds[$feed_key]['mapping'] = $mapping;
         $feeds[$feed_key]['last_mapping_update'] = current_time('mysql');
         $feeds[$feed_key]['mapping_source'] = 'manual';
-        
+
+        // Default-currency override travels with the mapping save so the
+        // user only needs the one big "Save Mapping" button. Empty payload
+        // explicitly clears the override; any non-empty value must be a
+        // valid ISO 4217 three-letter code, otherwise we silently drop it
+        // rather than fail the whole save (the mapping itself is valuable
+        // even if the user typed garbage into the currency override).
+        if (array_key_exists('default_currency', $_POST)) {
+            $raw_code = sanitize_text_field(wp_unslash($_POST['default_currency']));
+            $code = strtoupper(trim($raw_code));
+            if ($code === '' || preg_match('/^[A-Z]{3}$/', $code)) {
+                $feeds[$feed_key]['default_currency'] = $code;
+            }
+        }
+
         update_option('myfeeds_feeds', $feeds);
-        
+
         wp_send_json_success(array('message' => 'Mapping saved'));
     }
     
