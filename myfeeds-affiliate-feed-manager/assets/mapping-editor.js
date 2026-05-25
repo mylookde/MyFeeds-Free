@@ -105,10 +105,8 @@ jQuery(document).ready(function($) {
             currentFeedKey = feedKey;
             loadFeedColumns(feedKey);
             $('#myfeeds-mapping-interface').show();
-            $('#myfeeds-default-currency-panel').show();
         } else {
             $('#myfeeds-mapping-interface').hide();
-            $('#myfeeds-default-currency-panel').hide();
         }
     });
 
@@ -138,22 +136,37 @@ jQuery(document).ready(function($) {
         });
     }
 
+    function sortColumns(columns) {
+        // Stable A-Z sort, case-insensitive, leaves original array
+        // untouched. Used for both the "Available Feed Columns" pills
+        // and the per-field dropdown options.
+        return (columns || []).slice().sort(function (a, b) {
+            return String(a).toLowerCase().localeCompare(String(b).toLowerCase());
+        });
+    }
+
     function renderFeedColumns(columns) {
+        var sorted = sortColumns(columns);
         var html = '';
-        columns.forEach(function(col) {
-            html += '<span class="myfeeds-column-tag" data-column="' + col + '">' + col + '</span>';
+        sorted.forEach(function(col) {
+            // draggable="true" + a tiny dragstart handler below makes
+            // each pill drop-target compatible with the field-mapping
+            // selects. Click-to-assign still works as a fallback for
+            // users who prefer not to drag.
+            html += '<span class="myfeeds-column-tag" data-column="' + col + '" draggable="true">' + col + '</span>';
         });
         $('#myfeeds-feed-columns').html(html);
     }
 
     function populateDropdowns(columns) {
+        var sorted = sortColumns(columns);
         $('.myfeeds-field-mapping').each(function() {
             var $select = $(this);
             var currentVal = $select.val();
 
             $select.find('option:not(:first)').remove();
 
-            columns.forEach(function(col) {
+            sorted.forEach(function(col) {
                 $select.append('<option value="' + col + '">' + col + '</option>');
             });
 
@@ -177,6 +190,57 @@ jQuery(document).ready(function($) {
             $('#myfeeds-mapping-preview').html('<pre>' + JSON.stringify(sampleData, null, 2) + '</pre>');
         }
     }
+
+    // ---------------------------------------------------------------------
+    // Drag & drop: column-tag pills -> field-mapping selects
+    // ---------------------------------------------------------------------
+    // Uses HTML5 native drag-and-drop. The column name travels through
+    // the dataTransfer payload and the select fires its change event
+    // after we set the value, so any reactive listeners (preview pane,
+    // dirty-state) still trigger as if the user picked from the dropdown.
+
+    $(document).on('dragstart', '.myfeeds-column-tag', function (e) {
+        var col = $(this).data('column');
+        var dt = e.originalEvent && e.originalEvent.dataTransfer;
+        if (!dt) return;
+        try { dt.setData('text/plain', col); } catch (err) { /* IE quirks */ }
+        try { dt.setData('application/x-myfeeds-column', col); } catch (err) { /* not all browsers */ }
+        dt.effectAllowed = 'copy';
+        $(this).addClass('is-dragging');
+    });
+
+    $(document).on('dragend', '.myfeeds-column-tag', function () {
+        $(this).removeClass('is-dragging');
+        $('.myfeeds-field-mapping').removeClass('is-drop-target');
+    });
+
+    $(document).on('dragover', '.myfeeds-field-mapping', function (e) {
+        if (e.originalEvent) e.originalEvent.preventDefault();
+        var dt = e.originalEvent && e.originalEvent.dataTransfer;
+        if (dt) dt.dropEffect = 'copy';
+        $(this).addClass('is-drop-target');
+    });
+
+    $(document).on('dragleave', '.myfeeds-field-mapping', function () {
+        $(this).removeClass('is-drop-target');
+    });
+
+    $(document).on('drop', '.myfeeds-field-mapping', function (e) {
+        if (e.originalEvent) e.originalEvent.preventDefault();
+        var dt = e.originalEvent && e.originalEvent.dataTransfer;
+        if (!dt) return;
+        var col = '';
+        try { col = dt.getData('application/x-myfeeds-column'); } catch (err) {}
+        if (!col) { try { col = dt.getData('text/plain'); } catch (err) {} }
+        if (!col) return;
+        var $select = $(this);
+        $select.removeClass('is-drop-target');
+        // Make sure the column exists as an option before setting
+        var hasOption = false;
+        $select.find('option').each(function () { if ($(this).val() === col) hasOption = true; });
+        if (!hasOption) { return; }
+        $select.val(col).trigger('change');
+    });
 
     // Column tag click - auto-fill the first empty required field, or hint
     $(document).on('click', '.myfeeds-column-tag', function() {

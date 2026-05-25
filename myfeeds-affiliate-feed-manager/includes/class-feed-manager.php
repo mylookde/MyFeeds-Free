@@ -2747,9 +2747,21 @@ class MyFeeds_Feed_Manager {
         // 5. OTHER FIELDS (Currency, Shipping, Category, Color)
         // ============================================================
         
-        // Currency — first try dedicated fields, then extract from price string
+        // Currency — first try dedicated fields, then extract from price
+        // string. Probe list extended to match the importer's fallback
+        // (currency_code / currencyCode were added in 1.0.1 but never
+        // reached this Single-Source-of-Truth path).
+        //
+        // Critical: NO hardcoded 'EUR' fallback here. Stamping a
+        // hard-coded default silently mislabels feeds that omit a
+        // currency column (visitors see "€" on cards linking to a USD
+        // checkout). The 1.0.1 fix removed the hardcoded default from
+        // class-batch-importer.php but missed this primary path. The
+        // per-feed default_currency override (set in the mapping
+        // editor in 1.0.16) is applied later in the pipeline, after
+        // this method returns.
         if (empty($mapped['currency'])) {
-            $curr_fields = array('currency', 'currencyId');
+            $curr_fields = array('currency', 'currencyId', 'currency_code', 'currencyCode');
             foreach ($curr_fields as $f) {
                 if (!empty($raw[$f])) { $mapped['currency'] = self::safe_string_value($raw[$f]); break; }
             }
@@ -2765,9 +2777,8 @@ class MyFeeds_Feed_Manager {
                     }
                 }
             }
-            if (empty($mapped['currency'])) {
-                $mapped['currency'] = 'EUR'; // Default
-            }
+            // Intentionally NO hardcoded fallback — leave empty for the
+            // per-feed override / front-end no-symbol render.
         }
         
         // Shipping — includes shipping_price for flattened XML nested elements (e.g. <g:shipping><g:price>)

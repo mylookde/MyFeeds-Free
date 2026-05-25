@@ -237,44 +237,6 @@ class MyFeeds_Universal_Mapper_UI {
                     <?php endif; ?>
                 </div>
                 
-                <!-- Default-currency override for the selected feed.
-                     Useful for feeds that silently omit a currency column
-                     (Afewvibe-style merchants) — without this the price
-                     renders without a symbol. ISO 4217 3-letter codes. -->
-                <div class="myfeeds-panel myfeeds-default-currency-panel" id="myfeeds-default-currency-panel" style="display: none;">
-                    <h2><?php esc_html_e('Default currency for this feed', 'myfeeds-affiliate-feed-manager'); ?></h2>
-                    <p class="myfeeds-default-currency-help">
-                        <?php esc_html_e('Used when the feed itself does not carry a currency column. Leave empty to render prices without a symbol. ISO 4217 three-letter code (USD, EUR, GBP...).', 'myfeeds-affiliate-feed-manager'); ?>
-                    </p>
-                    <div class="myfeeds-default-currency-row">
-                        <select id="myfeeds-default-currency-select" class="myfeeds-select">
-                            <option value=""><?php esc_html_e('— none —', 'myfeeds-affiliate-feed-manager'); ?></option>
-                            <option value="USD">USD — US Dollar</option>
-                            <option value="EUR">EUR — Euro</option>
-                            <option value="GBP">GBP — British Pound</option>
-                            <option value="CHF">CHF — Swiss Franc</option>
-                            <option value="CAD">CAD — Canadian Dollar</option>
-                            <option value="AUD">AUD — Australian Dollar</option>
-                            <option value="NZD">NZD — New Zealand Dollar</option>
-                            <option value="SEK">SEK — Swedish Krona</option>
-                            <option value="NOK">NOK — Norwegian Krone</option>
-                            <option value="DKK">DKK — Danish Krone</option>
-                            <option value="PLN">PLN — Polish Zloty</option>
-                            <option value="CZK">CZK — Czech Koruna</option>
-                            <option value="JPY">JPY — Japanese Yen</option>
-                            <option value="CNY">CNY — Chinese Yuan</option>
-                            <option value="INR">INR — Indian Rupee</option>
-                            <option value="BRL">BRL — Brazilian Real</option>
-                            <option value="MXN">MXN — Mexican Peso</option>
-                            <option value="__custom__"><?php esc_html_e('Custom (3-letter code)...', 'myfeeds-affiliate-feed-manager'); ?></option>
-                        </select>
-                        <input type="text" id="myfeeds-default-currency-custom" placeholder="e.g. SGD" maxlength="3" pattern="[A-Za-z]{3}" style="display:none;">
-                        <button type="button" id="myfeeds-save-default-currency" class="button myfeeds-button-secondary">
-                            <?php esc_html_e('Save', 'myfeeds-affiliate-feed-manager'); ?>
-                        </button>
-                    </div>
-                </div>
-
                 <!-- Mapping Interface -->
                 <div class="myfeeds-panel" id="myfeeds-mapping-interface" style="display: none;">
                     <h2><?php esc_html_e('2. Map Feed Columns to Fields', 'myfeeds-affiliate-feed-manager'); ?></h2>
@@ -293,17 +255,35 @@ class MyFeeds_Universal_Mapper_UI {
                     
                     <!-- Mapping Grid -->
                     <div class="myfeeds-mapping-grid">
+                        <?php
+                        // Pre-sort fields per group alphabetically by label
+                        // so the editor reads in a consistent A-Z order
+                        // instead of whatever insertion order the
+                        // standard_fields constant happens to carry.
+                        $fields_by_group = array();
+                        foreach ($standard_fields as $field_key => $field) {
+                            $g = $field['group'] ?? '';
+                            if (!isset($fields_by_group[$g])) $fields_by_group[$g] = array();
+                            $fields_by_group[$g][$field_key] = $field;
+                        }
+                        foreach ($fields_by_group as $g => &$rows) {
+                            uasort($rows, function ($a, $b) {
+                                return strcasecmp($a['label'] ?? '', $b['label'] ?? '');
+                            });
+                        }
+                        unset($rows);
+                        ?>
                         <?php foreach ($field_groups as $group_key => $group): ?>
                             <div class="myfeeds-field-group">
                                 <h3>
                                     <?php echo esc_html($group['label']); ?>
                                     <span class="description"><?php echo esc_html($group['description']); ?></span>
                                 </h3>
-                                
+
                                 <div class="myfeeds-field-list">
-                                    <?php 
-                                    foreach ($standard_fields as $field_key => $field):
-                                        if ($field['group'] !== $group_key) continue;
+                                    <?php
+                                    $group_fields = $fields_by_group[$group_key] ?? array();
+                                    foreach ($group_fields as $field_key => $field):
                                     ?>
                                         <div class="myfeeds-field-row" data-field="<?php echo esc_attr($field_key); ?>">
                                             <label>
@@ -321,8 +301,51 @@ class MyFeeds_Universal_Mapper_UI {
                                 </div>
                             </div>
                         <?php endforeach; ?>
+
+                        <!-- Default-currency override for the selected
+                             feed. Lives inside the mapping grid so it
+                             sits next to the field-mapping cards and
+                             fills the bottom-right slot when the grid
+                             wraps. Useful for feeds that silently omit
+                             a currency column. -->
+                        <div class="myfeeds-field-group myfeeds-default-currency-panel" id="myfeeds-default-currency-panel">
+                            <h3>
+                                <?php esc_html_e('Default Currency', 'myfeeds-affiliate-feed-manager'); ?>
+                                <span class="description"><?php esc_html_e('Used when the feed has no currency column', 'myfeeds-affiliate-feed-manager'); ?></span>
+                            </h3>
+                            <p class="myfeeds-default-currency-help">
+                                <?php esc_html_e('Leave empty to render prices without a symbol. ISO 4217 three-letter code (USD, EUR, GBP...).', 'myfeeds-affiliate-feed-manager'); ?>
+                            </p>
+                            <div class="myfeeds-default-currency-row">
+                                <select id="myfeeds-default-currency-select" class="myfeeds-select">
+                                    <option value=""><?php esc_html_e('— none —', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                    <option value="AUD">AUD — Australian Dollar</option>
+                                    <option value="BRL">BRL — Brazilian Real</option>
+                                    <option value="CAD">CAD — Canadian Dollar</option>
+                                    <option value="CHF">CHF — Swiss Franc</option>
+                                    <option value="CNY">CNY — Chinese Yuan</option>
+                                    <option value="CZK">CZK — Czech Koruna</option>
+                                    <option value="DKK">DKK — Danish Krone</option>
+                                    <option value="EUR">EUR — Euro</option>
+                                    <option value="GBP">GBP — British Pound</option>
+                                    <option value="INR">INR — Indian Rupee</option>
+                                    <option value="JPY">JPY — Japanese Yen</option>
+                                    <option value="MXN">MXN — Mexican Peso</option>
+                                    <option value="NOK">NOK — Norwegian Krone</option>
+                                    <option value="NZD">NZD — New Zealand Dollar</option>
+                                    <option value="PLN">PLN — Polish Zloty</option>
+                                    <option value="SEK">SEK — Swedish Krona</option>
+                                    <option value="USD">USD — US Dollar</option>
+                                    <option value="__custom__"><?php esc_html_e('Custom (3-letter code)...', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                </select>
+                                <input type="text" id="myfeeds-default-currency-custom" placeholder="e.g. SGD" maxlength="3" pattern="[A-Za-z]{3}" style="display:none;">
+                                <button type="button" id="myfeeds-save-default-currency" class="button myfeeds-button-secondary">
+                                    <?php esc_html_e('Save', 'myfeeds-affiliate-feed-manager'); ?>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    
+
                     <!-- Sample Data Preview -->
                     <div class="myfeeds-preview-panel">
                         <h3><?php esc_html_e('Preview', 'myfeeds-affiliate-feed-manager'); ?></h3>

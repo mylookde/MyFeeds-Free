@@ -640,19 +640,33 @@ class MyFeeds_Search_Engine {
             $stemmed = self::stem_token($token);
             $clean_stemmed = ($stemmed !== $token) ? self::sanitize_fulltext_token($stemmed) : '';
 
+            // Each long token gets a trailing `*` so the FULLTEXT match
+            // covers plural / inflected forms without the stemmer having
+            // to be language-aware. "trouser" stemmed to "trous" by the
+            // DE-leaning stemmer and produced 0 results because neither
+            // "trouser" nor "trous" lived in the index — only "trousers"
+            // did. "+trouser*" now matches "trousers" too via prefix.
+            // Wildcard requires the literal prefix length to clear
+            // InnoDB's ft_min_token_size (>=3 in modern MySQL), so we
+            // still gate on `>= 4`.
+            $token_ft = (mb_strlen($clean_token) >= 4) ? $clean_token . '*' : $clean_token;
+            $stemmed_ft = (!empty($clean_stemmed) && mb_strlen($clean_stemmed) >= 4) ? $clean_stemmed . '*' : $clean_stemmed;
+
             if (isset($synonym_map[$token]) && !empty($synonym_map[$token])) {
-                $group_parts = array($clean_token);
-                if (!empty($clean_stemmed) && !in_array($clean_stemmed, $group_parts, true) && mb_strlen($clean_stemmed) >= 4) {
-                    $group_parts[] = $clean_stemmed;
+                $group_parts = array($token_ft);
+                if (!empty($stemmed_ft) && !in_array($stemmed_ft, $group_parts, true) && mb_strlen($clean_stemmed) >= 4) {
+                    $group_parts[] = $stemmed_ft;
                 }
                 foreach ($synonym_map[$token] as $syn) {
                     $clean_syn = self::sanitize_fulltext_token($syn);
-                    if (!empty($clean_syn) && !in_array($clean_syn, $group_parts, true)) {
-                        if (mb_strlen($clean_syn) < 4) {
-                            $short_tokens[] = $syn;
-                        } else {
-                            $group_parts[] = $clean_syn;
-                        }
+                    if (empty($clean_syn)) continue;
+                    if (mb_strlen($clean_syn) < 4) {
+                        $short_tokens[] = $syn;
+                        continue;
+                    }
+                    $syn_ft = $clean_syn . '*';
+                    if (!in_array($syn_ft, $group_parts, true)) {
+                        $group_parts[] = $syn_ft;
                     }
                 }
                 if (count($group_parts) > 1) {
@@ -662,10 +676,10 @@ class MyFeeds_Search_Engine {
                 }
             } else {
                 // No synonyms — token + optional stem (stem only if long enough)
-                if (!empty($clean_stemmed) && $clean_stemmed !== $clean_token && mb_strlen($clean_stemmed) >= 4) {
-                    $groups[] = '+(' . $clean_token . ' ' . $clean_stemmed . ')';
+                if (!empty($stemmed_ft) && $stemmed_ft !== $token_ft && mb_strlen($clean_stemmed) >= 4) {
+                    $groups[] = '+(' . $token_ft . ' ' . $stemmed_ft . ')';
                 } else {
-                    $groups[] = '+' . $clean_token;
+                    $groups[] = '+' . $token_ft;
                 }
             }
         }
