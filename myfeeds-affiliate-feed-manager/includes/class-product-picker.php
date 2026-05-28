@@ -500,7 +500,14 @@ class MyFeeds_Product_Picker {
         if ($discount_percent > 0) {
             $card_html .= '<div class="myfeeds-discount-badge">-' . intval($discount_percent) . '%</div>';
         }
-        $card_html .= '<img src="' . esc_url($image_url) . '" alt="' . esc_attr($title) . '" loading="lazy" onerror="this.parentNode.classList.add(\'myfeeds-img-error\');this.style.display=\'none\';">';
+        // Best-effort URL upgrade — handles known CDN patterns (Shopify,
+        // Cloudinary, BigCommerce, AWIN productserve, WP uploads) so we
+        // serve a sharp variant instead of whatever thumbnail size the
+        // feed happened to ship. Falls through unchanged for unknown CDNs.
+        $img_data = function_exists('myfeeds_image_render_attrs')
+            ? myfeeds_image_render_attrs($image_url)
+            : array('src' => $image_url, 'attrs' => 'loading="lazy" decoding="async"');
+        $card_html .= '<img src="' . esc_url($img_data['src']) . '" alt="' . esc_attr($title) . '" ' . $img_data['attrs'] . ' onerror="this.parentNode.classList.add(\'myfeeds-img-error\');this.style.display=\'none\';">';
         $card_html .= '</div>';
 
         $card_html .= '<div class="myfeeds-product-details">';

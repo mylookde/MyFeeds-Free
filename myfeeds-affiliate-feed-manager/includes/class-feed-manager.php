@@ -2580,11 +2580,47 @@ class MyFeeds_Feed_Manager {
     }
     
     public function process_critical_fields(array $mapped, array $raw) {
-        
+
+        // ============================================================
+        // 0. AWIN FIELD PRIORITY (runs FIRST so it wins over saved mapping)
+        // ============================================================
+        //
+        // AWIN feeds ship two competing image URLs and two competing
+        // affiliate URLs in the same row:
+        //
+        //   merchant_image_url  — merchant's high-resolution original
+        //   aw_image_url        — AWIN's resized thumbnail (~200x200)
+        //
+        //   aw_deep_link        — AWIN's tracked redirector (commission
+        //                         gets attributed)
+        //   merchant_deep_link  — merchant's direct URL (silently BYPASSES
+        //                         AWIN tracking — commission is LOST)
+        //
+        // Whatever the user-saved mapping points to (set when the feed was
+        // first added, often pointing at aw_image_url because the smart
+        // mapper used to prefer it), this override forces the correct
+        // priority for every row of every Full Import. Without it, AWIN
+        // feeds keep shipping the soft thumbnail and the untracked link
+        // forever, even after smart-mapper itself has been corrected.
+        //
+        // Quick Sync has the same logic via batch-importer's force-overwrite
+        // pass; this is its full-import + AS-batch counterpart so both
+        // sync paths converge on the same image and tracked URL.
+        if (isset($raw['merchant_image_url']) && $raw['merchant_image_url'] !== '') {
+            $mapped['image_url'] = $raw['merchant_image_url'];
+        } elseif (isset($raw['aw_image_url']) && $raw['aw_image_url'] !== '') {
+            $mapped['image_url'] = $raw['aw_image_url'];
+        }
+        if (isset($raw['aw_deep_link']) && $raw['aw_deep_link'] !== '') {
+            $mapped['affiliate_link'] = $raw['aw_deep_link'];
+        } elseif (isset($raw['merchant_deep_link']) && $raw['merchant_deep_link'] !== '') {
+            $mapped['affiliate_link'] = $raw['merchant_deep_link'];
+        }
+
         // ============================================================
         // 1. PRODUCT IDENTITY (ID, Title, Link, Images)
         // ============================================================
-        
+
         // ID
         if (empty($mapped['id'])) {
             $id_fields = array('aw_product_id', 'product_id', 'id', 'sku');

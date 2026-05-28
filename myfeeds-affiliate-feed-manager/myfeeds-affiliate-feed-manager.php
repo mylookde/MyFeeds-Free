@@ -3,7 +3,7 @@
  * Plugin Name: MyFeeds — Affiliate Product Feed Manager
  * Plugin URI: https://myfeeds.site
  * Description: Import and manage affiliate product feeds from any network. Smart search, auto-mapping, and a Gutenberg Product Picker for bloggers.
- * Version: 1.0.16
+ * Version: 1.0.17
  * Author: Marlon Weber
  * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -38,7 +38,7 @@ if (!defined('ABSPATH')) {
 // =============================================================================
 
 // Define plugin constants
-define('MYFEEDS_VERSION', '1.0.16');
+define('MYFEEDS_VERSION', '1.0.17');
 define('MYFEEDS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('MYFEEDS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('MYFEEDS_PLUGIN_FILE', __FILE__);
@@ -429,6 +429,10 @@ function myfeeds_load_includes() {
     $helpers_file = $includes_dir . 'myfeeds-feed-cache.php';
     if (file_exists($helpers_file)) {
         require_once $helpers_file;
+    }
+    $image_helpers_file = $includes_dir . 'myfeeds-image-helpers.php';
+    if (file_exists($image_helpers_file)) {
+        require_once $image_helpers_file;
     }
 
     foreach ($include_files as $file => $description) {

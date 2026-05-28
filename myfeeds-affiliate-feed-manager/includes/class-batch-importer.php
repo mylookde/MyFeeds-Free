@@ -1754,17 +1754,16 @@ class MyFeeds_Batch_Importer {
             $mapped['id'] = $row_id;
             
             // FIX 4: FORCE OVERWRITE critical fields from raw feed data.
-            // Quick Sync MUST always update prices, stock, images, and links
-            // from the current feed. No "only write when empty" allowed here.
+            // Quick Sync MUST always update prices and stock from the
+            // current feed. The AWIN image-url + affiliate-link priority
+            // overrides live in process_critical_fields (single source of
+            // truth across Full Import, AS batch processing, and Quick
+            // Sync) so they fire here too via the call above.
             $force_overwrite_map = array(
                 'search_price'       => 'price',
                 'store_price'        => 'price',
                 'rrp_price'          => 'old_price',
                 'in_stock'           => 'in_stock',
-                'merchant_image_url' => 'image_url',
-                'aw_deep_link'       => 'affiliate_link',
-                'aw_image_url'       => 'image_url',
-                'merchant_deep_link' => 'affiliate_link',
             );
             foreach ($force_overwrite_map as $raw_field => $mapped_field) {
                 if (isset($raw[$raw_field]) && $raw[$raw_field] !== '') {
@@ -3613,6 +3612,22 @@ class MyFeeds_Batch_Importer {
      * Process critical fields (FALLBACK version)
      */
     private function process_critical_fields_fallback(array $mapped, array $raw) {
+        // AWIN field priority — mirror of MyFeeds_Feed_Manager::process_critical_fields.
+        // Forces merchant_image_url over aw_image_url (sharp vs thumbnail)
+        // and aw_deep_link over merchant_deep_link (tracked vs untracked,
+        // commission-critical). Runs before the empty-check fallbacks so
+        // it always wins over whatever the saved feed mapping pointed to.
+        if (isset($raw['merchant_image_url']) && $raw['merchant_image_url'] !== '') {
+            $mapped['image_url'] = $raw['merchant_image_url'];
+        } elseif (isset($raw['aw_image_url']) && $raw['aw_image_url'] !== '') {
+            $mapped['image_url'] = $raw['aw_image_url'];
+        }
+        if (isset($raw['aw_deep_link']) && $raw['aw_deep_link'] !== '') {
+            $mapped['affiliate_link'] = $raw['aw_deep_link'];
+        } elseif (isset($raw['merchant_deep_link']) && $raw['merchant_deep_link'] !== '') {
+            $mapped['affiliate_link'] = $raw['merchant_deep_link'];
+        }
+
         // ID
         if (empty($mapped['id'])) {
             $id_fields = function_exists('myfeeds_id_field_candidates')

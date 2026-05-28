@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 7.0
-Stable tag: 1.0.16
+Stable tag: 1.0.17
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -159,6 +159,11 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 5. Grid layout. Products rendered in a responsive grid with prices, brands, shipping info, and affiliate links.
 
 == Changelog ==
+
+= 1.0.17 =
+* Product images: render-time URL upgrade for the known CDNs. AWIN's `images.productserve.com/preview/` thumbnails get rewritten to the `/large/` mirror; Shopify size suffixes (`_grande`, `_NNNxNNN`, …) get bumped to `_1024x1024`; Cloudinary upload paths without a transformation get `w_1024,q_auto,f_auto` injected; BigCommerce stencil paths bump to `1024x1024`; WordPress `-NNNxNNN` resize suffixes get stripped. Unknown URLs pass through untouched. Images go from soft thumbnail to crisp source on Retina displays without any cloud storage or extra account on your side.
+* AWIN feeds: `merchant_image_url` now wins over `aw_image_url` everywhere. The AWIN variant routes through their resized `/preview/` bucket; the merchant variant is the original-resolution mirror. The smart mapper used to prefer the AWIN one, which produced soft cards on every Retina display, and the importer's force-overwrite pass would silently re-apply that choice on every Quick Sync. Both paths now converge on the merchant URL.
+* AWIN affiliate links: `aw_deep_link` now wins over `merchant_deep_link` everywhere, in every sync path. The AWIN URL goes through `awin1.com` so the commission gets attributed; the merchant URL is the merchant's direct link with no AWIN involvement, so a click on it silently bypasses tracking and the publisher loses the commission. Same "last one wins" loop order in the force-overwrite map was silently overwriting the tracked URL on every Quick Sync. Replaced with explicit priority overrides in `process_critical_fields` so Full Import, Quick Sync, Action Scheduler batches and single-feed reimports all produce the same tracked URL. Existing rows where the untracked URL was already cached heal at the next nightly sync.
 
 = 1.0.16 =
 * Mapping Editor: new "Default currency" card at the bottom of the mapping grid. Pick an ISO 4217 three-letter code (USD, EUR, GBP, CHF, JPY, INR and many more, plus a custom code option) for feeds that silently omit a currency column. Without an override, silent-currency feeds used to land in the database with empty currency and the front-end rendered the price without a symbol. The override is saved together with the rest of the mapping when you click Save Mapping, so there's still just one big save button to remember. Existing imported rows pick up the override at the next sync.

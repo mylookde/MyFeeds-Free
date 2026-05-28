@@ -188,8 +188,22 @@ class MyFeeds_Smart_Mapper {
                     'old_price' => ['rrp_price', 'product_price_old'],
                     'brand' => 'brand_name',
                     'merchant' => 'merchant_name', // CRITICAL: Use merchant_name, NOT merchant_id
-                    'image_url' => ['aw_image_url', 'merchant_image_url'],
-                    'affiliate_link' => 'aw_deep_link',
+                    // Image priority: merchant_image_url is the merchant's
+                    // original-resolution URL (often 1000-2000px); aw_image_url
+                    // is AWIN's resized thumbnail (typically 200x200) routed
+                    // through their /preview/ CDN. Prefer the merchant version
+                    // so cards stay sharp on Retina displays. The render-time
+                    // upgrader (myfeeds_upgrade_image_url) handles AWIN-only
+                    // feeds by rewriting /preview/ to /large/ at output time.
+                    'image_url' => ['merchant_image_url', 'aw_image_url'],
+                    // Affiliate link: aw_deep_link is AWIN's tracked URL —
+                    // the click goes through awin1.com so the commission gets
+                    // attributed. merchant_deep_link is the merchant's direct
+                    // URL; using it bypasses AWIN tracking and silently kills
+                    // commission. aw_deep_link MUST win; merchant_deep_link
+                    // exists only as a fallback for rows where AWIN didn't
+                    // populate the tracked URL (rare).
+                    'affiliate_link' => ['aw_deep_link', 'merchant_deep_link'],
                     'description' => ['product_short_description', 'description'],
                     // AWIN merchants are inconsistent about which category
                     // column they populate. Awin's normalised
