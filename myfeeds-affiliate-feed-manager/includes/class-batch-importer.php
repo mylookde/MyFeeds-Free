@@ -3628,6 +3628,22 @@ class MyFeeds_Batch_Importer {
             $mapped['affiliate_link'] = $raw['merchant_deep_link'];
         }
 
+        // Generic hi-res image priority — mirror of MyFeeds_Feed_Manager::process_critical_fields.
+        // Prefers explicit hi-res mirrors over a smaller `image_url` for
+        // non-AWIN feeds that ship both side by side.
+        $hires_fields = array(
+            'large_image_url', 'large_image',
+            'original_image_url', 'original_image',
+            'hires_image_url', 'hires_image',
+            'full_image_url', 'full_image',
+        );
+        foreach ($hires_fields as $f) {
+            if (isset($raw[$f]) && is_string($raw[$f]) && $raw[$f] !== '') {
+                $mapped['image_url'] = $raw[$f];
+                break;
+            }
+        }
+
         // ID
         if (empty($mapped['id'])) {
             $id_fields = function_exists('myfeeds_id_field_candidates')

@@ -81,8 +81,23 @@ class MyFeeds_Smart_Mapper {
             ],
             
             // Product Images
+            //
+            // Generic hi-res-aware detection for unknown / custom networks.
+            // Hi-res field names (large_image, original_image, hires_image,
+            // full_image — with or without `_url` suffix) sit at the head of
+            // the exact-match list so a feed that ships both a small
+            // `image_url` and an explicit hi-res variant prefers the larger
+            // mirror. Network-specific configs further down in this file
+            // (awin, pepperjam, etc.) override this for the networks where
+            // we know which field carries the original-resolution image.
             'image_url' => [
-                'exact_matches' => ['image', 'image_url', 'img_url', 'picture', 'photo', 'image_link'],
+                'exact_matches' => [
+                    'large_image_url', 'large_image',
+                    'original_image_url', 'original_image',
+                    'hires_image_url', 'hires_image',
+                    'full_image_url', 'full_image',
+                    'image', 'image_url', 'img_url', 'picture', 'photo', 'image_link'
+                ],
                 'contains_patterns' => ['image', 'img', 'picture', 'photo', 'image_link'],
                 'suffix_patterns' => ['_image', '_img', '_url', 'Image', 'Img'],
                 'weight' => 85

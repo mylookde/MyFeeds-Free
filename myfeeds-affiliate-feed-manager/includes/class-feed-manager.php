@@ -2630,6 +2630,27 @@ class MyFeeds_Feed_Manager {
             $mapped['affiliate_link'] = $raw['merchant_deep_link'];
         }
 
+        // Generic hi-res image priority — for non-AWIN feeds that ship
+        // BOTH a small `image_url` and an explicit hi-res mirror
+        // (large_image, original_image, hires_image, full_image — with
+        // or without _url suffix). Runs AFTER the AWIN block so that
+        // on a feed which mixes AWIN fields with a custom hi-res slot,
+        // the customer's explicit hi-res name wins. Noop when no such
+        // field is present, so feeds with only a single image column
+        // behave exactly as before.
+        $hires_fields = array(
+            'large_image_url', 'large_image',
+            'original_image_url', 'original_image',
+            'hires_image_url', 'hires_image',
+            'full_image_url', 'full_image',
+        );
+        foreach ($hires_fields as $f) {
+            if (isset($raw[$f]) && is_string($raw[$f]) && $raw[$f] !== '') {
+                $mapped['image_url'] = $raw[$f];
+                break;
+            }
+        }
+
         // ============================================================
         // 1. PRODUCT IDENTITY (ID, Title, Link, Images)
         // ============================================================
@@ -2660,7 +2681,14 @@ class MyFeeds_Feed_Manager {
         
         // Main Image
         if (empty($mapped['image_url'])) {
-            $img_fields = array('merchant_image_url', 'aw_image_url', 'large_image', 'image_url', 'image', 'image_link', 'picture');
+            $img_fields = array(
+                'merchant_image_url', 'aw_image_url',
+                'large_image_url', 'large_image',
+                'original_image_url', 'original_image',
+                'hires_image_url', 'hires_image',
+                'full_image_url', 'full_image',
+                'image_url', 'image', 'image_link', 'picture',
+            );
             foreach ($img_fields as $f) {
                 if (!empty($raw[$f])) { $mapped['image_url'] = is_array($raw[$f]) ? $raw[$f][0] : $raw[$f]; break; }
             }
