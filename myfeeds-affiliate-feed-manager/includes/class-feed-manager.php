@@ -1670,13 +1670,20 @@ class MyFeeds_Feed_Manager {
         $ids = array_map('sanitize_text_field', array_slice($ids, 0, 100));
         
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
-            $products = MyFeeds_DB_Manager::get_products($ids);
-            return rest_ensure_response(array_values($products));
+            $products = array_values(MyFeeds_DB_Manager::get_products($ids));
+            // Editor preview tiles consume this directly, so route through
+            // the CDN-aware URL upgrader before serializing. Frontend
+            // render_product_card() does the same — having the editor
+            // mirror its output keeps the two surfaces visually consistent.
+            if (function_exists('myfeeds_upgrade_product_image_urls')) {
+                $products = myfeeds_upgrade_product_image_urls($products);
+            }
+            return rest_ensure_response($products);
         }
-        
+
         return rest_ensure_response(array());
     }
-    
+
     /**
      * REST API: Get available sizes for a product_name + colour combination.
      * Used in the detail view to show all size variants of a deduplicated product.
@@ -1713,6 +1720,12 @@ class MyFeeds_Feed_Manager {
 
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
             $siblings = MyFeeds_DB_Manager::get_color_siblings($id);
+            // Detail-modal swatches render image_url straight from this
+            // response, so route it through the same CDN upgrader the
+            // selected-tiles and frontend cards use.
+            if (function_exists('myfeeds_upgrade_product_image_urls')) {
+                $siblings = myfeeds_upgrade_product_image_urls($siblings);
+            }
             return rest_ensure_response($siblings);
         }
 
