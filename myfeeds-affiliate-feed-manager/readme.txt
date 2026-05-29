@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
 Requires at least: 5.8
 Tested up to: 7.0
-Stable tag: 1.0.17
+Stable tag: 1.0.18
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -159,6 +159,10 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 5. Grid layout. Products rendered in a responsive grid with prices, brands, shipping info, and affiliate links.
 
 == Changelog ==
+
+= 1.0.18 =
+* Block editor: product images in the picker now match what visitors see on the published post. The selected-tile refresh endpoint, the colour-sibling swatch endpoint, and the product preview that runs on block mount all pipe their image URLs through the same CDN-aware upgrader the frontend renderer already uses, so a saved block can't look soft in the editor while the published post renders crisp. Pure render-time logic, no migration.
+* Smart mapper: generic hi-res image priority for custom and small-network feeds. Feeds that ship both a small `image_url` and an explicit hi-res mirror (`large_image`, `original_image`, `hires_image`, `full_image` — with or without `_url` suffix) now pick up the hi-res variant on every sync path (Full Import, Quick Sync, Action Scheduler batches, single-feed reimports). Feeds with only a single image column behave exactly as before. AWIN priority is unchanged.
 
 = 1.0.17 =
 * Product images: render-time URL upgrade for the known CDNs. AWIN's `images.productserve.com/preview/` thumbnails get rewritten to the `/large/` mirror; Shopify size suffixes (`_grande`, `_NNNxNNN`, …) get bumped to `_1024x1024`; Cloudinary upload paths without a transformation get `w_1024,q_auto,f_auto` injected; BigCommerce stencil paths bump to `1024x1024`; WordPress `-NNNxNNN` resize suffixes get stripped. Unknown URLs pass through untouched. Images go from soft thumbnail to crisp source on Retina displays without any cloud storage or extra account on your side.
