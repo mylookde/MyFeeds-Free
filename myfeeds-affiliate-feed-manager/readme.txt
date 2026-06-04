@@ -152,12 +152,12 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Screenshots ==
 
-1. Product grid inside a real blog post. Live prices, sale badges, brand and shipping pulled from the merchant feed. The frontend any reader sees once you pick products in the editor.
-2. Carousel layout (MyFeeds Pro). Same products, same data, swipeable with chevron arrows for image-heavy posts.
-3. Card design editor (MyFeeds Pro). Pick background, border, radius, shadow and hover behaviour. A live preview on the right shows every change.
-4. Full storefront (MyFeeds Business). Turn your affiliate feeds into a real, browsable shop on your own WordPress domain. Categories, sorting and your own design.
-5. Smart category manager (MyFeeds Business). Build the category tree your readers will use. Products from your feeds match into the right category on their own.
-6. Shop design editor (MyFeeds Business). Layout, products per row, corner style, hover effect and filter position, with a desktop, tablet and mobile preview.
+1. Live product grid inside a real blog post. Pick products in the editor, hit publish, and your readers see what the merchant is actually selling today — for as long as the post exists.
+2. Swipeable carousel layout (MyFeeds Pro). The same picker behind it, a second way to present what you've curated for image-heavy posts and roundups.
+3. Card design editor (MyFeeds Pro). Cards that look like your blog wrote them. One save, every card across every post catches up. The live editor opens more than this screen lets on.
+4. Full storefront on your own domain (MyFeeds Business). Visitors land in something that feels like a real online shop — the controls and rhythm they already know — and every checkout still goes through your affiliate link.
+5. Category manager (MyFeeds Business). A shop organised the way your readers shop. Build the tree once, then curate products into each category by hand, guided by smart keyword search.
+6. Shop design editor (MyFeeds Business). Your storefront tracks your taste — adjust until it feels like a continuation of your writing, with a phone, tablet and laptop preview moving alongside. The live editor carries plenty more.
 
 == Changelog ==
 
