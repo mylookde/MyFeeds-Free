@@ -152,11 +152,12 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Screenshots ==
 
-1. Feed Manager. Configure your affiliate product feed with status, product count, and mapping quality.
-2. Background Import. Imports run in the background with a real-time progress bar. Continue working while products are imported.
-3. Smart Mapping. Automatic field detection with manual override. Maps any CSV/TSV/XML/JSON feed to product fields.
-4. MyFeeds Product Picker block. Search the local product index and select products inline in the editor.
-5. Grid layout. Products rendered in a responsive grid with prices, brands, shipping info, and affiliate links.
+1. Product grid inside a real blog post. Live prices, sale badges, brand and shipping pulled from the merchant feed. The frontend any reader sees once you pick products in the editor.
+2. Carousel layout (MyFeeds Pro). Same products, same data, swipeable with chevron arrows for image-heavy posts.
+3. Card design editor (MyFeeds Pro). Pick background, border, radius, shadow and hover behaviour. A live preview on the right shows every change.
+4. Full storefront (MyFeeds Business). Turn your affiliate feeds into a real, browsable shop on your own WordPress domain. Categories, sorting and your own design.
+5. Smart category manager (MyFeeds Business). Build the category tree your readers will use. Products from your feeds match into the right category on their own.
+6. Shop design editor (MyFeeds Business). Layout, products per row, corner style, hover effect and filter position, with a desktop, tablet and mobile preview.
 
 == Changelog ==
 
