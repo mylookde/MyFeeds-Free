@@ -152,12 +152,12 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Screenshots ==
 
-1. Live product grid inside a real blog post. Pick products in the editor, hit publish, and your readers see what the merchant is actually selling today — for as long as the post exists.
+1. Live product grid inside a real blog post. Pick products in the editor, hit publish, and your readers see what the merchant is actually selling today, for as long as the post exists.
 2. Swipeable carousel layout (MyFeeds Pro). The same picker behind it, a second way to present what you've curated for image-heavy posts and roundups.
 3. Card design editor (MyFeeds Pro). Cards that look like your blog wrote them. One save, every card across every post catches up. The live editor opens more than this screen lets on.
-4. Full storefront on your own domain (MyFeeds Business). Visitors land in something that feels like a real online shop — the controls and rhythm they already know — and every checkout still goes through your affiliate link.
-5. Category manager (MyFeeds Business). A shop organised the way your readers shop. Build the tree once, then curate products into each category by hand, guided by smart keyword search.
-6. Shop design editor (MyFeeds Business). Your storefront tracks your taste — adjust until it feels like a continuation of your writing, with a phone, tablet and laptop preview moving alongside. The live editor carries plenty more.
+4. Full storefront on your own domain (MyFeeds Business). Visitors see your real online shop with categories, filters and sorting. The controls they already know from any modern shop, all on your domain. Every checkout goes through your affiliate link.
+5. Category manager (MyFeeds Business). A shop organised the way your readers shop. Build the tree once, then curate products into each category by hand. Smart keyword search behind the scenes; you stay the editor.
+6. Shop design editor (MyFeeds Business). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
 
