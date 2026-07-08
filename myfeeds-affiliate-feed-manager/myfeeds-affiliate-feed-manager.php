@@ -417,6 +417,7 @@ function myfeeds_load_includes() {
         'class-network-handlers.php' => 'Network Handlers Class', 
         'class-feed-manager.php' => 'Feed Manager Class',
         'class-upsell.php'       => 'Informational Upsell Banner',
+        'class-review-ask.php'   => 'One-time wp.org review request',
         'class-feature-previews.php' => 'Feature Preview Pages',
         'class-schema-generator.php' => 'Schema.org JSON-LD Generator',
         'class-product-picker.php' => 'Product Picker Class',
@@ -530,6 +531,12 @@ class MyFeeds_Affiliate_Product_Picker {
                 $upsell = new MyFeeds_Upsell();
                 $upsell->init();
                 myfeeds_log("Upsell surfaces initialized");
+            }
+
+            // Initialize the one-time review request
+            if (class_exists('MyFeeds_Review_Ask')) {
+                $review_ask = new MyFeeds_Review_Ask();
+                $review_ask->init();
             }
 
             // Initialize Pro/Business feature preview pages
