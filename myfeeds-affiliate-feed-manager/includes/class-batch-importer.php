@@ -4836,12 +4836,13 @@ class MyFeeds_Batch_Importer {
     
     public function ajax_get_import_status() {
         check_ajax_referer('myfeeds_nonce', 'nonce');
-        
+
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => __('Unauthorized', 'myfeeds-affiliate-feed-manager')));
         }
-        
+
         try {
+            $this->maybe_run_queue_inline();
             wp_send_json_success($this->get_import_status());
         } catch (\Throwable $e) {
             myfeeds_log('ajax_get_import_status error: ' . $e->getMessage(), 'error');
@@ -4850,6 +4851,52 @@ class MyFeeds_Batch_Importer {
                 'error' => 'Status check failed: ' . $e->getMessage(),
             ));
         }
+    }
+
+    /**
+     * Browser-driven queue runner.
+     *
+     * WP-Cron and Action Scheduler's async runner both depend on the
+     * site being able to call itself over HTTP (loopback). Password-
+     * protected staging sites, some security plugins and misconfigured
+     * hosts block that silently — scheduled batches then sit in the
+     * queue forever and the import looks frozen at 0%. The progress-
+     * polling AJAX request the user's browser sends every few seconds
+     * is the one context guaranteed to reach PHP from the outside, so
+     * while an import is running we drive the queue from right here.
+     * The plugin stays functional with zero host configuration.
+     */
+    private function maybe_run_queue_inline() {
+        if (!class_exists('ActionScheduler_QueueRunner')) {
+            return;
+        }
+        $status = get_option(self::OPTION_IMPORT_STATUS, array());
+        if (empty($status) || (($status['status'] ?? '') !== 'running')) {
+            return;
+        }
+        // Polls arrive every few seconds; one inline runner at a time
+        // is plenty and keeps concurrent claims off low-end databases.
+        if (get_transient('myfeeds_inline_runner_lock')) {
+            return;
+        }
+        set_transient('myfeeds_inline_runner_lock', 1, 20);
+
+        // Keep each inline run short so the polling request stays
+        // responsive; the next poll picks up the following batch.
+        $limit_cb = function () {
+            return 15;
+        };
+        add_filter('action_scheduler_queue_runner_time_limit', $limit_cb);
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(90);
+        }
+        try {
+            ActionScheduler_QueueRunner::instance()->run('MyFeeds inline runner');
+        } catch (\Throwable $e) {
+            myfeeds_log('[INLINE-RUNNER] ' . $e->getMessage(), 'error');
+        }
+        remove_filter('action_scheduler_queue_runner_time_limit', $limit_cb);
+        delete_transient('myfeeds_inline_runner_lock');
     }
     
     public function ajax_cancel_import() {
