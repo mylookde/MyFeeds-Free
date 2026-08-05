@@ -112,6 +112,11 @@ class MyFeeds_Feature_Previews {
      * URL makes render_preview() fall back to the dashed placeholder
      * box, so the page degrades gracefully while screenshots are
      * still being prepared.
+     *
+     * The filemtime cache buster matters here: a refreshed screenshot
+     * keeps its filename, so without it the browser keeps showing the
+     * old picture until someone hard-reloads. Same approach the CSS and
+     * JS in this class already use.
      */
     private function preview_image_url($filename) {
         if (!defined('MYFEEDS_PLUGIN_FILE')) {
@@ -122,7 +127,11 @@ class MyFeeds_Feature_Previews {
         if (!file_exists($absolute)) {
             return '';
         }
-        return plugins_url($relative, MYFEEDS_PLUGIN_FILE);
+        return add_query_arg(
+            'v',
+            filemtime($absolute),
+            plugins_url($relative, MYFEEDS_PLUGIN_FILE)
+        );
     }
 
     private function menu_label_with_badge($label, $tier) {
