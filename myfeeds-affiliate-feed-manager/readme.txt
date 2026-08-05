@@ -66,7 +66,7 @@ The next day the nightly sync refreshes what changed. The week after, a full imp
 
 = Related paid plugins =
 
-This plugin is fully functional on its own. Separate, independent paid plugins called **MyFeeds Pro** and **MyFeeds Business** are available at [myfeeds.site](https://myfeeds.site). They add things like a carousel block, a visual card designer with Google Fonts, click and conversion analytics, and a full multi-feed shop system. They are not required to use this plugin.
+This plugin is fully functional on its own. Separate, independent paid plugins called **MyFeeds Starter**, **MyFeeds Pro** and **MyFeeds E-commerce** are available at [myfeeds.site](https://myfeeds.site). They add things like a carousel block, a visual card designer with Google Fonts, click and conversion analytics, and a full multi-feed shop system. They are not required to use this plugin.
 
 == Installation ==
 
@@ -153,11 +153,11 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 == Screenshots ==
 
 1. Live product grid inside a real blog post. Pick products in the editor, hit publish, and your readers see what the merchant is actually selling today, for as long as the post exists.
-2. Swipeable carousel layout (MyFeeds Pro). The same picker behind it, a second way to present what you've curated for image-heavy posts and roundups.
-3. Card design editor (MyFeeds Pro). Cards that look like your blog wrote them. One save, every card across every post catches up. The live editor opens more than this screen lets on.
-4. Full storefront on your own domain (MyFeeds Business). Visitors see your real online shop with categories, filters and sorting. The controls they already know from any modern shop, all on your domain. Every checkout goes through your affiliate link.
-5. Category manager (MyFeeds Business). A shop organised the way your readers shop. Build the tree once, then curate products into each category by hand. Smart keyword search behind the scenes; you stay the editor.
-6. Shop design editor (MyFeeds Business). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
+2. Swipeable carousel layout (MyFeeds Starter). The same picker behind it, a second way to present what you've curated for image-heavy posts and roundups.
+3. Card design editor (MyFeeds Starter). Cards that look like your blog wrote them. One save, every card across every post catches up. The live editor opens more than this screen lets on.
+4. Full storefront on your own domain (MyFeeds E-commerce). Visitors see your real online shop with categories, filters and sorting. The controls they already know from any modern shop, all on your domain. Every checkout goes through your affiliate link.
+5. Category manager (MyFeeds E-commerce). A shop organised the way your readers shop. Build the tree once, then curate products into each category by hand. Smart keyword search behind the scenes; you stay the editor.
+6. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
 

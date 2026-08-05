@@ -539,7 +539,7 @@ class MyFeeds_Affiliate_Product_Picker {
                 $review_ask->init();
             }
 
-            // Initialize Pro/Business feature preview pages
+            // Initialize paid-tier feature preview pages
             if (class_exists('MyFeeds_Feature_Previews')) {
                 $previews = new MyFeeds_Feature_Previews();
                 $previews->init();

@@ -1,16 +1,16 @@
 <?php
 /**
- * Marketing-only preview pages for Pro/Business features.
+ * Marketing-only preview pages for the paid-tier features.
  *
  * Adds three submenu entries (Shop, Card Design, Analytics) with a
- * brand-coloured PRO/BUSINESS badge. Each one opens a static info
+ * brand-coloured tier badge. Each one opens a static info
  * page describing the feature with screenshots, benefit bullets, and
  * a direct trial CTA to the Freemius checkout.
  *
  * IMPORTANT — wp.org guideline 5 compliance:
  * The pages here MUST stay pure marketing. No real editor UI, no
  * disabled inputs, no fake-data dashboards behind an overlay. The
- * actual Pro/Business feature code lives only in the MyFeeds Pro
+ * actual paid feature code lives only in the MyFeeds Pro
  * plugin repository, never here. What we render is the same kind of
  * surface Yoast renders for its Premium Workouts page: a page that
  * describes a feature and links to checkout, nothing more.
@@ -23,6 +23,7 @@ if (!defined('ABSPATH')) {
 class MyFeeds_Feature_Previews {
 
     const CHECKOUT_PRO_URL = 'https://checkout.freemius.com/plugin/21336/plan/35610/?trial=paid';
+    const CHECKOUT_STARTER_URL = 'https://checkout.freemius.com/plugin/21336/plan/60599/?trial=paid';
     const CHECKOUT_BUSINESS_URL = 'https://checkout.freemius.com/plugin/21336/plan/48994/?trial=paid';
 
     public function init() {
@@ -74,7 +75,7 @@ class MyFeeds_Feature_Previews {
     }
 
     /**
-     * Glow-tinted PRO / BUSINESS badge in the submenu list. wp-admin
+     * Glow-tinted tier badge in the submenu list. wp-admin
      * sidebar is dark, so a brand-gradient pill with a soft inner glow
      * reads as "premium tier" without resorting to the gold/yellow
      * crown-icon convention.
@@ -126,8 +127,8 @@ class MyFeeds_Feature_Previews {
 
     private function menu_label_with_badge($label, $tier) {
         // Submenu labels accept inline HTML. Tier comes from a closed
-        // set ("PRO" or "BUSINESS"), never user input, but esc_html the
-        // label anyway for defense in depth.
+        // set ("STARTER", "PRO" or "E-COMMERCE"), never user input, but
+        // esc_html the label anyway for defense in depth.
         return esc_html($label) . ' <span class="myfeeds-tier-badge">' . esc_html($tier) . '</span>';
     }
 
@@ -137,8 +138,8 @@ class MyFeeds_Feature_Previews {
 
     public function render_myfeeds_shop() {
         $this->render_preview(array(
-            'eyebrow'    => __('Business feature', 'myfeeds-affiliate-feed-manager'),
-            'tier'       => 'BUSINESS',
+            'eyebrow'    => __('E-commerce feature', 'myfeeds-affiliate-feed-manager'),
+            'tier'       => 'E-COMMERCE',
             'title'      => __('Turn your blog into an affiliate shop.', 'myfeeds-affiliate-feed-manager'),
             'subtitle'   => __('A blog post earns once. A shop earns every day. Every product you already import becomes a browsable storefront on your own domain. Visitors browse it. Search engines index it. You earn from both.', 'myfeeds-affiliate-feed-manager'),
             'cta_label'  => __('Start 14-day free trial', 'myfeeds-affiliate-feed-manager'),
@@ -169,12 +170,12 @@ class MyFeeds_Feature_Previews {
 
     public function render_myfeeds_card_design() {
         $this->render_preview(array(
-            'eyebrow'    => __('Pro feature', 'myfeeds-affiliate-feed-manager'),
-            'tier'       => 'PRO',
+            'eyebrow'    => __('Starter feature', 'myfeeds-affiliate-feed-manager'),
+            'tier'       => 'STARTER',
             'title'      => __('Make product cards look like your brand.', 'myfeeds-affiliate-feed-manager'),
             'subtitle'   => __('Generic plugin cards kill conversions. Pick colours, fonts, spacing and shadows in a visual editor. Every change shows up live on real product data, on desktop and on mobile, without touching theme CSS.', 'myfeeds-affiliate-feed-manager'),
             'cta_label'  => __('Start 7-day free trial', 'myfeeds-affiliate-feed-manager'),
-            'cta_url'    => self::CHECKOUT_PRO_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=card-design',
+            'cta_url'    => self::CHECKOUT_STARTER_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=card-design',
             'cta_note'   => __('Cancel anytime from your dashboard', 'myfeeds-affiliate-feed-manager'),
             'screenshots' => array(
                 array(
@@ -290,7 +291,7 @@ class MyFeeds_Feature_Previews {
                     <?php
                     printf(
                         /* translators: %s is an anchor tag wrapping the text "myfeeds.site" */
-                        esc_html__('MyFeeds Pro and MyFeeds Business are separate paid plugins available at %s. Activating a license unlocks the feature on this site.', 'myfeeds-affiliate-feed-manager'),
+                        esc_html__('MyFeeds Starter, MyFeeds Pro and MyFeeds E-commerce are separate paid plugins available at %s. Activating a license unlocks the feature on this site.', 'myfeeds-affiliate-feed-manager'),
                         '<a href="https://myfeeds.site/?utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=disclaimer" target="_blank" rel="noopener noreferrer">myfeeds.site</a>'
                     );
                     ?>
@@ -320,13 +321,13 @@ class MyFeeds_Feature_Previews {
                 'slug'        => 'myfeeds-shop',
                 'menu_title'  => __('Shop', 'myfeeds-affiliate-feed-manager'),
                 'page_title'  => __('MyFeeds — Shop', 'myfeeds-affiliate-feed-manager'),
-                'tier'        => 'BUSINESS',
+                'tier'        => 'E-COMMERCE',
             ),
             array(
                 'slug'        => 'myfeeds-card-design',
                 'menu_title'  => __('Card Design', 'myfeeds-affiliate-feed-manager'),
                 'page_title'  => __('MyFeeds — Card Design', 'myfeeds-affiliate-feed-manager'),
-                'tier'        => 'PRO',
+                'tier'        => 'STARTER',
             ),
             array(
                 'slug'        => 'myfeeds-analytics',
