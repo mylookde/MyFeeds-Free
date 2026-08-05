@@ -334,7 +334,11 @@ class MyFeeds_Feature_Previews {
             ),
             array(
                 'slug'        => 'myfeeds-card-design',
-                'menu_title'  => __('Card Design', 'myfeeds-affiliate-feed-manager'),
+                // "Design", not "Card Design": with the tier badge beside it
+                // the longer label wraps onto a second line in the WP submenu.
+                // Nothing else here is a design editor, so the short form
+                // cannot be misread — and it matches the one-word siblings.
+                'menu_title'  => __('Design', 'myfeeds-affiliate-feed-manager'),
                 'page_title'  => __('MyFeeds — Card Design', 'myfeeds-affiliate-feed-manager'),
                 'tier'        => 'STARTER',
             ),
