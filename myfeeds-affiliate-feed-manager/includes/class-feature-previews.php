@@ -296,6 +296,12 @@ class MyFeeds_Feature_Previews {
             <?php endif; ?>
 
             <div class="myfeeds-preview-footer">
+                <?php if (!empty($config['requirement'])) : ?>
+                    <p class="myfeeds-preview-disclaimer">
+                        <strong><?php esc_html_e('Worth knowing before you buy:', 'myfeeds-affiliate-feed-manager'); ?></strong>
+                        <?php echo esc_html($config['requirement']); ?>
+                    </p>
+                <?php endif; ?>
                 <p class="myfeeds-preview-disclaimer">
                     <?php
                     printf(
@@ -324,8 +330,42 @@ class MyFeeds_Feature_Previews {
     // CONFIG
     // =========================================================================
 
+    public function render_myfeeds_amazon() {
+        $this->render_preview(array(
+            'eyebrow'    => __('Starter feature', 'myfeeds-affiliate-feed-manager'),
+            'tier'       => 'STARTER',
+            'title'      => __('Put Amazon products in your posts.', 'myfeeds-affiliate-feed-manager'),
+            'subtitle'   => __('Search the Amazon catalogue from inside the editor and drop products straight into a post. Prices and stock refresh themselves, and every card carries the timestamp and wording Amazon asks for.', 'myfeeds-affiliate-feed-manager'),
+            'cta_label'  => __('Start 7-day free trial', 'myfeeds-affiliate-feed-manager'),
+            'cta_url'    => self::CHECKOUT_STARTER_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=amazon',
+            'cta_note'   => __('Cancel anytime from your dashboard', 'myfeeds-affiliate-feed-manager'),
+            'screenshots' => array(
+                array(
+                    'image'       => $this->preview_image_url('amazon-picker.png'),
+                    'placeholder' => __('Amazon search inside the block editor', 'myfeeds-affiliate-feed-manager'),
+                    'caption'     => __('Type what you are looking for, pick the products you want, and they land in the post.', 'myfeeds-affiliate-feed-manager'),
+                ),
+            ),
+            'benefits' => array(
+                __('Search the Amazon catalogue without leaving the editor.', 'myfeeds-affiliate-feed-manager'),
+                __('Filter by category, brand, price and rating, and sort by what sells.', 'myfeeds-affiliate-feed-manager'),
+                __('Prices and availability refresh themselves, so your posts stop going stale.', 'myfeeds-affiliate-feed-manager'),
+                __('Cards carry the timestamp and wording the Amazon Associates terms require.', 'myfeeds-affiliate-feed-manager'),
+                __('Works alongside your existing feeds. Amazon products and feed products sit in the same block.', 'myfeeds-affiliate-feed-manager'),
+                __('Choose your Amazon site and partner tag per country.', 'myfeeds-affiliate-feed-manager'),
+            ),
+            'requirement' => __('Amazon only opens its product API to Associates accounts with 10 qualifying sales in the last 30 days. That is Amazon\'s rule, not ours, and it applies to every plugin that connects to them.', 'myfeeds-affiliate-feed-manager'),
+        ));
+    }
+
     private function preview_configs() {
         return array(
+            array(
+                'slug'        => 'myfeeds-amazon',
+                'menu_title'  => __('Amazon', 'myfeeds-affiliate-feed-manager'),
+                'page_title'  => __('MyFeeds — Amazon', 'myfeeds-affiliate-feed-manager'),
+                'tier'        => 'STARTER',
+            ),
             array(
                 'slug'        => 'myfeeds-shop',
                 'menu_title'  => __('Shop', 'myfeeds-affiliate-feed-manager'),

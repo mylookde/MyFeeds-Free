@@ -673,12 +673,68 @@ class MyFeeds_Feed_Manager {
     /**
      * Render simplified feeds table
      */
+    /**
+     * Signpost for the Amazon source, which lives in the paid Starter
+     * plugin. Deliberately a link to the description page rather than a
+     * dead control: there is no Amazon code in this plugin to unlock, and
+     * a button that does nothing on click is worse for the reader than one
+     * that explains itself.
+     */
+    private function render_amazon_teaser_button() {
+        $url = admin_url('admin.php?page=myfeeds-amazon');
+        ?>
+        <a href="<?php echo esc_url($url); ?>"
+           class="button myfeeds-amazon-teaser"
+           title="<?php echo esc_attr__('Amazon products are part of MyFeeds Starter', 'myfeeds-affiliate-feed-manager'); ?>">
+            + <?php esc_html_e('Add Amazon', 'myfeeds-affiliate-feed-manager'); ?>
+            <span class="myfeeds-amazon-teaser__tip" aria-hidden="true">
+                <?php esc_html_e('Available from Starter', 'myfeeds-affiliate-feed-manager'); ?>
+            </span>
+        </a>
+        <style>
+            .myfeeds-feeds-table-header { display: flex; align-items: center; gap: 8px; }
+            .myfeeds-feeds-table-header h2 { flex: 1 1 auto; margin: 0; }
+            .myfeeds-amazon-teaser,
+            .myfeeds-amazon-teaser:hover,
+            .myfeeds-amazon-teaser:focus {
+                position: relative;
+                background: rgba(252, 144, 0, .16);
+                border-color: rgba(252, 144, 0, .45);
+                color: #9a5b00;
+                box-shadow: none;
+                text-shadow: none;
+            }
+            .myfeeds-amazon-teaser:hover { background: rgba(252, 144, 0, .26); }
+            .myfeeds-amazon-teaser__tip {
+                position: absolute;
+                left: 50%;
+                top: calc(100% + 8px);
+                transform: translateX(-50%);
+                white-space: nowrap;
+                background: #1d2327;
+                color: #fff;
+                font-size: 11px;
+                line-height: 1.6;
+                padding: 4px 8px;
+                border-radius: 3px;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity .12s ease;
+                z-index: 20;
+            }
+            .myfeeds-amazon-teaser:hover .myfeeds-amazon-teaser__tip,
+            .myfeeds-amazon-teaser:focus .myfeeds-amazon-teaser__tip { opacity: 1; }
+        </style>
+        <?php
+    }
+
     private function render_feeds_table($feeds) {
         $has_feed = !empty($feeds);
         ?>
         <div class="myfeeds-feeds-table">
             <div class="myfeeds-feeds-table-header">
                 <h2><?php esc_html_e('Configured Feed', 'myfeeds-affiliate-feed-manager'); ?></h2>
+                <?php $this->render_amazon_teaser_button(); ?>
             </div>
             <?php if (!$has_feed): ?>
                 <div class="myfeeds-empty-state" style="text-align:center; padding:48px 24px; border:1px dashed #c3c4c7; border-radius:8px; background:#fff;">
