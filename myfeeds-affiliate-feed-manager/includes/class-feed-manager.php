@@ -675,56 +675,110 @@ class MyFeeds_Feed_Manager {
      */
     /**
      * Signpost for the Amazon source, which lives in the paid Starter
-     * plugin. Deliberately a link to the description page rather than a
-     * dead control: there is no Amazon code in this plugin to unlock, and
-     * a button that does nothing on click is worse for the reader than one
-     * that explains itself.
+     * plugin. Opens a dialog describing the feature rather than leading
+     * to a submenu of its own: one entry point, and the feeds screen is
+     * where a source would be added.
+     *
+     * wp.org guideline 5: what the dialog holds is marketing copy and a
+     * checkout link, the same substance the other preview pages carry.
+     * No Amazon code ships in this plugin and nothing here is a locked
+     * control.
      */
     private function render_amazon_teaser_button() {
-        $url = admin_url('admin.php?page=myfeeds-amazon');
         ?>
-        <a href="<?php echo esc_url($url); ?>"
-           id="myfeeds-add-amazon-btn"
-           class="button"
-           title="<?php echo esc_attr__('Amazon products are part of MyFeeds Starter', 'myfeeds-affiliate-feed-manager'); ?>">
-            + <?php esc_html_e('Add Amazon', 'myfeeds-affiliate-feed-manager'); ?>
-            <span class="myfeeds-amazon-teaser__tip" aria-hidden="true">
-                <?php esc_html_e('Available from Starter', 'myfeeds-affiliate-feed-manager'); ?>
-            </span>
-        </a>
+        <button type="button" id="myfeeds-add-amazon-btn" class="button"><?php
+            esc_html_e('+ Add Amazon', 'myfeeds-affiliate-feed-manager');
+        ?><span class="myfeeds-amazon-tip" aria-hidden="true"><?php
+            esc_html_e('Available from Starter', 'myfeeds-affiliate-feed-manager');
+        ?></span></button>
+        <?php
+        $this->print_amazon_styles();
+    }
+
+    private function render_amazon_modal() {
+        $benefits = array(
+            __('Search the Amazon catalogue without leaving the editor.', 'myfeeds-affiliate-feed-manager'),
+            __('Filter by category, brand, price and rating, and sort by what sells.', 'myfeeds-affiliate-feed-manager'),
+            __('Prices and availability refresh themselves, so your posts stop going stale.', 'myfeeds-affiliate-feed-manager'),
+            __('Cards carry the timestamp and wording the Amazon Associates terms require.', 'myfeeds-affiliate-feed-manager'),
+            __('Works alongside your feeds. Amazon products and feed products sit in the same block.', 'myfeeds-affiliate-feed-manager'),
+            __('Choose your Amazon site and partner tag per country.', 'myfeeds-affiliate-feed-manager'),
+        );
+
+        $cta = MyFeeds_Feature_Previews::CHECKOUT_STARTER_URL
+            . '&utm_source=wp-plugin-free&utm_medium=amazon-modal&utm_term=amazon';
+        ?>
+        <div id="myfeeds-amazon-modal" class="myfeeds-modal-overlay" style="display:none;">
+            <div class="myfeeds-modal-content myfeeds-amazon-modal-content">
+                <div class="myfeeds-modal-header">
+                    <h3><?php esc_html_e('Amazon products', 'myfeeds-affiliate-feed-manager'); ?></h3>
+                    <button type="button" class="myfeeds-modal-close" id="myfeeds-amazon-modal-close">&times;</button>
+                </div>
+                <div class="myfeeds-modal-body">
+                    <span class="myfeeds-amazon-badge"><?php esc_html_e('Starter feature', 'myfeeds-affiliate-feed-manager'); ?></span>
+                    <h2 class="myfeeds-amazon-title"><?php esc_html_e('Put Amazon products in your posts.', 'myfeeds-affiliate-feed-manager'); ?></h2>
+                    <p class="myfeeds-amazon-lede">
+                        <?php esc_html_e('Search the Amazon catalogue from inside the editor and drop products straight into a post. Prices and stock refresh themselves, and every card carries the timestamp and wording Amazon asks for.', 'myfeeds-affiliate-feed-manager'); ?>
+                    </p>
+
+                    <ul class="myfeeds-amazon-benefits">
+                        <?php foreach ($benefits as $benefit) : ?>
+                            <li><?php echo esc_html($benefit); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+
+                    <p class="myfeeds-amazon-note">
+                        <strong><?php esc_html_e('Worth knowing before you buy:', 'myfeeds-affiliate-feed-manager'); ?></strong>
+                        <?php esc_html_e('Amazon only opens its product API to Associates accounts with 10 qualifying sales in the last 30 days. That is Amazon\'s rule, not ours, and it applies to every plugin that connects to them.', 'myfeeds-affiliate-feed-manager'); ?>
+                    </p>
+
+                    <p class="myfeeds-amazon-cta">
+                        <a class="button" id="myfeeds-amazon-cta" href="<?php echo esc_url($cta); ?>" target="_blank" rel="noopener">
+                            <?php esc_html_e('Start 7-day free trial', 'myfeeds-affiliate-feed-manager'); ?>
+                        </a>
+                        <span class="myfeeds-amazon-cta-note"><?php esc_html_e('Cancel anytime from your dashboard', 'myfeeds-affiliate-feed-manager'); ?></span>
+                    </p>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * The button is the Add Feed button from assets/admin.css:287 in
+     * orange, dimmed rather than recoloured. Earlier it wore dark orange
+     * text on a pale fill, which read as a broken button; fading the whole
+     * thing keeps white-on-orange legible and is the same way WordPress
+     * signals "not available" (its own disabled rule is opacity .5).
+     */
+    private function print_amazon_styles() {
+        ?>
         <style>
             .myfeeds-feeds-table-header { display: flex; align-items: center; gap: 8px; }
             .myfeeds-feeds-table-header h2 { flex: 1 1 auto; margin: 0; }
 
-            /*
-             * Same shape and the same hover as the Add Feed button a few
-             * rules up in assets/admin.css: no border, 6px radius, a lift
-             * and a wider glow on hover, colour unchanged. Only the fill is
-             * muted, so it reads as a feature that is not yours yet rather
-             * than as a different kind of control. Styled by id with
-             * !important for the same reason that rule is: it has to
-             * outrank .wp-core-ui .button.
-             */
             #myfeeds-add-amazon-btn {
                 position: relative;
-                background: linear-gradient(135deg, rgba(236, 138, 18, 0.26) 0%, rgba(204, 106, 0, 0.26) 100%) !important;
-                color: #A85400 !important;
+                background: linear-gradient(135deg, #EC8A12 0%, #CC6A00 100%) !important;
+                color: #fff !important;
                 border: none !important;
                 border-radius: 6px !important;
-                box-shadow: 0 2px 4px rgba(222, 122, 0, 0.12) !important;
+                box-shadow: 0 2px 4px rgba(222, 122, 0, 0.2) !important;
                 text-shadow: none !important;
                 text-decoration: none !important;
-                transition: transform 0.15s, box-shadow 0.15s !important;
+                text-align: center;
+                opacity: 0.55;
+                transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s !important;
             }
-
             #myfeeds-add-amazon-btn:hover,
             #myfeeds-add-amazon-btn:focus {
-                color: #8C4600 !important;
+                color: #fff !important;
+                opacity: 0.75;
                 transform: translateY(-1px);
-                box-shadow: 0 4px 12px rgba(222, 122, 0, 0.24) !important;
+                box-shadow: 0 4px 12px rgba(222, 122, 0, 0.3) !important;
             }
 
-            .myfeeds-amazon-teaser__tip {
+            .myfeeds-amazon-tip {
                 position: absolute;
                 left: 50%;
                 top: calc(100% + 8px);
@@ -741,8 +795,70 @@ class MyFeeds_Feed_Manager {
                 transition: opacity .12s ease;
                 z-index: 20;
             }
-            #myfeeds-add-amazon-btn:hover .myfeeds-amazon-teaser__tip,
-            #myfeeds-add-amazon-btn:focus .myfeeds-amazon-teaser__tip { opacity: 1; }
+            #myfeeds-add-amazon-btn:hover .myfeeds-amazon-tip,
+            #myfeeds-add-amazon-btn:focus .myfeeds-amazon-tip { opacity: 1; }
+
+            .myfeeds-amazon-modal-content { max-width: 760px; }
+            .myfeeds-amazon-badge {
+                display: inline-block;
+                padding: 2px 9px;
+                border-radius: 10px;
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: .05em;
+                text-transform: uppercase;
+                color: #fff;
+                background: linear-gradient(135deg, #EC8A12 0%, #CC6A00 100%);
+            }
+            .myfeeds-amazon-title { margin: 12px 0 6px; font-size: 21px; line-height: 1.25; }
+            .myfeeds-amazon-lede { margin: 0 0 16px; color: #50575e; font-size: 14px; line-height: 1.6; }
+            .myfeeds-amazon-benefits { margin: 0 0 16px; padding: 0; list-style: none; }
+            .myfeeds-amazon-benefits li {
+                position: relative;
+                padding: 6px 0 6px 26px;
+                border-bottom: 1px solid #f0f0f1;
+                font-size: 13px;
+            }
+            .myfeeds-amazon-benefits li:last-child { border-bottom: 0; }
+            .myfeeds-amazon-benefits li::before {
+                content: "";
+                position: absolute;
+                left: 2px;
+                top: 12px;
+                width: 12px;
+                height: 7px;
+                border-left: 2px solid #CC6A00;
+                border-bottom: 2px solid #CC6A00;
+                transform: rotate(-45deg);
+            }
+            .myfeeds-amazon-note {
+                background: #fff7ec;
+                border: 1px solid #F8D9A8;
+                border-left: 4px solid #FC9000;
+                border-radius: 4px;
+                padding: 12px 14px;
+                font-size: 13px;
+                line-height: 1.55;
+                margin: 0 0 18px;
+            }
+            .myfeeds-amazon-cta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0; }
+            #myfeeds-amazon-cta {
+                background: linear-gradient(135deg, #EC8A12 0%, #CC6A00 100%) !important;
+                color: #fff !important;
+                border: none !important;
+                border-radius: 6px !important;
+                box-shadow: 0 2px 4px rgba(222, 122, 0, 0.2) !important;
+                text-shadow: none !important;
+                text-decoration: none !important;
+                transition: transform 0.15s, box-shadow 0.15s !important;
+            }
+            #myfeeds-amazon-cta:hover,
+            #myfeeds-amazon-cta:focus {
+                color: #fff !important;
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(222, 122, 0, 0.35) !important;
+            }
+            .myfeeds-amazon-cta-note { font-size: 12px; color: #646970; }
         </style>
         <?php
     }
@@ -936,6 +1052,7 @@ class MyFeeds_Feed_Manager {
         </div>
 
         <?php $this->render_feed_modal(); ?>
+        <?php $this->render_amazon_modal(); ?>
         <?php
     }
     

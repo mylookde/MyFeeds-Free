@@ -642,6 +642,30 @@
                 }
             }
             
+            // Amazon dialog. Same overlay, same keys; it only holds a
+            // description of a paid source, so there is nothing to save.
+            // flex, not the default block fadeIn: the overlay centres its
+            // child with flexbox and an inline display:block would drop
+            // the dialog into the top left corner.
+            var $amazonModal = $('#myfeeds-amazon-modal');
+            function closeAmazonModal() { $amazonModal.hide(); }
+
+            $(document).on('click', '#myfeeds-add-amazon-btn', function (e) {
+                e.preventDefault();
+                $amazonModal.css('display', 'flex');
+            });
+            $('#myfeeds-amazon-modal-close').on('click', closeAmazonModal);
+            $amazonModal.on('click', function (e) {
+                if ($(e.target).is('.myfeeds-modal-overlay')) {
+                    closeAmazonModal();
+                }
+            });
+            $(document).on('keydown', function (e) {
+                if (e.key === 'Escape' && $amazonModal.is(':visible')) {
+                    closeAmazonModal();
+                }
+            });
+
             $('#myfeeds-feed-modal-close').on('click', closeFeedModal);
             $modal.on('click', function(e) {
                 if ($(e.target).is('.myfeeds-modal-overlay')) {

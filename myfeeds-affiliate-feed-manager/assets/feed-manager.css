@@ -471,22 +471,28 @@ tr.myfeeds-feed-inactive .button-link-delete {
 }
 
 /* Quality Modal */
+/* The dialog itself no longer scrolls. A scrollbar inside a form hides
+   fields and its scroll position fights the page. The overlay scrolls
+   instead, and `margin: auto` keeps a short dialog centred while a tall
+   one simply grows — flex centring alone would clip its top. */
 .myfeeds-modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.5);
     z-index: 100000;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
+    overflow-y: auto;
+    padding: 32px 16px;
+    box-sizing: border-box;
 }
 .myfeeds-modal-content {
     background: #fff;
     border-radius: 8px;
     max-width: 600px;
     width: 90%;
-    max-height: 80vh;
-    overflow-y: auto;
+    margin: auto;
     box-shadow: 0 8px 32px rgba(0,0,0,0.2);
 }
 .myfeeds-modal-header {
