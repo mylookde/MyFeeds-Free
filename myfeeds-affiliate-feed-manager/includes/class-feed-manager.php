@@ -684,7 +684,8 @@ class MyFeeds_Feed_Manager {
         $url = admin_url('admin.php?page=myfeeds-amazon');
         ?>
         <a href="<?php echo esc_url($url); ?>"
-           class="button myfeeds-amazon-teaser"
+           id="myfeeds-add-amazon-btn"
+           class="button"
            title="<?php echo esc_attr__('Amazon products are part of MyFeeds Starter', 'myfeeds-affiliate-feed-manager'); ?>">
             + <?php esc_html_e('Add Amazon', 'myfeeds-affiliate-feed-manager'); ?>
             <span class="myfeeds-amazon-teaser__tip" aria-hidden="true">
@@ -694,19 +695,35 @@ class MyFeeds_Feed_Manager {
         <style>
             .myfeeds-feeds-table-header { display: flex; align-items: center; gap: 8px; }
             .myfeeds-feeds-table-header h2 { flex: 1 1 auto; margin: 0; }
-            /* .wp-core-ui .button outranks a bare class, so every rule
-               here carries both or WordPress repaints the button grey. */
-            .wp-core-ui .button.myfeeds-amazon-teaser,
-            .wp-core-ui .button.myfeeds-amazon-teaser:hover,
-            .wp-core-ui .button.myfeeds-amazon-teaser:focus {
+
+            /*
+             * Same shape and the same hover as the Add Feed button a few
+             * rules up in assets/admin.css: no border, 6px radius, a lift
+             * and a wider glow on hover, colour unchanged. Only the fill is
+             * muted, so it reads as a feature that is not yours yet rather
+             * than as a different kind of control. Styled by id with
+             * !important for the same reason that rule is: it has to
+             * outrank .wp-core-ui .button.
+             */
+            #myfeeds-add-amazon-btn {
                 position: relative;
-                background: rgba(252, 144, 0, .16);
-                border-color: rgba(252, 144, 0, .45);
-                color: #9a5b00;
-                box-shadow: none;
-                text-shadow: none;
+                background: linear-gradient(135deg, rgba(236, 138, 18, 0.26) 0%, rgba(204, 106, 0, 0.26) 100%) !important;
+                color: #A85400 !important;
+                border: none !important;
+                border-radius: 6px !important;
+                box-shadow: 0 2px 4px rgba(222, 122, 0, 0.12) !important;
+                text-shadow: none !important;
+                text-decoration: none !important;
+                transition: transform 0.15s, box-shadow 0.15s !important;
             }
-            .wp-core-ui .button.myfeeds-amazon-teaser:hover { background: rgba(252, 144, 0, .26); }
+
+            #myfeeds-add-amazon-btn:hover,
+            #myfeeds-add-amazon-btn:focus {
+                color: #8C4600 !important;
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(222, 122, 0, 0.24) !important;
+            }
+
             .myfeeds-amazon-teaser__tip {
                 position: absolute;
                 left: 50%;
@@ -724,8 +741,8 @@ class MyFeeds_Feed_Manager {
                 transition: opacity .12s ease;
                 z-index: 20;
             }
-            .myfeeds-amazon-teaser:hover .myfeeds-amazon-teaser__tip,
-            .myfeeds-amazon-teaser:focus .myfeeds-amazon-teaser__tip { opacity: 1; }
+            #myfeeds-add-amazon-btn:hover .myfeeds-amazon-teaser__tip,
+            #myfeeds-add-amazon-btn:focus .myfeeds-amazon-teaser__tip { opacity: 1; }
         </style>
         <?php
     }
