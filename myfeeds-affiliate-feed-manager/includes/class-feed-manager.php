@@ -694,9 +694,11 @@ class MyFeeds_Feed_Manager {
         <style>
             .myfeeds-feeds-table-header { display: flex; align-items: center; gap: 8px; }
             .myfeeds-feeds-table-header h2 { flex: 1 1 auto; margin: 0; }
-            .myfeeds-amazon-teaser,
-            .myfeeds-amazon-teaser:hover,
-            .myfeeds-amazon-teaser:focus {
+            /* .wp-core-ui .button outranks a bare class, so every rule
+               here carries both or WordPress repaints the button grey. */
+            .wp-core-ui .button.myfeeds-amazon-teaser,
+            .wp-core-ui .button.myfeeds-amazon-teaser:hover,
+            .wp-core-ui .button.myfeeds-amazon-teaser:focus {
                 position: relative;
                 background: rgba(252, 144, 0, .16);
                 border-color: rgba(252, 144, 0, .45);
@@ -704,7 +706,7 @@ class MyFeeds_Feed_Manager {
                 box-shadow: none;
                 text-shadow: none;
             }
-            .myfeeds-amazon-teaser:hover { background: rgba(252, 144, 0, .26); }
+            .wp-core-ui .button.myfeeds-amazon-teaser:hover { background: rgba(252, 144, 0, .26); }
             .myfeeds-amazon-teaser__tip {
                 position: absolute;
                 left: 50%;
