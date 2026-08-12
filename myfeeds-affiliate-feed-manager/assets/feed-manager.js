@@ -22,7 +22,17 @@
             window.currentReimportInterval = null;
             var nonce = myfeedsAdmin.nonce;
             var waitingForRunning = false;
-            
+
+            // The real one lives in the block below and is scoped to it, so
+            // calling it by name from here threw a ReferenceError and the
+            // per-feed buttons stayed disabled until the page was reloaded.
+            // Same shape as the window.refreshHeaderStats hand-off further down.
+            function updateReimportButtons(importRunning) {
+                if (typeof window.updateReimportButtons === 'function') {
+                    window.updateReimportButtons(importRunning);
+                }
+            }
+
             // =====================================================================
             // NON-BLOCKING UI PATTERN with LOGGING:
             // 1. Show panel IMMEDIATELY on click
@@ -1110,6 +1120,7 @@
             }
             // Expose globally for cross-scope access (showCompletionState is in a separate script block)
             window.refreshHeaderStats = refreshHeaderStats;
+            window.updateReimportButtons = updateReimportButtons;
             
         });
 
