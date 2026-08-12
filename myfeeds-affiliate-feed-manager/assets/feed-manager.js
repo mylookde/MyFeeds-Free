@@ -1,7 +1,7 @@
 // MyFeeds Feed Manager admin screen
 // Merged from three inline <script> blocks (Step 8c).
 
-(function() {
+;(function() {
     var cfg = window.myfeedsFeeds || {};
     var i18n = cfg.i18n || {};
     var thousandsSep = cfg.thousandsSep || ',';

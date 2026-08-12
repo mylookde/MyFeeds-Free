@@ -3,7 +3,7 @@
  * Enhances the WordPress admin interface for feed and credentials management
  */
 
-(function($) {
+;(function($) {
     'use strict';
     
     // Initialize when DOM is ready

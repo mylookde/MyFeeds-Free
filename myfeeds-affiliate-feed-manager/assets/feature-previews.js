@@ -8,7 +8,7 @@
  * Vanilla JS, no dependencies, runs only on the three feature-preview
  * admin pages where the markup exists.
  */
-(function () {
+;(function () {
     'use strict';
 
     var lightbox = document.querySelector('.myfeeds-preview-lightbox');
