@@ -1168,7 +1168,21 @@ class MyFeeds_Batch_Importer {
             }
             
             myfeeds_log("Re-Mapping: Analyzing feed: {$feed['name']}", 'debug');
-            
+
+            // Re-mapping happens before the import queue exists, so nothing
+            // downstream can report it. Until this was written, the panel
+            // showed an empty bar and no text at all for however long the
+            // sample downloads took. The 'remapping' phase already had its
+            // wording in the admin script - nothing had ever set it.
+            $remap_status = get_option(self::OPTION_IMPORT_STATUS, array());
+            if (is_array($remap_status) && (($remap_status['status'] ?? '') === 'running')) {
+                $remap_status['phase'] = 'remapping';
+                $remap_status['current_feed_name'] = $feed['name'] ?? '';
+                $remap_status['last_activity'] = current_time('mysql');
+                $remap_status['heartbeat_timestamp'] = time();
+                update_option(self::OPTION_IMPORT_STATUS, $remap_status, false);
+            }
+
             // Fetch sample data from feed
             $sample_result = $this->fetch_feed_sample($url);
             
@@ -1539,6 +1553,14 @@ class MyFeeds_Batch_Importer {
             $status['current_feed_name'] = $feed['name'];
             $status['last_activity'] = current_time('mysql');
             $status['heartbeat_timestamp'] = time();
+            // Reset per feed so the bar restarts inside the new feed instead
+            // of carrying the previous feed's row count.
+            $status['scanned_rows'] = 0;
+            $status['scan_total_rows'] = 0;
+            // Measured: three of the five seconds are the download, and there
+            // is no row to count yet. The bar cannot honestly move there, so
+            // the text says what is going on instead of showing nothing.
+            $status['phase'] = 'downloading';
             update_option(self::OPTION_IMPORT_STATUS, $status, false);
 
             $feed_started_at = microtime(true);
@@ -1564,7 +1586,25 @@ class MyFeeds_Batch_Importer {
             // =====================================================================
             // SEARCH, DON'T CRAWL: Parse feed and extract ONLY needed IDs
             // =====================================================================
-            $result = $this->quick_extract_products_by_ids($cache_path, $feed['mapping'], $remaining_ids, $feed['detected_format'] ?? '', $key);
+            $status['phase'] = 'quick_sync';
+            update_option(self::OPTION_IMPORT_STATUS, $status, false);
+
+            // The scan is the slow part - a few seconds of reading rows. Report
+            // it as it happens; the bar used to sit at zero for the whole run
+            // and then snap to full, because nothing was written until the
+            // feed was finished.
+            $found_before_this_feed = $found_count;
+            $report_progress = function ($scanned, $rows_total, $found_here) use (&$status, $found_before_this_feed) {
+                $status['scanned_rows'] = $scanned;
+                $status['scan_total_rows'] = $rows_total;
+                $status['found_products'] = $found_before_this_feed + $found_here;
+                $status['processed_products'] = $status['found_products'];
+                $status['last_activity'] = current_time('mysql');
+                $status['heartbeat_timestamp'] = time();
+                update_option(self::OPTION_IMPORT_STATUS, $status, false);
+            };
+
+            $result = $this->quick_extract_products_by_ids($cache_path, $feed['mapping'], $remaining_ids, $feed['detected_format'] ?? '', $key, $report_progress);
             if (!empty($result['repaired_mapping'])) {
                 $feed['mapping'] = $result['repaired_mapping'];
             }
@@ -1719,9 +1759,12 @@ class MyFeeds_Batch_Importer {
      * @param string $feed_path Path to the feed on disk, already decompressed
      * @param array $mapping Field mapping configuration
      * @param array $needed_ids Hash of IDs we're looking for (ID => true)
+     * @param callable|null $on_progress Called with (rows scanned, rows total,
+     *        products found so far) a few times a second, so the progress bar
+     *        has something true to show while the scan runs.
      * @return array ['products' => [...], 'scanned_rows' => int]
      */
-    private function quick_extract_products_by_ids($feed_path, $mapping, $needed_ids, $format_hint = '', $feed_key = null) {
+    private function quick_extract_products_by_ids($feed_path, $mapping, $needed_ids, $format_hint = '', $feed_key = null, $on_progress = null) {
         $products = array();
         $scanned_rows = 0;
         $needed_count = count($needed_ids);
@@ -1734,9 +1777,17 @@ class MyFeeds_Batch_Importer {
         }
 
         $total_rows = $reader->count_items();
+        $last_ping = microtime(true);
 
         while (($raw = $reader->read_next()) !== false) {
             $scanned_rows++;
+
+            // Two or three times a second is enough to look alive without
+            // turning the scan into a write loop.
+            if ($on_progress !== null && (microtime(true) - $last_ping) >= 0.4) {
+                $last_ping = microtime(true);
+                call_user_func($on_progress, $scanned_rows, $total_rows, count($products));
+            }
 
             if (!$mapping_validated) {
                 $mapping_validated = true;
@@ -4401,11 +4452,26 @@ class MyFeeds_Batch_Importer {
         if ($mode === self::MODE_ACTIVE_ONLY) {
             $active_count = $status['active_ids_count'] ?? 1;
             $found_count = $status['found_products'] ?? $status['processed_products'] ?? 0;
-            
-            // Prozent basiert auf gefundenen aktiven IDs
-            $progress = ($active_count > 0) ? round(($found_count / $active_count) * 100) : 0;
-            $progress = min(99, $progress); // Max 99% während running
-            
+
+            // Found-against-wanted was the only measure, and it moved in jumps
+            // of whole products that could all sit at the end of the file - so
+            // the bar stayed empty for the entire scan and then snapped to
+            // full. Rows read against rows in the feed is the work actually
+            // being done. Products found still drives the text.
+            $scanned    = (int) ($status['scanned_rows'] ?? 0);
+            $scan_total = (int) ($status['scan_total_rows'] ?? 0);
+            $feeds_done = (int) ($status['processed_feeds'] ?? 0);
+            $feeds_all  = max(1, (int) ($status['total_feeds'] ?? 1));
+
+            if ($scan_total > 0) {
+                $feed_fraction = min(1, $scanned / $scan_total);
+                $progress = (int) round((($feeds_done + $feed_fraction) / $feeds_all) * 100);
+                $progress = min(99, max(1, $progress));
+            } else {
+                $progress = ($active_count > 0) ? round(($found_count / $active_count) * 100) : 0;
+                $progress = min(99, $progress); // Max 99% während running
+            }
+
             return array(
                 'status' => $status['status'],
                 'mode' => $mode,
@@ -4422,6 +4488,8 @@ class MyFeeds_Batch_Importer {
                 'processed_products' => $found_count,
                 'found_products' => $found_count,
                 'progress_percent' => $progress,
+                'scanned_rows' => $scanned,
+                'scan_total_rows' => $scan_total,
                 'errors' => $status['errors'] ?? array(),
             );
         }
@@ -4504,6 +4572,14 @@ class MyFeeds_Batch_Importer {
             $total_progress = min(99, max(0, $total_progress));
         }
         
+        // Before the queue exists there is no row anywhere to measure, but the
+        // work is real: discovery, then a sample download per feed for the
+        // re-mapping. Zero percent for that stretch reads as "nothing is
+        // happening", which was the complaint.
+        if (empty($queue) && $status['status'] === 'running') {
+            $total_progress = (($status['phase'] ?? '') === 'remapping') ? 3 : 1;
+        }
+
         // Bestimme aktuelle Phase für UI
         $current_phase = $status['phase'] ?? 'import';
         if (!empty($queue)) {

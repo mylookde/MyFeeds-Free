@@ -325,8 +325,18 @@
                         var elapsedMs = status.elapsed_ms || 0;
                         var timeText = elapsedMs > 0 ? ' in ' + elapsedMs + 'ms' : '';
                         phaseText = '✅ ' + foundProducts + ' of ' + activeCount + ' products synced' + timeText + '!';
+                    } else if (status.phase === 'downloading') {
+                        phaseText = '⬇ Downloading the feed...';
                     } else {
                         phaseText = '⚡ Searching ' + foundProducts + ' of ' + activeCount + ' products...';
+                        // The products can sit anywhere in the file, so the
+                        // found count can stand still for seconds. The rows
+                        // read are what is actually moving.
+                        var scanTotal = status.scan_total_rows || 0;
+                        if (scanTotal > 0) {
+                            phaseText += ' (' + formatNumber(status.scanned_rows || 0)
+                                + ' of ' + formatNumber(scanTotal) + ' rows)';
+                        }
                     }
                     
                     // Stats for Quick Sync: found / searched
@@ -347,6 +357,8 @@
                         phaseText = '🎯 Phase 1/2: Updating active products first...';
                     } else if (status.phase === 'remapping') {
                         phaseText = '🧠 Analyzing mappings...';
+                    } else if (status.phase === 'initializing') {
+                        phaseText = '🔍 Looking for products in your posts...';
                     } else if (status.phase === 'import') {
                         phaseText = '📦 Phase 2/2: Importing remaining products...';
                     }
