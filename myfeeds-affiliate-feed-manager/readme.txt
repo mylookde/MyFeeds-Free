@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, awin
 Requires at least: 5.8
 Tested up to: 7.0.4
-Stable tag: 1.0.19
+Stable tag: 1.0.20
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -165,6 +165,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.20 =
+* The plugin is now called "MyFeeds - Affiliate Product Feed Manager, Importer & Product Display". Same plugin, same folder, nothing to do on your side. On the plugin directory the name is the single strongest field for being found at all, and "Manager" on its own left out the two things people actually type when they go looking: importing a feed, and displaying the products.
+
 = 1.0.19 =
 * Quick Sync no longer loads the whole feed into memory. It used to hold the compressed file as one string, unpack it into a second one, and then write the result to disk to read it back line by line: measured at 145 MB of peak memory to refresh 41 products out of a 40 MB feed, against a 56 MB floor for WordPress itself. On a host with a 128 or 256 MB limit that was a fatal waiting for a large enough feed, and the nightly auto-sync takes the same path. It now streams to disk the way the full import always has, and the same measurement shows nothing above the floor at all.
 * Quick Sync writes in batches. One database statement per hundred products instead of one per product. Same matching, so products that are not in the table are still left alone rather than inserted.
@@ -175,7 +178,6 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * The buttons on each feed row come back to life when an import finishes, instead of staying greyed out until the page is reloaded.
 * Amazon is signposted from the feeds screen, with a dialog describing what the paid Amazon source does. Nothing is installed or enabled by this plugin.
 * A one-time, dismissible review request. It appears once, it can be dismissed for good, and it never comes back on its own.
-* Listing: the plugin name now says what it does as well as what it is called. On the plugin directory the name is the single strongest field for being found at all, and "Manager" alone left out the two things people actually search for: importing a feed, and displaying the products.
 
 = 1.0.18 =
 * Block editor: product images in the picker now match what visitors see on the published post. The selected-tile refresh endpoint, the colour-sibling swatch endpoint, and the product preview that runs on block mount all pipe their image URLs through the same CDN-aware upgrader the frontend renderer already uses, so a saved block can't look soft in the editor while the published post renders crisp. Pure render-time logic, no migration.
