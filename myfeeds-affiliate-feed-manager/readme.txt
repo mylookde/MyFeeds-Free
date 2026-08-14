@@ -1,20 +1,20 @@
 === MyFeeds — Affiliate Product Feed Manager ===
 Contributors: myfeeds
-Tags: affiliate, affiliate marketing, affiliate links, product feed, awin
+Tags: affiliate, affiliate marketing, product feed, datafeed, awin
 Requires at least: 5.8
-Tested up to: 7.0
-Stable tag: 1.0.18
+Tested up to: 7.0.4
+Stable tag: 1.0.19
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Insert live affiliate product tiles into your posts. Prices and stock stay current, automatically.
+Turn your affiliate product feed into live product tiles in the block editor. Prices, stock and links keep themselves current.
 
 == Description ==
 
 **Stop copy-pasting affiliate products. Stop fixing dead links by hand. Start writing.**
 
-**MyFeeds drops live product tiles into your posts. The prices, stock and links update themselves, so you write once and stop maintaining.**
+**MyFeeds reads your affiliate product feed and drops live product tiles into your posts. The prices, stock and links update themselves, so you write once and stop maintaining.**
 
 You write about products you recommend. You drop them into your posts. A few weeks pass, and half the prices are off, a couple of products went out of stock without telling you, and one merchant quietly disappeared from your network. Every roundup, every gift guide, every product page tells the same story. Quietly going stale while you write the next one.
 
@@ -107,6 +107,10 @@ No. MyFeeds requires the block editor.
 
 If your affiliate program hands you a product feed URL you can download, MyFeeds will almost certainly read it. The plugin handles the common feed formats automatically and recognises the field structure that most networks use. For everything custom there's a manual mapping editor inside the plugin.
 
+= Does it work with my network's feed: Awin, CJ, Impact, Tradedoubler, Rakuten? =
+
+Those are the ones we see most often, and their feeds import without manual work. The plugin isn't built around any single network though: it reads the file your program hands you, whatever the network is called. CSV, TSV, XML and JSON all work, compressed or not. If a column is named something the plugin has never seen, the mapping editor lets you point it at the right field yourself.
+
 = Does the plugin make any external requests? =
 
 Yes. See **External Services** below. In short: when you add an AWIN feed, the plugin talks to the official AWIN Publisher API to confirm your credentials and look up feed URLs. No data leaves your site on the frontend.
@@ -160,6 +164,17 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 6. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.19 =
+* Quick Sync no longer loads the whole feed into memory. It used to hold the compressed file as one string, unpack it into a second one, and then write the result to disk to read it back line by line: measured at 145 MB of peak memory to refresh 41 products out of a 40 MB feed, against a 56 MB floor for WordPress itself. On a host with a 128 or 256 MB limit that was a fatal waiting for a large enough feed, and the nightly auto-sync takes the same path. It now streams to disk the way the full import always has, and the same measurement shows nothing above the floor at all.
+* Quick Sync writes in batches. One database statement per hundred products instead of one per product. Same matching, so products that are not in the table are still left alone rather than inserted.
+* Quick Sync could be run twice in a row. Its execution lock was never released, so for two minutes after a perfectly good sync the next one was skipped silently: the button appeared to do nothing at all.
+* Imports now start on sites that cannot call themselves over HTTP. The background worker is spawned with a loopback request that cannot report a failure, so password-protected staging sites, some security plugins and hosts that block loopback left the import sitting at "Initializing" with an empty queue and no error anywhere. The worker now checks in when it arrives, and if it has not within ten seconds the progress poll runs the import itself.
+* The progress bar tells the truth. It used to measure products found against products wanted, written only after a whole feed had been scanned, so it sat empty for the entire run and then jumped to full. It now follows the read position in the feed, which also let Quick Sync drop a full extra pass over the file: 5.6 seconds down to 4.1 on the same feed.
+* When a sync finishes, the panel says how many products are simply no longer in the feed instead of counting them as failures.
+* The buttons on each feed row come back to life when an import finishes, instead of staying greyed out until the page is reloaded.
+* Amazon is signposted from the feeds screen, with a dialog describing what the paid Amazon source does. Nothing is installed or enabled by this plugin.
+* A one-time, dismissible review request. It appears once, it can be dismissed for good, and it never comes back on its own.
 
 = 1.0.18 =
 * Block editor: product images in the picker now match what visitors see on the published post. The selected-tile refresh endpoint, the colour-sibling swatch endpoint, and the product preview that runs on block mount all pipe their image URLs through the same CDN-aware upgrader the frontend renderer already uses, so a saved block can't look soft in the editor while the published post renders crisp. Pure render-time logic, no migration.
