@@ -1594,9 +1594,11 @@ class MyFeeds_Batch_Importer {
             // and then snap to full, because nothing was written until the
             // feed was finished.
             $found_before_this_feed = $found_count;
-            $report_progress = function ($scanned, $rows_total, $found_here) use (&$status, $found_before_this_feed) {
+            $report_progress = function ($scanned, $rows_total, $found_here, $bytes = null) use (&$status, $found_before_this_feed) {
                 $status['scanned_rows'] = $scanned;
                 $status['scan_total_rows'] = $rows_total;
+                $status['scan_bytes'] = $bytes ? $bytes[0] : 0;
+                $status['scan_bytes_total'] = $bytes ? $bytes[1] : 0;
                 $status['found_products'] = $found_before_this_feed + $found_here;
                 $status['processed_products'] = $status['found_products'];
                 $status['last_activity'] = current_time('mysql');
@@ -1731,7 +1733,6 @@ class MyFeeds_Batch_Importer {
         // and saying so is the whole difference between a broken sync and a
         // shop that needs tidying.
         $status['not_found_count'] = count($remaining_ids);
-        $status['not_found'] = self::name_missing_products(array_keys($remaining_ids));
 
         update_option(self::OPTION_IMPORT_STATUS, $status, false);
         
@@ -1760,143 +1761,6 @@ class MyFeeds_Batch_Importer {
     }
     
     /**
-     * Put names to the ids a sync could not find.
-     *
-     * Counting them is the honest part and belongs everywhere - naming them
-     * is the start of fixing them, which is what the paid tiers are for.
-     * Free has no MyFeeds_Plan_Limits at all, so it gets the count and its own
-     * Content Health card, exactly as before.
-     *
-     * @param array $ids external ids that were not in any feed
-     * @return array list of ['id' => ..., 'name' => ...], newest first, capped
-     */
-    private static function name_missing_products($ids) {
-        if (empty($ids)) {
-            return array();
-        }
-        if (!class_exists('MyFeeds_Plan_Limits') || !MyFeeds_Plan_Limits::is_pro()) {
-            return array();
-        }
-        if (!class_exists('MyFeeds_DB_Manager') || !MyFeeds_DB_Manager::table_exists()) {
-            return array();
-        }
-
-        global $wpdb;
-        $ids = array_slice(array_map('strval', $ids), 0, 20);
-        $table = MyFeeds_DB_Manager::table_name();
-        $placeholders = implode(',', array_fill(0, count($ids), '%s'));
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- placeholders built from a counted array
-        $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT external_id, product_name, colour, feed_id FROM {$table} WHERE external_id IN ({$placeholders})",
-            $ids
-        ));
-
-        $named = array();
-        foreach ((array) $rows as $row) {
-            $named[] = array(
-                'id'   => (string) $row->external_id,
-                'name' => (string) $row->product_name,
-            );
-        }
-
-        return self::attach_successors($named, $rows);
-    }
-
-    /**
-     * Look for the same article back under a new id.
-     *
-     * AWIN hands a restocked item a fresh feed number, so the product the
-     * shop points at goes quiet while an identical one sits in the same feed
-     * (verified on post 13634 in June: Lucas Shirt 41448784736 dead,
-     * 42289883553 live). Matching is name plus feed, with colour as the
-     * tie-breaker when the row carries one.
-     *
-     * **Never picks for the user when there is more than one candidate.** The
-     * same shirt can be in the feed three times at two prices; guessing there
-     * would silently repoint a shop entry at the wrong article. More than one
-     * match reports the number and stops.
-     */
-    private static function attach_successors($named, $rows) {
-        if (empty($named)) {
-            return $named;
-        }
-
-        global $wpdb;
-        $table = MyFeeds_DB_Manager::table_name();
-
-        $names = array();
-        $dead = array();
-        foreach ((array) $rows as $row) {
-            $dead[(string) $row->external_id] = $row;
-            $names[(string) $row->product_name] = true;
-        }
-        $names = array_keys($names);
-        if (empty($names)) {
-            return $named;
-        }
-
-        $placeholders = implode(',', array_fill(0, count($names), '%s'));
-        // Covered by idx_name_colour; the status filter keeps it to live rows.
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- placeholders built from a counted array
-        $candidates = $wpdb->get_results($wpdb->prepare(
-            "SELECT external_id, product_name, colour, feed_id, price
-             FROM {$table}
-             WHERE status = 'active' AND product_name IN ({$placeholders})",
-            $names
-        ));
-
-        $by_name = array();
-        foreach ((array) $candidates as $candidate) {
-            $by_name[(string) $candidate->product_name][] = $candidate;
-        }
-
-        foreach ($named as $index => $entry) {
-            $row = isset($dead[$entry['id']]) ? $dead[$entry['id']] : null;
-            if (!$row || empty($by_name[(string) $row->product_name])) {
-                continue;
-            }
-
-            $matches = array();
-            foreach ($by_name[(string) $row->product_name] as $candidate) {
-                if ((string) $candidate->external_id === $entry['id']) {
-                    continue;
-                }
-                if ((int) $candidate->feed_id !== (int) $row->feed_id) {
-                    continue;
-                }
-                $matches[(string) $candidate->external_id] = $candidate;
-            }
-
-            // A colour on the dead row narrows a size-variant pile down to the
-            // article the shop actually pointed at.
-            if (count($matches) > 1 && !empty($row->colour)) {
-                $same_colour = array();
-                foreach ($matches as $id => $candidate) {
-                    if ((string) $candidate->colour === (string) $row->colour) {
-                        $same_colour[$id] = $candidate;
-                    }
-                }
-                if (!empty($same_colour)) {
-                    $matches = $same_colour;
-                }
-            }
-
-            if (count($matches) === 1) {
-                $match = reset($matches);
-                $named[$index]['successor'] = array(
-                    'id'    => (string) $match->external_id,
-                    'price' => (float) $match->price,
-                );
-            } elseif (count($matches) > 1) {
-                $named[$index]['successor_count'] = count($matches);
-            }
-        }
-
-        return $named;
-    }
-
-    /**
      * PERFORMANCE: Extract only specific product IDs from feed data
      * Uses hash-based lookup for O(1) ID matching - no linear search!
      * Stops processing as soon as all needed IDs are found.
@@ -1921,7 +1785,13 @@ class MyFeeds_Batch_Importer {
             return array('products' => array(), 'scanned_rows' => 0);
         }
 
-        $total_rows = $reader->count_items();
+        // Where possible the progress comes from the read position, which is
+        // free. Counting rows first means walking the entire file before
+        // reading a single one: 1.9 seconds of a 5.6 second sync with the
+        // bar frozen throughout. Formats that cannot report a position still
+        // get counted, so nothing loses its total.
+        $can_measure_bytes = $reader->byte_progress() !== null;
+        $total_rows = $can_measure_bytes ? 0 : $reader->count_items();
         $last_ping = microtime(true);
 
         while (($raw = $reader->read_next()) !== false) {
@@ -1931,7 +1801,8 @@ class MyFeeds_Batch_Importer {
             // turning the scan into a write loop.
             if ($on_progress !== null && (microtime(true) - $last_ping) >= 0.4) {
                 $last_ping = microtime(true);
-                call_user_func($on_progress, $scanned_rows, $total_rows, count($products));
+                $bytes = $can_measure_bytes ? $reader->byte_progress() : null;
+                call_user_func($on_progress, $scanned_rows, $total_rows, count($products), $bytes);
             }
 
             if (!$mapping_validated) {
@@ -4583,7 +4454,6 @@ class MyFeeds_Batch_Importer {
                 'processed_products' => $status['processed_products'] ?? 0,
                 'found_products' => $status['found_products'] ?? $status['processed_products'] ?? 0,
                 'not_found_count' => (int) ($status['not_found_count'] ?? 0),
-                'not_found' => $status['not_found'] ?? array(),
                 'progress_percent' => 100,
                 'elapsed_ms' => $elapsed_ms,
                 'feed_product_counts' => $final_feed_counts,
@@ -4607,11 +4477,13 @@ class MyFeeds_Batch_Importer {
             // being done. Products found still drives the text.
             $scanned    = (int) ($status['scanned_rows'] ?? 0);
             $scan_total = (int) ($status['scan_total_rows'] ?? 0);
+            $bytes      = (int) ($status['scan_bytes'] ?? 0);
+            $bytes_all  = (int) ($status['scan_bytes_total'] ?? 0);
             $feeds_done = (int) ($status['processed_feeds'] ?? 0);
             $feeds_all  = max(1, (int) ($status['total_feeds'] ?? 1));
 
-            if ($scan_total > 0) {
-                $feed_fraction = min(1, $scanned / $scan_total);
+            if ($bytes_all > 0) {
+                $feed_fraction = min(1, $bytes / $bytes_all);
                 $progress = (int) round((($feeds_done + $feed_fraction) / $feeds_all) * 100);
                 $progress = min(99, max(1, $progress));
             } else {

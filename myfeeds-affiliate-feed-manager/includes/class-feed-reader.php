@@ -227,6 +227,36 @@ class MyFeeds_Feed_Reader {
     }
 
     /**
+     * How far through the file we are, in bytes.
+     *
+     * count_items() is the honest way to say "row 5000 of 18943", but it
+     * costs a second pass over the whole file before a single row is read -
+     * measured at 1.9 seconds of a 5.6 second sync, with the bar frozen for
+     * all of it. The read position needs no pass at all.
+     *
+     * Only formats that stream off a file handle can answer; the JSON reader
+     * holds its items in memory and the XML one may be walking a string, so
+     * they return null and the caller falls back to counting.
+     *
+     * @return array|null array(bytes read, bytes total) or null
+     */
+    public function byte_progress() {
+        if (!$this->fh || !is_resource($this->fh)) {
+            return null;
+        }
+        $total = @filesize($this->file_path);
+        if (!$total) {
+            return null;
+        }
+        $position = @ftell($this->fh);
+        if ($position === false) {
+            return null;
+        }
+
+        return array((int) $position, (int) $total);
+    }
+
+    /**
      * Close file handles and free resources.
      */
     public function close() {

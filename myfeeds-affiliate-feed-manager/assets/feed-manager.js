@@ -289,46 +289,6 @@
                 hideStatusPanel();
             });
             
-            // Names for the products a sync could not find. The server only
-            // sends them on the tiers that can do something about them; on the
-            // others this stays empty and the count in the line above is the
-            // whole story.
-            function renderMissingProducts(status) {
-                var $box = $('#myfeeds-import-notfound');
-                if (!$box.length) { return; }
-
-                var missing = status.not_found || [];
-                if (!missing.length) {
-                    $box.hide().empty();
-                    return;
-                }
-
-                var $list = $('<ul class="myfeeds-notfound-list"></ul>');
-                $.each(missing, function(i, item) {
-                    var $row = $('<li></li>')
-                        .append($('<span class="myfeeds-notfound-name"></span>').text(item.name || item.id))
-                        .append($('<code class="myfeeds-notfound-id"></code>').text(item.id));
-
-                    if (item.successor) {
-                        // One clear match. Still only a statement of fact - the
-                        // swap stays the user's decision.
-                        $row.append($('<span class="myfeeds-notfound-successor"></span>')
-                            .text('back in stock as ' + item.successor.id));
-                    } else if (item.successor_count) {
-                        $row.append($('<span class="myfeeds-notfound-successor is-ambiguous"></span>')
-                            .text(item.successor_count + ' possible replacements'));
-                    }
-
-                    $row.appendTo($list);
-                });
-
-                $box.empty()
-                    .append($('<p class="myfeeds-notfound-lead"></p>').text(
-                        'These are no longer in the feed under this ID. The merchant gives a restocked item a new number, so a replacement may already be back in stock:'))
-                    .append($list)
-                    .show();
-            }
-
             function updateStatusDisplay(status) {
                 // CRITICAL: Use server value directly (no client-side calculation)
                 // Server guarantees: 100% only when status === 'completed'
@@ -365,26 +325,31 @@
                         var elapsedMs = status.elapsed_ms || 0;
                         var timeText = elapsedMs > 0 ? ' in ' + elapsedMs + 'ms' : '';
                         var notFound = status.not_found_count || 0;
+                        phaseText = '✅ ' + foundProducts + ' of ' + activeCount + ' products synced' + timeText;
                         if (notFound > 0) {
-                            // "19 of 27" read like a failure when 19 of 19
-                            // reachable products had in fact been refreshed.
-                            phaseText = '✅ ' + foundProducts + ' products updated' + timeText
-                                + ' · ' + notFound + ' no longer in your feed';
+                            // Not a failure: the rest are gone from the feed,
+                            // and saying so is the whole difference between a
+                            // broken sync and a shop that needs tidying.
+                            phaseText += ' — ' + notFound + ' are no longer in the feed';
                         } else {
-                            phaseText = '✅ ' + foundProducts + ' of ' + activeCount + ' products synced' + timeText + '!';
+                            phaseText += '!';
                         }
-                        renderMissingProducts(status);
                     } else if (status.phase === 'downloading') {
                         phaseText = '⬇ Downloading the feed...';
                     } else {
                         phaseText = '⚡ Searching ' + foundProducts + ' of ' + activeCount + ' products...';
                         // The products can sit anywhere in the file, so the
                         // found count can stand still for seconds. The rows
-                        // read are what is actually moving.
+                        // read are what is actually moving. No total when the
+                        // progress comes from the read position - counting the
+                        // rows first would cost a second pass over the file.
+                        var scannedRows = status.scanned_rows || 0;
                         var scanTotal = status.scan_total_rows || 0;
                         if (scanTotal > 0) {
-                            phaseText += ' (' + formatNumber(status.scanned_rows || 0)
+                            phaseText += ' (' + formatNumber(scannedRows)
                                 + ' of ' + formatNumber(scanTotal) + ' rows)';
+                        } else if (scannedRows > 0) {
+                            phaseText += ' (' + formatNumber(scannedRows) + ' rows read)';
                         }
                     }
                     
