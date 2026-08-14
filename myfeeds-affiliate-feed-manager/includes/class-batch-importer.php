@@ -1788,7 +1788,7 @@ class MyFeeds_Batch_Importer {
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- placeholders built from a counted array
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT external_id, product_name FROM {$table} WHERE external_id IN ({$placeholders})",
+            "SELECT external_id, product_name, colour, feed_id FROM {$table} WHERE external_id IN ({$placeholders})",
             $ids
         ));
 
@@ -1798,6 +1798,99 @@ class MyFeeds_Batch_Importer {
                 'id'   => (string) $row->external_id,
                 'name' => (string) $row->product_name,
             );
+        }
+
+        return self::attach_successors($named, $rows);
+    }
+
+    /**
+     * Look for the same article back under a new id.
+     *
+     * AWIN hands a restocked item a fresh feed number, so the product the
+     * shop points at goes quiet while an identical one sits in the same feed
+     * (verified on post 13634 in June: Lucas Shirt 41448784736 dead,
+     * 42289883553 live). Matching is name plus feed, with colour as the
+     * tie-breaker when the row carries one.
+     *
+     * **Never picks for the user when there is more than one candidate.** The
+     * same shirt can be in the feed three times at two prices; guessing there
+     * would silently repoint a shop entry at the wrong article. More than one
+     * match reports the number and stops.
+     */
+    private static function attach_successors($named, $rows) {
+        if (empty($named)) {
+            return $named;
+        }
+
+        global $wpdb;
+        $table = MyFeeds_DB_Manager::table_name();
+
+        $names = array();
+        $dead = array();
+        foreach ((array) $rows as $row) {
+            $dead[(string) $row->external_id] = $row;
+            $names[(string) $row->product_name] = true;
+        }
+        $names = array_keys($names);
+        if (empty($names)) {
+            return $named;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($names), '%s'));
+        // Covered by idx_name_colour; the status filter keeps it to live rows.
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- placeholders built from a counted array
+        $candidates = $wpdb->get_results($wpdb->prepare(
+            "SELECT external_id, product_name, colour, feed_id, price
+             FROM {$table}
+             WHERE status = 'active' AND product_name IN ({$placeholders})",
+            $names
+        ));
+
+        $by_name = array();
+        foreach ((array) $candidates as $candidate) {
+            $by_name[(string) $candidate->product_name][] = $candidate;
+        }
+
+        foreach ($named as $index => $entry) {
+            $row = isset($dead[$entry['id']]) ? $dead[$entry['id']] : null;
+            if (!$row || empty($by_name[(string) $row->product_name])) {
+                continue;
+            }
+
+            $matches = array();
+            foreach ($by_name[(string) $row->product_name] as $candidate) {
+                if ((string) $candidate->external_id === $entry['id']) {
+                    continue;
+                }
+                if ((int) $candidate->feed_id !== (int) $row->feed_id) {
+                    continue;
+                }
+                $matches[(string) $candidate->external_id] = $candidate;
+            }
+
+            // A colour on the dead row narrows a size-variant pile down to the
+            // article the shop actually pointed at.
+            if (count($matches) > 1 && !empty($row->colour)) {
+                $same_colour = array();
+                foreach ($matches as $id => $candidate) {
+                    if ((string) $candidate->colour === (string) $row->colour) {
+                        $same_colour[$id] = $candidate;
+                    }
+                }
+                if (!empty($same_colour)) {
+                    $matches = $same_colour;
+                }
+            }
+
+            if (count($matches) === 1) {
+                $match = reset($matches);
+                $named[$index]['successor'] = array(
+                    'id'    => (string) $match->external_id,
+                    'price' => (float) $match->price,
+                );
+            } elseif (count($matches) > 1) {
+                $named[$index]['successor_count'] = count($matches);
+            }
         }
 
         return $named;

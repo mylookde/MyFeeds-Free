@@ -305,10 +305,21 @@
 
                 var $list = $('<ul class="myfeeds-notfound-list"></ul>');
                 $.each(missing, function(i, item) {
-                    $('<li></li>')
+                    var $row = $('<li></li>')
                         .append($('<span class="myfeeds-notfound-name"></span>').text(item.name || item.id))
-                        .append($('<code class="myfeeds-notfound-id"></code>').text(item.id))
-                        .appendTo($list);
+                        .append($('<code class="myfeeds-notfound-id"></code>').text(item.id));
+
+                    if (item.successor) {
+                        // One clear match. Still only a statement of fact - the
+                        // swap stays the user's decision.
+                        $row.append($('<span class="myfeeds-notfound-successor"></span>')
+                            .text('back in stock as ' + item.successor.id));
+                    } else if (item.successor_count) {
+                        $row.append($('<span class="myfeeds-notfound-successor is-ambiguous"></span>')
+                            .text(item.successor_count + ' possible replacements'));
+                    }
+
+                    $row.appendTo($list);
                 });
 
                 $box.empty()
