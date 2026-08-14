@@ -289,6 +289,35 @@
                 hideStatusPanel();
             });
             
+            // Names for the products a sync could not find. The server only
+            // sends them on the tiers that can do something about them; on the
+            // others this stays empty and the count in the line above is the
+            // whole story.
+            function renderMissingProducts(status) {
+                var $box = $('#myfeeds-import-notfound');
+                if (!$box.length) { return; }
+
+                var missing = status.not_found || [];
+                if (!missing.length) {
+                    $box.hide().empty();
+                    return;
+                }
+
+                var $list = $('<ul class="myfeeds-notfound-list"></ul>');
+                $.each(missing, function(i, item) {
+                    $('<li></li>')
+                        .append($('<span class="myfeeds-notfound-name"></span>').text(item.name || item.id))
+                        .append($('<code class="myfeeds-notfound-id"></code>').text(item.id))
+                        .appendTo($list);
+                });
+
+                $box.empty()
+                    .append($('<p class="myfeeds-notfound-lead"></p>').text(
+                        'These are no longer in the feed under this ID. The merchant gives a restocked item a new number, so a replacement may already be back in stock:'))
+                    .append($list)
+                    .show();
+            }
+
             function updateStatusDisplay(status) {
                 // CRITICAL: Use server value directly (no client-side calculation)
                 // Server guarantees: 100% only when status === 'completed'
@@ -324,7 +353,16 @@
                     if (status.status === 'completed') {
                         var elapsedMs = status.elapsed_ms || 0;
                         var timeText = elapsedMs > 0 ? ' in ' + elapsedMs + 'ms' : '';
-                        phaseText = '✅ ' + foundProducts + ' of ' + activeCount + ' products synced' + timeText + '!';
+                        var notFound = status.not_found_count || 0;
+                        if (notFound > 0) {
+                            // "19 of 27" read like a failure when 19 of 19
+                            // reachable products had in fact been refreshed.
+                            phaseText = '✅ ' + foundProducts + ' products updated' + timeText
+                                + ' · ' + notFound + ' no longer in your feed';
+                        } else {
+                            phaseText = '✅ ' + foundProducts + ' of ' + activeCount + ' products synced' + timeText + '!';
+                        }
+                        renderMissingProducts(status);
                     } else if (status.phase === 'downloading') {
                         phaseText = '⬇ Downloading the feed...';
                     } else {

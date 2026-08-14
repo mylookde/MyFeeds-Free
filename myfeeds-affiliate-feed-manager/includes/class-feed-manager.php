@@ -276,6 +276,7 @@ class MyFeeds_Feed_Manager {
                             <span id="myfeeds-import-products">0</span> <?php esc_html_e('products', 'myfeeds-affiliate-feed-manager'); ?> • 
                             <span id="myfeeds-import-feeds">0/0</span> <?php esc_html_e('feeds', 'myfeeds-affiliate-feed-manager'); ?>
                         </p>
+                        <div id="myfeeds-import-notfound" class="myfeeds-notfound" style="display: none;"></div>
                         <div id="myfeeds-buttons-row">
                             <button type="button" id="myfeeds-cancel-import" class="button">
                                 <?php esc_html_e('Cancel', 'myfeeds-affiliate-feed-manager'); ?>

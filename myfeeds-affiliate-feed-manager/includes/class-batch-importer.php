@@ -1725,8 +1725,16 @@ class MyFeeds_Batch_Importer {
         $status['processed_products'] = $found_count;
         $status['found_products'] = $found_count;
         $status['elapsed_ms'] = $elapsed;
-        
+
+        // "19 of 27" read like a failure when 19 of 19 possible had been done.
+        // The rest are products the merchant no longer carries under that id,
+        // and saying so is the whole difference between a broken sync and a
+        // shop that needs tidying.
+        $status['not_found_count'] = count($remaining_ids);
+        $status['not_found'] = self::name_missing_products(array_keys($remaining_ids));
+
         update_option(self::OPTION_IMPORT_STATUS, $status, false);
+        
         
         // NOTE: Do NOT run cleanup_orphaned_products() after Quick Sync!
         // It compares ALL products against configured feeds and can incorrectly
@@ -1751,6 +1759,50 @@ class MyFeeds_Batch_Importer {
         return true;
     }
     
+    /**
+     * Put names to the ids a sync could not find.
+     *
+     * Counting them is the honest part and belongs everywhere - naming them
+     * is the start of fixing them, which is what the paid tiers are for.
+     * Free has no MyFeeds_Plan_Limits at all, so it gets the count and its own
+     * Content Health card, exactly as before.
+     *
+     * @param array $ids external ids that were not in any feed
+     * @return array list of ['id' => ..., 'name' => ...], newest first, capped
+     */
+    private static function name_missing_products($ids) {
+        if (empty($ids)) {
+            return array();
+        }
+        if (!class_exists('MyFeeds_Plan_Limits') || !MyFeeds_Plan_Limits::is_pro()) {
+            return array();
+        }
+        if (!class_exists('MyFeeds_DB_Manager') || !MyFeeds_DB_Manager::table_exists()) {
+            return array();
+        }
+
+        global $wpdb;
+        $ids = array_slice(array_map('strval', $ids), 0, 20);
+        $table = MyFeeds_DB_Manager::table_name();
+        $placeholders = implode(',', array_fill(0, count($ids), '%s'));
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- placeholders built from a counted array
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT external_id, product_name FROM {$table} WHERE external_id IN ({$placeholders})",
+            $ids
+        ));
+
+        $named = array();
+        foreach ((array) $rows as $row) {
+            $named[] = array(
+                'id'   => (string) $row->external_id,
+                'name' => (string) $row->product_name,
+            );
+        }
+
+        return $named;
+    }
+
     /**
      * PERFORMANCE: Extract only specific product IDs from feed data
      * Uses hash-based lookup for O(1) ID matching - no linear search!
@@ -4437,6 +4489,8 @@ class MyFeeds_Batch_Importer {
                 'active_ids_count' => $status['active_ids_count'] ?? 0,
                 'processed_products' => $status['processed_products'] ?? 0,
                 'found_products' => $status['found_products'] ?? $status['processed_products'] ?? 0,
+                'not_found_count' => (int) ($status['not_found_count'] ?? 0),
+                'not_found' => $status['not_found'] ?? array(),
                 'progress_percent' => 100,
                 'elapsed_ms' => $elapsed_ms,
                 'feed_product_counts' => $final_feed_counts,

@@ -581,3 +581,52 @@ tr.myfeeds-feed-inactive .button-link-delete {
     padding: 20px;
     margin: 20px 0;
 }
+
+/* Products a sync could not find. Warm orange like the other
+   "needs attention, nothing is broken" surfaces on this screen. */
+.myfeeds-notfound {
+    background: #fff3e0;
+    border: 1px solid #ffab40;
+    border-left: 4px solid #f57c00;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 14px 0 0;
+}
+
+.myfeeds-notfound-lead {
+    margin: 0 0 10px;
+    color: #bf360c;
+    font-size: 13px;
+}
+
+.myfeeds-notfound-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.myfeeds-notfound-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 7px 0;
+    border-top: 1px solid #ffcc80;
+    color: #2f2f2f;
+}
+
+.myfeeds-notfound-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.myfeeds-notfound-id {
+    flex: 0 0 auto;
+    background: transparent;
+    color: #9c5a00;
+    font-size: 12px;
+}
