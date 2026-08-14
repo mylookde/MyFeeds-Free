@@ -193,6 +193,7 @@ class MyFeeds_Batch_Importer {
     const OPTION_IMPORT_STATUS = 'myfeeds_import_status';
     const OPTION_IMPORT_QUEUE = 'myfeeds_import_queue';
     const OPTION_ACTIVE_IDS = 'myfeeds_active_product_ids';
+    const OPTION_WORKER_SEEN = 'myfeeds_bg_worker_seen';
     const OPTION_BATCH_STATE = 'myfeeds_batch_state';  // NEW: Tracks current batch position for resume
     const CRON_HOOK = 'myfeeds_process_batch';         // Legacy - kept for backwards compat
     const INDEX_FILE = 'myfeeds-feed-index.json';
@@ -404,6 +405,10 @@ class MyFeeds_Batch_Importer {
         // One-time key — invalidate after first use.
         delete_transient('myfeeds_bg_secret_myfeeds_bg_full_update');
 
+        // Proof that the loopback reached us. The status poll compares this
+        // against the import's start time and takes over when nothing arrived.
+        update_option(self::OPTION_WORKER_SEEN, current_time('mysql'), false);
+
         set_time_limit(300);
         ignore_user_abort(true);
 
@@ -454,6 +459,8 @@ class MyFeeds_Batch_Importer {
         }
 
         delete_transient('myfeeds_bg_secret_myfeeds_bg_quick_sync');
+
+        update_option(self::OPTION_WORKER_SEEN, current_time('mysql'), false);
 
         set_time_limit(300);
         ignore_user_abort(true);
@@ -4842,6 +4849,7 @@ class MyFeeds_Batch_Importer {
         }
 
         try {
+            $this->maybe_take_over_from_dead_loopback();
             $this->maybe_run_queue_inline();
             wp_send_json_success($this->get_import_status());
         } catch (\Throwable $e) {
@@ -4850,6 +4858,71 @@ class MyFeeds_Batch_Importer {
                 'status' => 'idle',
                 'error' => 'Status check failed: ' . $e->getMessage(),
             ));
+        }
+    }
+
+    /**
+     * Did the loopback fail to deliver the background worker?
+     *
+     * The worker is spawned with a non-blocking wp_remote_post, so the
+     * plugin never sees the answer - a 401 from a password-protected
+     * staging site or a security plugin looks exactly like success. The
+     * import then sits at "Initializing..." forever with nothing in the
+     * queue for the inline runner to run.
+     *
+     * The worker writes OPTION_WORKER_SEEN the moment it is called, so a
+     * timestamp older than the import's own start means nothing arrived.
+     * Both values come from current_time('mysql'), so the timezone offset
+     * cancels out in the subtraction.
+     *
+     * Pure on purpose: this is the decision, and it can be tested without
+     * WordPress.
+     */
+    public static function loopback_looks_dead($status, $worker_seen, $now, $grace_seconds = 10) {
+        if (!is_array($status) || (isset($status['status']) ? $status['status'] : '') !== 'running') {
+            return false;
+        }
+        $started = isset($status['started_at']) ? strtotime((string) $status['started_at']) : false;
+        $now_ts  = strtotime((string) $now);
+        if (!$started || !$now_ts) {
+            return false;
+        }
+        // Give the loopback its chance first. It either arrives in about a
+        // second or not at all.
+        if (($now_ts - $started) < $grace_seconds) {
+            return false;
+        }
+        $seen = $worker_seen ? strtotime((string) $worker_seen) : 0;
+
+        return $seen < $started;
+    }
+
+    /**
+     * Run what the worker would have run, from the status poll instead.
+     *
+     * handle_central_update() holds its own two-minute lock against double
+     * execution, so a worker that turns up late still cannot run twice.
+     */
+    private function maybe_take_over_from_dead_loopback() {
+        $status = get_option(self::OPTION_IMPORT_STATUS, array());
+        if (!self::loopback_looks_dead($status, get_option(self::OPTION_WORKER_SEEN, ''), current_time('mysql'))) {
+            return;
+        }
+        if (get_transient('myfeeds_inline_takeover_lock')) {
+            return;
+        }
+        set_transient('myfeeds_inline_takeover_lock', 1, 120);
+
+        $mode = isset($status['mode']) && $status['mode'] ? $status['mode'] : self::MODE_FULL;
+        MyFeeds_Logger::info("Loopback never delivered the worker; running mode={$mode} from the status poll instead");
+
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(90);
+        }
+        try {
+            do_action(self::CENTRAL_HOOK, 'inline', array('mode' => $mode));
+        } catch (\Throwable $e) {
+            myfeeds_log('[INLINE-TAKEOVER] ' . $e->getMessage(), 'error');
         }
     }
 
