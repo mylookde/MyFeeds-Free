@@ -1585,6 +1585,90 @@ class MyFeeds_DB_Manager {
         return $result !== false;
     }
 
+    /**
+     * The same write as quick_sync_product(), for a whole feed's worth of
+     * products at once. Quick Sync used to send one UPDATE per product; a
+     * site with a few thousand products in its posts paid that as a few
+     * thousand round trips.
+     *
+     * One statement per 100 products, and the WHERE clause is the same
+     * external_id match the single-row version uses, so a product that is
+     * not in the table is still left alone rather than inserted.
+     *
+     * @return int Rows the database reported as changed - MySQL does not
+     *             count rows whose values were already identical, so this
+     *             is a floor, not a total. Only used for the log line.
+     */
+    public static function quick_sync_products(array $products) {
+        global $wpdb;
+        $table = self::table_name();
+
+        $rows = array();
+        foreach ($products as $product) {
+            $external_id = (string) ($product['id'] ?? '');
+            if ($external_id === '') {
+                continue;
+            }
+            $rows[$external_id] = array(
+                'price'          => floatval($product['price'] ?? 0),
+                'original_price' => floatval($product['old_price'] ?? $product['original_price'] ?? 0),
+                'in_stock'       => isset($product['in_stock']) ? (int) $product['in_stock'] : 1,
+                'image_url'      => (string) ($product['image_url'] ?? ''),
+                'affiliate_link' => (string) ($product['affiliate_link'] ?? ''),
+            );
+        }
+        if (empty($rows)) {
+            return 0;
+        }
+
+        $columns = array(
+            'price'          => '%f',
+            'original_price' => '%f',
+            'in_stock'       => '%d',
+            'image_url'      => '%s',
+            'affiliate_link' => '%s',
+        );
+        $now = current_time('mysql');
+        $changed = 0;
+
+        foreach (array_chunk($rows, 100, true) as $chunk) {
+            $args = array();
+            $assignments = array();
+
+            foreach ($columns as $column => $format) {
+                $case = "{$column} = CASE external_id";
+                foreach ($chunk as $external_id => $values) {
+                    $case .= " WHEN %s THEN {$format}";
+                    $args[] = $external_id;
+                    $args[] = $values[$column];
+                }
+                // Belt and braces: the WHERE clause already limits the rows,
+                // but an ELSE keeps a row untouched if it ever slips through.
+                $assignments[] = $case . " ELSE {$column} END";
+            }
+
+            $assignments[] = 'last_updated = %s';
+            $args[] = $now;
+
+            $ids = array_keys($chunk);
+            $placeholders = implode(',', array_fill(0, count($ids), '%s'));
+            foreach ($ids as $external_id) {
+                $args[] = $external_id;
+            }
+
+            $sql = "UPDATE {$table} SET " . implode(', ', $assignments)
+                 . " WHERE external_id IN ({$placeholders})";
+
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- built from a fixed column list, every value is a placeholder
+            $result = $wpdb->query($wpdb->prepare($sql, $args));
+            if ($result !== false) {
+                $changed += (int) $result;
+            }
+        }
+
+        return $changed;
+    }
+
     // =========================================================================
     // FULL IMPORT LIFECYCLE (replaces AtomicIndexManager for DB mode)
     // =========================================================================

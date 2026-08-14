@@ -962,6 +962,9 @@ class MyFeeds_Batch_Importer {
         
         if (empty($feeds)) {
             myfeeds_log('No feeds configured', 'info');
+            // Nothing ran, so nothing may stay locked - otherwise the next
+            // attempt within two minutes is skipped without a word.
+            delete_transient($lock_key);
             return new WP_Error('no_feeds', 'No feeds configured');
         }
         
@@ -975,6 +978,7 @@ class MyFeeds_Batch_Importer {
             
             if (empty($active_ids)) {
                 myfeeds_log('Quick Sync: No active products found in posts/pages', 'info');
+                delete_transient($lock_key);
                 return new WP_Error('no_active_products', 'No active products found on the website.');
             }
             
@@ -984,7 +988,11 @@ class MyFeeds_Batch_Importer {
             update_option(self::OPTION_ACTIVE_IDS, $active_ids, false);
             
             // Skip re-mapping for quick sync - direkt zum Import
-            return $this->start_active_only_import($active_ids);
+            $quick_result = $this->start_active_only_import($active_ids);
+            // Belt and braces: the happy path releases the lock itself, this
+            // catches the early error returns inside.
+            delete_transient($lock_key);
+            return $quick_result;
         }
         
         // =====================================================================
@@ -1338,7 +1346,9 @@ class MyFeeds_Batch_Importer {
         
         $first_item = $reader->read_next();
         $reader->close();
-        wp_delete_file($tmp_path);
+        // The cache file belongs to the caller now; it clears the whole run
+        // at the end so a second feed in the same sync can still be read.
+
         
         return $first_item !== false ? $first_item : null;
     }
@@ -1515,6 +1525,7 @@ class MyFeeds_Batch_Importer {
         $found_count = 0;
         $remaining_ids = $active_ids_hash; // Track which IDs we still need to find
         $feeds_with_errors = 0; // Track feed download failures
+        $run_id = md5('quick_sync_' . $status['started_at']);
         
         // Process each feed - but STOP EARLY when all IDs are found!
         foreach ($feeds as $key => $feed) {
@@ -1533,62 +1544,64 @@ class MyFeeds_Batch_Importer {
             $feed_started_at = microtime(true);
             myfeeds_log("Quick Sync: starting feed '{$feed['name']}' (key={$key}, " . count($remaining_ids) . " ids remaining)", 'info');
 
-            // Download feed
-            $response = wp_remote_get($feed['url'], array(
-                'timeout' => 30,
-                'headers' => array('Accept-Encoding' => 'gzip, deflate'),
-            ));
-            
-            if (is_wp_error($response)) {
+            // Stream the feed to disk instead of pulling it into memory. This
+            // used to be a wp_remote_get whose body was held as one string,
+            // gzdecoded into a second one and then written to a temp file
+            // anyway: measured at 145 MB of peak memory to refresh 41
+            // products from a 40 MB feed. Hosts hand out 128 or 256 MB, and
+            // the nightly auto-sync takes this same path, so it was a fatal
+            // waiting for a large enough feed. Same helper the full import
+            // has used for exactly this reason.
+            $cache_path = myfeeds_ensure_feed_cached($feed['url'], (int) $key, $run_id);
+
+            if (is_wp_error($cache_path)) {
                 $feeds_with_errors++;
-                $status['errors'][] = array('feed' => $feed['name'], 'error' => $response->get_error_message());
-                myfeeds_log("Quick Sync: Feed '{$feed['name']}' download failed: " . $response->get_error_message(), 'error');
+                $status['errors'][] = array('feed' => $feed['name'], 'error' => $cache_path->get_error_message());
+                myfeeds_log("Quick Sync: Feed '{$feed['name']}' download failed: " . $cache_path->get_error_message(), 'error');
                 continue;
             }
-            
-            $body = wp_remote_retrieve_body($response);
-            
-            // Handle gzip
-            if (substr($body, 0, 2) === "\x1f\x8b") {
-                $decoded = @gzdecode($body);
-                if ($decoded !== false) {
-                    $body = $decoded;
-                }
-            }
-            
+
             // =====================================================================
             // SEARCH, DON'T CRAWL: Parse feed and extract ONLY needed IDs
             // =====================================================================
-            $result = $this->quick_extract_products_by_ids($body, $feed['mapping'], $remaining_ids, $feed['detected_format'] ?? '', $key);
+            $result = $this->quick_extract_products_by_ids($cache_path, $feed['mapping'], $remaining_ids, $feed['detected_format'] ?? '', $key);
             if (!empty($result['repaired_mapping'])) {
                 $feed['mapping'] = $result['repaired_mapping'];
             }
 
             if (!empty($result['products'])) {
+                // Resolve stable_id once per feed, not once per product.
+                $qs_stable_id = (int) ($feed['stable_id'] ?? 0);
+                if ($qs_stable_id === 0) {
+                    $live_feeds_qs = get_option('myfeeds_feeds', array());
+                    if (isset($live_feeds_qs[$key]['stable_id'])) {
+                        $qs_stable_id = (int) $live_feeds_qs[$key]['stable_id'];
+                    }
+                }
+                if ($use_db && $qs_stable_id === 0) {
+                    myfeeds_log("SKIPPED quick sync for feed '{$feed['name']}': stable_id=0", 'error');
+                    $result['products'] = array();
+                }
+
+                $to_write = array();
                 foreach ($result['products'] as $product_id => $product_data) {
                     if ($use_db) {
-                        // Resolve stable_id for this feed
-                        $qs_stable_id = (int) ($feed['stable_id'] ?? 0);
-                        if ($qs_stable_id === 0) {
-                            $live_feeds_qs = get_option('myfeeds_feeds', array());
-                            if (isset($live_feeds_qs[$key]['stable_id'])) {
-                                $qs_stable_id = (int) $live_feeds_qs[$key]['stable_id'];
-                            }
-                        }
-                        if ($qs_stable_id === 0) {
-                            myfeeds_log("SKIPPED quick_sync_product: stable_id=0 for feed '{$feed['name']}', product_id={$product_id}", 'error');
-                            continue;
-                        }
-                        MyFeeds_DB_Manager::quick_sync_product($product_data, $qs_stable_id);
+                        $to_write[] = $product_data;
                     } else {
                         $items[$product_id] = $product_data;
                     }
                     $found_count++;
                     unset($remaining_ids[$product_id]); // Mark as found
-                    
+
                     // Update progress in real-time
                     $status['found_products'] = $found_count;
                     $status['processed_products'] = $found_count;
+                }
+
+                // One statement per 100 products instead of one per product.
+                if (!empty($to_write)) {
+                    $changed = MyFeeds_DB_Manager::quick_sync_products($to_write);
+                    myfeeds_log("Quick Sync: wrote " . count($to_write) . " products for feed '{$feed['name']}' ({$changed} rows changed)", 'info');
                 }
             }
             
@@ -1681,6 +1694,14 @@ class MyFeeds_Batch_Importer {
         
         // Cleanup
         delete_option(self::OPTION_ACTIVE_IDS);
+        myfeeds_cleanup_all_feed_caches($run_id);
+
+        // Quick Sync runs start to finish inside one request, so its lock has
+        // done its job by the time we get here. Left behind, it silently
+        // swallowed the next Quick Sync for two minutes - the button appeared
+        // to do nothing at all.
+        delete_transient('myfeeds_import_lock_' . self::MODE_ACTIVE_ONLY);
+
         
         myfeeds_log("Quick Sync: COMPLETED in {$elapsed}ms — Found $found_count of $total_active products", 'info');
         
@@ -1695,26 +1716,20 @@ class MyFeeds_Batch_Importer {
      * Uses hash-based lookup for O(1) ID matching - no linear search!
      * Stops processing as soon as all needed IDs are found.
      * 
-     * @param string $feed_content Raw feed content
+     * @param string $feed_path Path to the feed on disk, already decompressed
      * @param array $mapping Field mapping configuration
      * @param array $needed_ids Hash of IDs we're looking for (ID => true)
      * @return array ['products' => [...], 'scanned_rows' => int]
      */
-    private function quick_extract_products_by_ids($feed_content, $mapping, $needed_ids, $format_hint = '', $feed_key = null) {
+    private function quick_extract_products_by_ids($feed_path, $mapping, $needed_ids, $format_hint = '', $feed_key = null) {
         $products = array();
         $scanned_rows = 0;
         $needed_count = count($needed_ids);
         $repaired_mapping = null;
         $mapping_validated = false;
 
-        // Write content to temp file for Feed Reader
-        $tmp_path = wp_tempnam('myfeeds_qs_');
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Temp file for Feed Reader
-        file_put_contents($tmp_path, $feed_content);
-
         $reader = new MyFeeds_Feed_Reader();
-        if (!$reader->open($tmp_path, $format_hint)) {
-            wp_delete_file($tmp_path);
+        if (!$reader->open($feed_path, $format_hint)) {
             return array('products' => array(), 'scanned_rows' => 0);
         }
 
@@ -4908,14 +4923,23 @@ class MyFeeds_Batch_Importer {
         if (!self::loopback_looks_dead($status, get_option(self::OPTION_WORKER_SEEN, ''), current_time('mysql'))) {
             return;
         }
-        if (get_transient('myfeeds_inline_takeover_lock')) {
+        // Keyed to this import, not to the site. A shared key meant the lock
+        // from one import blocked the takeover of the next one for two
+        // minutes: press the button again and it sat there doing nothing
+        // until the old lock aged out.
+        $lock_key = 'myfeeds_inline_takeover_' . md5((string) $status['started_at']);
+        if (get_transient($lock_key)) {
             return;
         }
-        set_transient('myfeeds_inline_takeover_lock', 1, 120);
+        set_transient($lock_key, 1, 120);
 
         $mode = isset($status['mode']) && $status['mode'] ? $status['mode'] : self::MODE_FULL;
         MyFeeds_Logger::info("Loopback never delivered the worker; running mode={$mode} from the status poll instead");
 
+        // The work now runs inside the browser's polling request. Without
+        // this, closing the tab or navigating away kills PHP mid-import and
+        // leaves the status stuck on running forever.
+        ignore_user_abort(true);
         if (function_exists('set_time_limit')) {
             @set_time_limit(90);
         }
