@@ -358,7 +358,12 @@
                     } else if (status.phase === 'remapping') {
                         phaseText = '🧠 Analyzing mappings...';
                     } else if (status.phase === 'initializing') {
-                        phaseText = '🔍 Looking for products in your posts...';
+                        // Every product in the feed gets updated. This step only
+                        // works out which ones go first, so the products already
+                        // on the site are current within seconds instead of
+                        // minutes. Saying "looking in your posts" made it sound
+                        // like the posts were the whole job.
+                        phaseText = '🔍 Working out which products to refresh first...';
                     } else if (status.phase === 'import') {
                         phaseText = '📦 Phase 2/2: Importing remaining products...';
                     }
