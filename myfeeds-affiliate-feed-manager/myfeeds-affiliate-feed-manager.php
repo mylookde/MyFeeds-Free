@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: MyFeeds — Affiliate Product Feed Manager
+ * Plugin Name: MyFeeds — Affiliate Product Feed Manager, Importer & Product Display
  * Plugin URI: https://myfeeds.site
  * Description: Import and manage affiliate product feeds from any network. Smart search, auto-mapping, and a Gutenberg Product Picker for bloggers.
  * Version: 1.0.19
