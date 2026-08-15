@@ -319,7 +319,33 @@ class MyFeeds_Smart_Mapper {
                 'signature_fields' => ['TDProductId', 'TD_PROD_ID', 'TD_PRODUCT_URL', 'productUrl'],
                 'url_patterns' => ['tradedoubler.com', 'clkuk.tradedoubler'],
                 'field_prefixes' => ['TD_', 'td_'],
-                'confidence_boost' => 20
+                'confidence_boost' => 20,
+                // TradeDoubler PAN feeds use mixed snake_case + UpperCamel
+                // across XML / CSV / Bulk Product Feed (BPF) variants. Each
+                // mapping below lists the canonical name first, then the
+                // common variants — the universal mapper falls back if
+                // none match, so partial / unusual feeds still work.
+                'field_mappings' => [
+                    'id' => ['TDProductId', 'TD_PROD_ID', 'productId', 'product_id'],
+                    'title' => ['productName', 'name', 'productTitle', 'title'],
+                    'price' => ['productPriceAmount', 'productPrice', 'price', 'currentPrice', 'salePrice'],
+                    'old_price' => ['regularPrice', 'originalPrice', 'rrp', 'oldPrice', 'previousPrice'],
+                    'brand' => ['brand', 'manufacturer', 'productBrand'],
+                    'merchant' => ['programName', 'advertiserName', 'merchant'],
+                    'image_url' => ['productImage', 'imageUrl', 'image_url', 'image'],
+                    'affiliate_link' => ['TD_PRODUCT_URL', 'productUrl', 'trackingUrl', 'productLink'],
+                    'description' => ['description', 'productDescription', 'shortDescription'],
+                    'category' => ['categoryName', 'productCategory', 'category'],
+                    'currency' => ['productPriceCurrency', 'currency', 'currencyCode'],
+                    'shipping' => ['shippingCost', 'deliveryCost', 'shipping'],
+                    'availability' => ['inStock', 'availability', 'productAvailability'],
+                    'attributes' => [
+                        'color' => ['productColour', 'color', 'colour'],
+                        'size' => ['productSize', 'size'],
+                        'gender' => ['productGender', 'gender'],
+                        'material' => ['productMaterial', 'material'],
+                    ],
+                ],
             ],
             'amazon' => [
                 'signature_fields' => ['ASIN', 'amazon_product_id', 'amzn_'],
@@ -328,10 +354,35 @@ class MyFeeds_Smart_Mapper {
                 'confidence_boost' => 15
             ],
             'commissionjunction' => [
-                'signature_fields' => ['cj_product_id', 'commission_junction'],
+                'signature_fields' => ['cj_product_id', 'commission_junction', 'buyurl', 'advertiser-name'],
                 'url_patterns' => ['cj.com', 'commission-junction', 'dpbolvw.net', 'anrdoezrs.net', 'jdoqocy.com'],
                 'field_prefixes' => ['cj_'],
-                'confidence_boost' => 15
+                'confidence_boost' => 15,
+                // CJ Product Search / Product Catalog feeds use lower-case
+                // names with dashes or underscores across the various
+                // export variants (XML, CSV, REST). Lists below cover all
+                // three; first hit wins, generic fallback last.
+                'field_mappings' => [
+                    'id' => ['sku', 'pid', 'cj_product_id', 'productId', 'product_id', 'id'],
+                    'title' => ['name', 'product-name', 'product_name', 'title'],
+                    'price' => ['price', 'sale-price', 'sale_price'],
+                    'old_price' => ['retail-price', 'retail_price', 'manufacturer-price', 'manufacturer_price'],
+                    'brand' => ['manufacturer-name', 'manufacturer_name', 'manufacturer', 'brand'],
+                    'merchant' => ['advertiser-name', 'advertiser_name', 'advertiser', 'program_name'],
+                    'image_url' => ['image-url', 'image_url', 'imageurl', 'image'],
+                    'affiliate_link' => ['buyurl', 'buy-url', 'buy_url', 'clickurl', 'click_url', 'link'],
+                    'description' => ['description', 'product-description', 'product_description'],
+                    'category' => ['advertiser-category', 'advertiser_category', 'category', 'catalog-category'],
+                    'currency' => ['currency', 'currencyCode'],
+                    'shipping' => ['shipping-cost', 'shipping_cost', 'shipping'],
+                    'availability' => ['in-stock', 'in_stock', 'availability', 'stock-availability'],
+                    'attributes' => [
+                        'color' => ['color', 'colour'],
+                        'size' => ['size'],
+                        'gender' => ['gender'],
+                        'material' => ['material'],
+                    ],
+                ],
             ],
             'shareASale' => [
                 'signature_fields' => ['sas_product_id', 'shareasale'],
@@ -340,10 +391,36 @@ class MyFeeds_Smart_Mapper {
                 'confidence_boost' => 15
             ],
             'impact' => [
-                'signature_fields' => ['impact_product_id', 'campaign_id'],
+                'signature_fields' => ['impact_product_id', 'campaign_id', 'CampaignId', 'CatalogItemId'],
                 'url_patterns' => ['impact.com', 'impactradius.com', 'sjv.io'],
                 'field_prefixes' => [],
-                'confidence_boost' => 15
+                'confidence_boost' => 15,
+                // Impact Mediapartner catalog feeds expose two naming
+                // styles: the JSON Mediapartner Catalog (UpperCamel:
+                // Name, Price, ImageUrl) and the older CSV catalog
+                // export (lower_snake: name, price, image_url). Both
+                // covered, generic fallback last.
+                'field_mappings' => [
+                    'id' => ['CatalogItemId', 'catalog_item_id', 'product_id', 'impact_product_id', 'sku', 'id'],
+                    'title' => ['Name', 'name', 'product_name', 'title'],
+                    'price' => ['Price', 'price', 'CurrentPrice', 'current_price', 'sale_price'],
+                    'old_price' => ['OriginalPrice', 'original_price', 'list_price', 'old_price'],
+                    'brand' => ['Manufacturer', 'manufacturer', 'brand', 'Brand'],
+                    'merchant' => ['CampaignName', 'campaign_name', 'advertiser_name'],
+                    'image_url' => ['ImageUrl', 'image_url', 'image', 'image_link'],
+                    'affiliate_link' => ['TrackingUrl', 'tracking_url', 'link', 'product_url'],
+                    'description' => ['Description', 'description', 'long_description'],
+                    'category' => ['Category', 'category', 'product_category'],
+                    'currency' => ['Currency', 'currency'],
+                    'shipping' => ['Shipping', 'shipping', 'shipping_cost'],
+                    'availability' => ['Availability', 'availability', 'in_stock', 'stock_status'],
+                    'attributes' => [
+                        'color' => ['Color', 'color', 'colour'],
+                        'size' => ['Size', 'size'],
+                        'gender' => ['Gender', 'gender'],
+                        'material' => ['Material', 'material'],
+                    ],
+                ],
             ],
             'partnerize' => [
                 'signature_fields' => ['partnerize_id', 'camref'],
@@ -352,10 +429,89 @@ class MyFeeds_Smart_Mapper {
                 'confidence_boost' => 15
             ],
             'rakuten' => [
-                'signature_fields' => ['linksynergy_id', 'mid'],
+                'signature_fields' => ['linksynergy_id', 'mid', 'merchant_product_id'],
                 'url_patterns' => ['rakutenadvertising.com', 'linksynergy.com', 'click.linksynergy.com'],
                 'field_prefixes' => [],
-                'confidence_boost' => 15
+                'confidence_boost' => 15,
+                // Rakuten Advertising (formerly LinkShare) product feeds
+                // come in two flavours: classic LinkShare CSV (lower_snake
+                // with prefixes like merchant_) and the newer Rakuten
+                // Advertising XML/JSON catalog (productname, saleprice,
+                // etc.). Both are covered below.
+                'field_mappings' => [
+                    'id' => ['merchant_product_id', 'product_id', 'linksynergy_id', 'productId', 'sku', 'id'],
+                    'title' => ['productname', 'product_name', 'name', 'title'],
+                    'price' => ['price', 'saleprice', 'sale_price'],
+                    'old_price' => ['retail', 'retail_price', 'list_price', 'oldprice', 'original_price'],
+                    'brand' => ['brand', 'manufacturer'],
+                    'merchant' => ['merchant', 'advertiser_name', 'merchant_name'],
+                    'image_url' => ['imageurl', 'image_url', 'image', 'image_link'],
+                    'affiliate_link' => ['linkurl', 'link_url', 'clickurl', 'click_url', 'link'],
+                    'description' => ['description', 'longdescription', 'long_description'],
+                    'category' => ['primarycategory', 'primary_category', 'subcategory', 'category'],
+                    'currency' => ['currency', 'currencycode', 'currency_code'],
+                    'availability' => ['stock_availability', 'in_stock', 'availability'],
+                    'attributes' => [
+                        'color' => ['color', 'colour'],
+                        'size' => ['size'],
+                        'gender' => ['gender'],
+                        'material' => ['material'],
+                    ],
+                ],
+            ],
+            'pepperjam' => [
+                'signature_fields' => ['program_product_id', 'program_name', 'buy_url', 'creative_id'],
+                'url_patterns' => ['pepperjamnetwork.com', 'pjtra.com', 'pjatr.com', 'pntra.com', 'pntrac.com', 'pntrack.com', 'gopjn.com', 'ascendpartner.com'],
+                'field_prefixes' => ['program_'],
+                'confidence_boost' => 18,
+                'field_mappings' => [
+                    'id' => ['program_product_id', 'product_id', 'sku', 'id'],
+                    'title' => ['name', 'product_name', 'title'],
+                    'price' => ['price', 'sale_price'],
+                    'old_price' => ['regular_price', 'retail_price', 'original_price', 'manufacturer_price'],
+                    'brand' => ['brand', 'manufacturer'],
+                    'merchant' => ['program_name', 'advertiser_name'],
+                    'image_url' => ['image_url', 'thumbnail_url', 'image'],
+                    'affiliate_link' => ['buy_url', 'tracking_url', 'click_url', 'link'],
+                    'description' => ['description', 'product_description', 'short_description'],
+                    'category' => ['category_program_breadcrumb', 'category', 'product_category'],
+                    'currency' => ['currency'],
+                    'shipping' => ['shipping_cost', 'shipping'],
+                    'availability' => ['in_stock', 'stock_availability', 'availability'],
+                    'attributes' => [
+                        'color' => ['color', 'colour'],
+                        'size' => ['size'],
+                        'gender' => ['gender'],
+                        'material' => ['material'],
+                    ],
+                ],
+            ],
+            'flexoffers' => [
+                'signature_fields' => ['AdvertiserID', 'AdvertiserName', 'DeepLink', 'ProductID'],
+                'url_patterns' => ['flexoffers.com', 'flexlinkspro.com', 'track.flexlinkspro.com'],
+                'field_prefixes' => ['Flex', 'flex_'],
+                'confidence_boost' => 18,
+                'field_mappings' => [
+                    'id' => ['ProductID', 'SKU', 'productID', 'product_id', 'id'],
+                    'title' => ['ProductName', 'productName', 'name', 'title'],
+                    'price' => ['Price', 'price', 'SalePrice', 'sale_price'],
+                    'old_price' => ['RetailPrice', 'retail_price', 'OriginalPrice', 'MSRP', 'msrp'],
+                    'brand' => ['BrandName', 'brand_name', 'Brand', 'brand', 'Manufacturer'],
+                    'merchant' => ['AdvertiserName', 'advertiser_name', 'MerchantName', 'merchant_name'],
+                    'image_url' => ['ImageURL', 'image_url', 'ProductImage', 'image'],
+                    'affiliate_link' => ['DeepLink', 'deep_link', 'BuyURL', 'buy_url', 'link'],
+                    'description' => ['Description', 'description', 'ProductDescription'],
+                    'category' => ['Category', 'category', 'AdvertiserCategory', 'PrimaryCategory'],
+                    'currency' => ['Currency', 'currency', 'CurrencyCode'],
+                    'shipping' => ['ShippingCost', 'shipping_cost', 'Shipping'],
+                    'availability' => ['InStock', 'in_stock', 'Availability', 'availability'],
+                    'attributes' => [
+                        'color' => ['Color', 'color', 'Colour'],
+                        'size' => ['Size', 'size'],
+                        'gender' => ['Gender', 'gender'],
+                        'material' => ['Material', 'material'],
+                    ],
+                ],
             ],
             'ebay' => [
                 'signature_fields' => ['ebay_id', 'item_id', 'epid'],
