@@ -180,12 +180,10 @@ class MyFeeds_DB_Manager {
             update_option('myfeeds_next_feed_id', $next_id);
         }
 
-        // Delete orphan products (feed_name not in any configured feed)
-        $configured_names = array_filter(array_column($feeds, 'name'));
-        if (!empty($configured_names)) {
-            $deleted = self::delete_orphaned_products($configured_names);
-            myfeeds_log("MIGRATION: Deleted {$deleted} orphan products (feed_name not in configured feeds)", 'info');
-        }
+        // Every configured feed now has its stable_id written onto its rows,
+        // so anything left over belongs to a feed that is gone.
+        $deleted = self::cleanup_orphaned_products();
+        myfeeds_log("MIGRATION: Deleted {$deleted} orphan products (feed_id belongs to no configured feed)", 'info');
 
         update_option('myfeeds_stable_id_migrated', true);
         myfeeds_log("MIGRATION: Stable feed_id migration complete. Next ID = {$next_id}", 'info');
@@ -301,134 +299,79 @@ class MyFeeds_DB_Manager {
     }
 
     /**
-     * Cleanup orphaned products whose feed_id does not match any configured feed's stable_id.
-     * Safe: Does nothing if no feeds are configured (prevents accidental full wipe).
+     * Which feed_ids present in the table no longer belong to a configured feed.
+     *
+     * A feed's identity is its stable_id, never its name — the name is the one
+     * thing a user can change at will, and comparing on it made every renamed
+     * feed look like a deleted one.
+     *
+     * @param array $feeds            Configured feeds (myfeeds_feeds option)
+     * @param array $present_feed_ids feed_ids the table actually holds
+     * @return array feed_ids to delete; empty means delete nothing
+     */
+    public static function orphaned_feed_ids($feeds, $present_feed_ids) {
+        if (empty($feeds)) {
+            return array();
+        }
+
+        $valid_ids = array();
+        foreach ($feeds as $f) {
+            $sid = intval($f['stable_id'] ?? 0);
+            // A configured feed without a stable_id means the migration has not
+            // finished. Deleting on a half-migrated list would take a live feed
+            // with it, so the whole cleanup stands down.
+            if ($sid <= 0) {
+                return array();
+            }
+            $valid_ids[] = $sid;
+        }
+
+        $orphans = array();
+        foreach ($present_feed_ids as $id) {
+            $id = intval($id);
+            if (!in_array($id, $valid_ids, true) && !in_array($id, $orphans, true)) {
+                $orphans[] = $id;
+            }
+        }
+
+        return $orphans;
+    }
+
+    /**
+     * Delete products whose feed_id belongs to no configured feed.
+     * Safe: does nothing if no feeds are configured, and nothing while any
+     * configured feed is still without a stable_id.
      * Returns number of deleted rows.
      */
     public static function cleanup_orphaned_products() {
         global $wpdb;
         $table = self::table_name();
-        
+
         if (!self::table_exists()) {
             return 0;
         }
-        
+
         $feeds = get_option('myfeeds_feeds', array());
-        if (empty($feeds)) {
-            myfeeds_log("DB Cleanup: Skipped — no feeds configured (safety check)", 'info');
+        $present_ids = $wpdb->get_col("SELECT DISTINCT feed_id FROM {$table}");
+        $orphan_ids = self::orphaned_feed_ids($feeds, $present_ids);
+
+        if (empty($orphan_ids)) {
+            myfeeds_log("DB Cleanup: Nothing to delete (configured feeds: " . count($feeds) . ", feed_ids in table: " . implode(',', array_map('intval', $present_ids)) . ")", 'info');
             return 0;
         }
-        
-        $valid_ids = array();
-        foreach ($feeds as $f) {
-            $sid = intval($f['stable_id'] ?? 0);
-            if ($sid > 0) {
-                $valid_ids[] = $sid;
-            }
-        }
-        
-        if (empty($valid_ids)) {
-            myfeeds_log("DB Cleanup: Skipped — no valid stable_ids found (safety check)", 'info');
-            return 0;
-        }
-        
-        $placeholders = implode(',', array_fill(0, count($valid_ids), '%d'));
+
+        $placeholders = implode(',', array_fill(0, count($orphan_ids), '%d'));
         $deleted = $wpdb->query($wpdb->prepare(
-            "DELETE FROM {$table} WHERE feed_id NOT IN ({$placeholders})",
-            ...$valid_ids
+            "DELETE FROM {$table} WHERE feed_id IN ({$placeholders})",
+            ...$orphan_ids
         ));
-        
+
         // Clear count caches
         delete_transient('myfeeds_active_count_cache');
         delete_transient('myfeeds_feed_counts_cache');
-        
-        if ($deleted > 0) {
-            myfeeds_log("DB Cleanup: Deleted {$deleted} orphaned products with invalid feed_ids (valid ids: " . implode(',', $valid_ids) . ")", 'info');
-        } else {
-            myfeeds_log("DB Cleanup: No orphaned products found (valid ids: " . implode(',', $valid_ids) . ")", 'info');
-        }
-        
-        return (int) $deleted;
-    }
 
-    /**
-     * Find orphaned products that belong to feed_ids NOT in the given list of configured feed keys,
-     * OR whose feed_name does not match any configured feed name.
-     * Returns array with 'count', 'by_feed_name', 'by_feed_id' for preview.
-     */
-    public static function find_orphaned_products($configured_feed_keys, $configured_feed_names) {
-        global $wpdb;
-        $table = self::table_name();
-        
-        // Strategy: products are orphaned if their feed_name is NOT in the configured list
-        // This catches both wrong feed_ids AND deleted feeds
-        if (empty($configured_feed_names)) {
-            // No feeds configured — everything is orphaned
-            $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
-            return array('count' => $total, 'by_feed_name' => array(), 'by_feed_id' => array());
-        }
-        
-        $name_placeholders = implode(',', array_fill(0, count($configured_feed_names), '%s'));
-        $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT feed_name, feed_id, COUNT(*) as cnt FROM {$table} 
-             WHERE feed_name NOT IN ({$name_placeholders})
-             GROUP BY feed_name, feed_id ORDER BY cnt DESC",
-            ...$configured_feed_names
-        ), ARRAY_A);
-        
-        $total = 0;
-        $by_feed_name = array();
-        $by_feed_id = array();
-        foreach ($results as $row) {
-            $total += (int) $row['cnt'];
-            $name = $row['feed_name'] ?: '(empty)';
-            $by_feed_name[$name] = ($by_feed_name[$name] ?? 0) + (int) $row['cnt'];
-            $by_feed_id[$row['feed_id']] = ($by_feed_id[$row['feed_id']] ?? 0) + (int) $row['cnt'];
-        }
-        
-        return array('count' => $total, 'by_feed_name' => $by_feed_name, 'by_feed_id' => $by_feed_id);
-    }
-    
-    /**
-     * Delete all orphaned products whose feed_name is NOT in the configured list.
-     * Returns number of deleted rows.
-     */
-    public static function delete_orphaned_products($configured_feed_names) {
-        global $wpdb;
-        $table = self::table_name();
-        
-        // DIAG LOG 4: Show what's being kept and what will be deleted
-        if (!empty($configured_feed_names)) {
-            $name_placeholders_diag = implode(',', array_fill(0, count($configured_feed_names), '%s'));
-            $to_delete_count = $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$table} WHERE feed_name NOT IN ({$name_placeholders_diag})",
-                ...$configured_feed_names
-            ));
-            $deleting_names = $wpdb->get_col($wpdb->prepare(
-                "SELECT DISTINCT feed_name FROM {$table} WHERE feed_name NOT IN ({$name_placeholders_diag})",
-                ...$configured_feed_names
-            ));
-            myfeeds_log("DIAG orphan_delete: keeping_feed_names=[" . implode(', ', $configured_feed_names) . "], deleting_feed_names=[" . implode(', ', $deleting_names) . "], products_to_delete={$to_delete_count}", 'info');
-        } else {
-            $to_delete_count = $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
-            myfeeds_log("DIAG orphan_delete: keeping_feed_names=[], deleting ALL, products_to_delete={$to_delete_count}", 'info');
-        }
-        
-        if (empty($configured_feed_names)) {
-            $deleted = $wpdb->query("DELETE FROM {$table}");
-        } else {
-            $name_placeholders = implode(',', array_fill(0, count($configured_feed_names), '%s'));
-            $deleted = $wpdb->query($wpdb->prepare(
-                "DELETE FROM {$table} WHERE feed_name NOT IN ({$name_placeholders})",
-                ...$configured_feed_names
-            ));
-        }
-        
-        // Clear caches
-        delete_transient('myfeeds_active_count_cache');
-        delete_transient('myfeeds_feed_counts_cache');
-        
-        myfeeds_log("DELETE_ORPHANED_PRODUCTS: deleted={$deleted}, configured_feeds=" . implode(', ', $configured_feed_names), 'info');
+        myfeeds_log("DB Cleanup: Deleted {$deleted} products from feed_ids [" . implode(',', $orphan_ids) . "] that belong to no configured feed", 'info');
+
         return (int) $deleted;
     }
 
@@ -1729,7 +1672,6 @@ class MyFeeds_DB_Manager {
         // This runs BEFORE per-feed orphan detection (which may early-return) to ensure
         // products from deleted feeds are always cleaned up after a full import.
         $cleanup_feeds = get_option('myfeeds_feeds', array());
-        $cleanup_feed_names = array_filter(array_column($cleanup_feeds, 'name'));
 
         // DIAG LOG 3b: Orphan check context
         $diag_per_feed = $wpdb->get_results("SELECT feed_id, COUNT(*) as cnt FROM {$table} GROUP BY feed_id");
@@ -1737,12 +1679,11 @@ class MyFeeds_DB_Manager {
         foreach ($diag_per_feed as $row) {
             $diag_per_feed_map[$row->feed_id] = $row->cnt;
         }
-        myfeeds_log("DIAG orphan_check: configured_feed_ids=[" . implode(',', array_keys($cleanup_feeds)) . "], total_products_in_db={$diag_total}, products_per_feed_id=" . json_encode($diag_per_feed_map), 'info');
+        myfeeds_log("DIAG orphan_check: configured_stable_ids=[" . implode(',', array_map(function ($f) { return intval($f['stable_id'] ?? 0); }, $cleanup_feeds)) . "], total_products_in_db={$diag_total}, products_per_feed_id=" . json_encode($diag_per_feed_map), 'info');
 
-        if (!empty($cleanup_feed_names)) {
-            myfeeds_log("Orphan cleanup: configured feed_ids=[" . implode(',', array_keys($cleanup_feeds)) . "], deleting products with feed_name NOT IN [" . implode(', ', $cleanup_feed_names) . "]", 'info');
-            $deleted_orphans = self::delete_orphaned_products($cleanup_feed_names);
-            myfeeds_log("Orphan cleanup: deleted {$deleted_orphans} products", 'info');
+        $deleted_orphans = self::cleanup_orphaned_products();
+        if ($deleted_orphans > 0) {
+            myfeeds_log("Orphan cleanup: deleted {$deleted_orphans} products whose feed_id belongs to no configured feed", 'info');
         }
 
         // SAFETY GUARD 1: Need valid import timestamp
