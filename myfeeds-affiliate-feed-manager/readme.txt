@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, awin
 Requires at least: 5.8
 Tested up to: 7.0.4
-Stable tag: 1.0.20
+Stable tag: 1.0.21
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -165,6 +165,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.21 =
+* The importer knows six more feed formats. Tradedoubler, Commission Junction, Impact and Rakuten now come with their column names built in, and Pepperjam and FlexOffers are recognised at all. Before this, a feed from one of those networks fell through to the generic guesser and left you mapping columns by hand on the Mapping Editor screen. Nothing else changed: feeds that already import correctly keep their saved mapping.
+
 = 1.0.20 =
 * The plugin is now called "MyFeeds - Affiliate Product Feed Manager, Importer & Product Display". Same plugin, same folder, nothing to do on your side. On the plugin directory the name is the single strongest field for being found at all, and "Manager" on its own left out the two things people actually type when they go looking: importing a feed, and displaying the products.
 
@@ -293,6 +296,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * AWIN Publisher API integration for credential and feed-URL resolution.
 
 == Upgrade Notice ==
+
+= 1.0.21 =
+Six more affiliate networks are recognised automatically: Tradedoubler, Commission Junction, Impact, Rakuten, Pepperjam and FlexOffers. Feeds from those no longer need their columns mapped by hand.
 
 = 1.0.8 =
 WordPress 7.0 compatibility confirmed. No code changes, just a tested-up-to bump so the plugin keeps its clean WordPress.org listing.
