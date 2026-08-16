@@ -323,6 +323,41 @@ function myfeeds_cleanup_all_feed_caches($run_id) {
 }
 
 /**
+ * Every cache file shape the plugin has ever written into the cache dir.
+ * The sweep looked for myfeeds_feed_*.csv only, so the myfeeds_content_*.txt
+ * files an older version left behind were never anyone's job: 56 MB of them
+ * sat on one of Marlon's sites from March until 2026-08-16.
+ */
+function myfeeds_cache_file_patterns() {
+    return array('myfeeds_feed_*.csv', 'myfeeds_content_*.txt');
+}
+
+/**
+ * Cache files in $cache_dir last written before $threshold.
+ *
+ * @param string $cache_dir
+ * @param int    $threshold Unix timestamp; older than this counts as stale
+ * @return array file paths
+ */
+function myfeeds_stale_cache_files($cache_dir, $threshold) {
+    $stale = array();
+
+    foreach (myfeeds_cache_file_patterns() as $pattern) {
+        $files = glob(rtrim($cache_dir, '/') . '/' . $pattern);
+        if (empty($files)) {
+            continue;
+        }
+        foreach ($files as $file) {
+            if (filemtime($file) < $threshold) {
+                $stale[] = $file;
+            }
+        }
+    }
+
+    return $stale;
+}
+
+/**
  * Remove orphaned cache files older than 24 hours.
  * Prevents disk space leaks from crashed imports that never completed.
  */
@@ -331,18 +366,13 @@ function myfeeds_cleanup_orphaned_caches() {
     if ($cache_dir === null || !is_dir($cache_dir)) {
         return;
     }
-    
-    $files = glob($cache_dir . '/myfeeds_feed_*.csv');
-    $threshold = time() - 86400; // 24 hours
-    $cleaned = 0;
-    
-    foreach ($files as $file) {
-        if (filemtime($file) < $threshold) {
-            @wp_delete_file($file);
-            $cleaned++;
-        }
+
+    $stale = myfeeds_stale_cache_files($cache_dir, time() - 86400);
+    foreach ($stale as $file) {
+        @wp_delete_file($file);
     }
-    
+    $cleaned = count($stale);
+
     if ($cleaned > 0 && class_exists('MyFeeds_Logger')) {
         MyFeeds_Logger::info("FeedCache: Cleaned {$cleaned} orphaned cache files (>24h old)");
     }
