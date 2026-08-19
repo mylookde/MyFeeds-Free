@@ -1,8 +1,8 @@
 <?php
 /**
- * Plugin Name: MyFeeds — Affiliate Product Feed Manager, Importer & Product Display
+ * Plugin Name: MyFeeds — Make Your Blog Shoppable
  * Plugin URI: https://myfeeds.site
- * Description: Import and manage affiliate product feeds from any network. Smart search, auto-mapping, and a Gutenberg Product Picker for bloggers.
+ * Description: Make your blog shoppable. Import an affiliate product feed and place searchable product tiles in any post. Prices and links stay current.
  * Version: 1.0.21
  * Author: Marlon Weber
  * License: GPLv2 or later
@@ -10,7 +10,7 @@
  * Text Domain: myfeeds-affiliate-feed-manager
  * Domain Path: /languages
  * Requires at least: 5.8
- * Tested up to: 7.0
+ * Tested up to: 7.1
  * Requires PHP: 7.4
  */
 

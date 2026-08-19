@@ -1,24 +1,24 @@
-=== MyFeeds — Affiliate Product Feed Manager, Importer & Product Display ===
+=== MyFeeds — Make Your Blog Shoppable ===
 Contributors: myfeeds
-Tags: affiliate, affiliate marketing, product feed, datafeed, awin
+Tags: affiliate, shoppable, product feed, datafeed, awin
 Requires at least: 5.8
-Tested up to: 7.0.4
+Tested up to: 7.1
 Stable tag: 1.0.21
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Turn your affiliate product feed into live product tiles in the block editor. Prices, stock and links keep themselves current.
+Make your blog shoppable. Import your merchants' affiliate product feed and place searchable product tiles in any post. Prices and links stay current.
 
 == Description ==
 
-**Stop copy-pasting affiliate products. Stop fixing dead links by hand. Start writing.**
+**Tired of hunting for products, pasting affiliate links, fixing the ones that died, and earning from ads alone? Make your blog shoppable!**
 
-**MyFeeds reads your affiliate product feed and drops live product tiles into your posts. The prices, stock and links update themselves, so you write once and stop maintaining.**
+Embedding affiliate links by hand costs you valuable time. Time you should spend writing new posts, researching, and running your business. Instead, looking after your links eats it up: dead links to replace, new products to find, prices to check. Most affiliates lose sales because their links have died, or because a plain text link just doesn't invite a click. So how do you show your products in a way readers actually want to explore?
 
-You write about products you recommend. You drop them into your posts. A few weeks pass, and half the prices are off, a couple of products went out of stock without telling you, and one merchant quietly disappeared from your network. Every roundup, every gift guide, every product page tells the same story. Quietly going stale while you write the next one.
+MyFeeds does that for you. Instead of text links that slowly die inside your posts, your readers see product tiles that show the merchant, the brand, the title and the price. The tiles refresh every day, so the price your reader sees is the price your merchant is charging.
 
-MyFeeds takes your affiliate program's product feed and quietly keeps it in sync with your site. You pick a product inside the block editor the way you'd pick an image, hit publish, and move on. The next morning the prices are still right. The dead products are flagged. Your readers see what the merchant is actually selling today.
+All you do is copy the product feed link from your affiliate network and paste it into MyFeeds. Once the feed is imported, the **Product Picker** block lets you search it right inside the block editor, by keyword, with filters when you need them.
 
 You get to stay where the value is. Writing. Instead of pasting URLs at midnight.
 
@@ -30,16 +30,16 @@ The block editor stays your block editor. The plugin works in the background.
 
 = What changes for you =
 
-* **Your posts get product tiles, not paragraphs of pasted links.** A visual grid your readers can scan: image, brand, price, discount, shipping, affiliate link. You compose it in seconds inside the block editor.
+* **Your posts become shoppable.** A grid your readers can scan: image, brand, price, discount, shipping, and your link. You compose it in seconds inside the block editor.
 * **Your prices stop lying.** The price your reader sees today is the price on the merchant's checkout right now.
 * **Your posts stop rotting.** Dead products surface so you can replace them. Stock that comes back lights up again. Nothing decays silently.
-* **You publish faster.** Two letters in the editor, the product appears, you click, the card is in. No new tab, no copy, no paste.
+* **You publish faster.** Two letters in the editor, the product appears, you click, the card is in. You never leave the post you're writing.
 * **Your site stays yours.** Products live in your own WordPress database. Visitors don't wait on a third-party server, and nothing about them is sent off-site when a page loads.
-* **No translation tax.** Whatever your program sends you, MyFeeds reads it and figures out which column is the price, which is the image, which is the link. You don't have to learn the format.
+* **You never learn a file format.** Whatever your network sends, MyFeeds reads it and works out which column is the price, which is the image, which is the link.
 
 = How it works =
 
-1. Drop your **affiliate product feed URL** into MyFeeds.
+1. Paste in the **affiliate product feed URL** from your network.
 2. Every product is imported and stored locally in your WordPress database. The plugin figures out the column structure on its own.
 3. In any post or page, add the **MyFeeds Product Picker** block. Search by name, brand, or category. Click to insert.
 4. The published page renders a responsive product card with the current price, image, brand, shipping, and your affiliate link. All served direct from your database, with no external call on render.
@@ -55,14 +55,18 @@ The next day the nightly sync refreshes what changed. The week after, a full imp
 * Responsive product grid with prices, brands, shipping, and your affiliate links.
 * Background imports. Large feeds process without locking your admin.
 * Nightly auto-sync and weekly full re-import, scheduled and quiet.
-* Honest pricing. What the feed publishes is what visitors see. No silent currency assumptions.
+* The price and the currency come straight from the feed. Nothing is converted behind your back.
 * Works with any WordPress theme that supports the block editor.
 
-= A few things worth saying out loud =
+= Good to know =
 
-* No CSV downloads, no FTP, no spreadsheet uploads, no manual price updates.
+* Everything happens inside WordPress, from the feed URL to the published card. There is nothing to download, upload or update by hand.
 * Self-hosted. The frontend never contacts an external service to render a product.
 * If your program publishes a feed file you can download, MyFeeds will almost certainly import it.
+
+= Get started =
+
+Install MyFeeds, paste one feed URL, and make your next post shoppable.
 
 = Related paid plugins =
 
@@ -156,12 +160,14 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Screenshots ==
 
-1. Live product grid inside a real blog post. Pick products in the editor, hit publish, and your readers see what the merchant is actually selling today, for as long as the post exists.
-2. Swipeable carousel layout (MyFeeds Starter). The same picker behind it, a second way to present what you've curated for image-heavy posts and roundups.
-3. Card design editor (MyFeeds Starter). Cards that look like your blog wrote them. One save, every card across every post catches up. The live editor opens more than this screen lets on.
-4. Full storefront on your own domain (MyFeeds E-commerce). Visitors see your real online shop with categories, filters and sorting. The controls they already know from any modern shop, all on your domain. Every checkout goes through your affiliate link.
-5. Category manager (MyFeeds E-commerce). A shop organised the way your readers shop. Build the tree once, then curate products into each category by hand. Smart keyword search behind the scenes; you stay the editor.
-6. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
+1. The product picker inside the block editor. Search your whole feed, narrow it with filters, click what you want. Here: 120 results for "shoes", filtered down to one brand, four products picked.
+2. Your picked products, saved in the block. They stay together until you place them, each with its own price and discount. The shop buttons on the cards belong to MyFeeds E-commerce.
+3. Those four products published as a live product grid in a real blog post. Your readers see what the merchant is actually selling today, for as long as the post exists.
+4. The same four products as a swipeable carousel (MyFeeds Starter). A second way to present what you've curated, for image-heavy posts and roundups.
+5. Card design editor (MyFeeds Starter). Cards that look like your blog wrote them. One save, every card across every post catches up. The live editor opens more than this screen lets on.
+6. Full storefront on your own domain (MyFeeds E-commerce). Visitors see your real online shop with categories, filters and sorting. The controls they already know from any modern shop, all on your domain. Every checkout goes through your affiliate link.
+7. Category manager (MyFeeds E-commerce). A shop organised the way your readers shop. Build the tree once, then curate products into each category by hand. Smart keyword search behind the scenes; you stay the editor.
+8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
 
