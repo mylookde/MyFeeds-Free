@@ -1,4 +1,4 @@
-=== MyFeeds — Make Your Blog Shoppable ===
+=== MyFeeds — Shoppable Affiliate Product Cards ===
 Contributors: myfeeds
 Tags: affiliate, shoppable, product feed, datafeed, awin
 Requires at least: 5.8
@@ -8,7 +8,7 @@ Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Make your blog shoppable. Import your merchants' affiliate product feed and place searchable product tiles in any post. Prices and links stay current.
+Make your blog shoppable. Import your merchants' affiliate product feed and place searchable product cards in any post. Prices and links stay current.
 
 == Description ==
 
@@ -16,7 +16,7 @@ Make your blog shoppable. Import your merchants' affiliate product feed and plac
 
 Embedding affiliate links by hand costs you valuable time. Time you should spend writing new posts, researching, and running your business. Instead, looking after your links eats it up: dead links to replace, new products to find, prices to check. Most affiliates lose sales because their links have died, or because a plain text link just doesn't invite a click. So how do you show your products in a way readers actually want to explore?
 
-MyFeeds does that for you. Instead of text links that slowly die inside your posts, your readers see product tiles that show the merchant, the brand, the title and the price. The tiles refresh every day, so the price your reader sees is the price your merchant is charging.
+MyFeeds does that for you. Instead of text links that slowly die inside your posts, your readers see product cards that show the merchant, the brand, the title and the price. The cards refresh every day, so the price your reader sees is the price your merchant is charging.
 
 All you do is copy the product feed link from your affiliate network and paste it into MyFeeds. Once the feed is imported, the **Product Picker** block lets you search it right inside the block editor, by keyword, with filters when you need them.
 
@@ -52,7 +52,7 @@ The next day the nightly sync refreshes what changed. The week after, a full imp
 * Smart Mapping. Automatic recognition of common feed structures, with a manual editor for anything custom.
 * Smart Search inside the block editor with synonym handling and multi-language support.
 * Native Gutenberg **Product Picker** block with live in-editor search.
-* Responsive product grid with prices, brands, shipping, and your affiliate links.
+* Responsive grid of product tiles with prices, brands, shipping, and your affiliate links.
 * Background imports. Large feeds process without locking your admin.
 * Nightly auto-sync and weekly full re-import, scheduled and quiet.
 * The price and the currency come straight from the feed. Nothing is converted behind your back.

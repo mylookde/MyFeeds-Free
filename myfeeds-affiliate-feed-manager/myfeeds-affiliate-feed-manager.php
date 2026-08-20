@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: MyFeeds — Make Your Blog Shoppable
+ * Plugin Name: MyFeeds — Shoppable Affiliate Product Cards
  * Plugin URI: https://myfeeds.site
  * Description: Make your blog shoppable. Import an affiliate product feed and place searchable product tiles in any post. Prices and links stay current.
  * Version: 1.0.21
