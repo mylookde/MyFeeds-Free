@@ -674,7 +674,7 @@ class MyFeeds_Feed_Manager {
      * Render simplified feeds table
      */
     /**
-     * Signpost for the Amazon source, which lives in the paid Starter
+     * Signpost for the Amazon source, which lives in the paid Pro
      * plugin. Opens a dialog describing the feature rather than leading
      * to a submenu of its own: one entry point, and the feeds screen is
      * where a source would be added.
@@ -689,7 +689,7 @@ class MyFeeds_Feed_Manager {
         <button type="button" id="myfeeds-add-amazon-btn" class="button"><?php
             esc_html_e('+ Add Amazon', 'myfeeds-affiliate-feed-manager');
         ?><span class="myfeeds-amazon-tip" aria-hidden="true"><?php
-            esc_html_e('Available from Starter', 'myfeeds-affiliate-feed-manager');
+            esc_html_e('Available from Pro', 'myfeeds-affiliate-feed-manager');
         ?></span></button>
         <?php
         $this->print_amazon_styles();
@@ -705,7 +705,7 @@ class MyFeeds_Feed_Manager {
             __('Choose your Amazon site and partner tag per country.', 'myfeeds-affiliate-feed-manager'),
         );
 
-        $cta = MyFeeds_Feature_Previews::CHECKOUT_STARTER_URL
+        $cta = MyFeeds_Feature_Previews::CHECKOUT_PRO_URL
             . '&utm_source=wp-plugin-free&utm_medium=amazon-modal&utm_term=amazon';
         ?>
         <div id="myfeeds-amazon-modal" class="myfeeds-modal-overlay" style="display:none;">
@@ -715,7 +715,7 @@ class MyFeeds_Feed_Manager {
                     <button type="button" class="myfeeds-modal-close" id="myfeeds-amazon-modal-close">&times;</button>
                 </div>
                 <div class="myfeeds-modal-body">
-                    <span class="myfeeds-amazon-badge"><?php esc_html_e('Starter feature', 'myfeeds-affiliate-feed-manager'); ?></span>
+                    <span class="myfeeds-amazon-badge"><?php esc_html_e('Pro feature', 'myfeeds-affiliate-feed-manager'); ?></span>
                     <h2 class="myfeeds-amazon-title"><?php esc_html_e('Put Amazon products in your posts.', 'myfeeds-affiliate-feed-manager'); ?></h2>
                     <p class="myfeeds-amazon-lede">
                         <?php esc_html_e('Search the Amazon catalogue from inside the editor and drop products straight into a post. Prices and stock refresh themselves, and every card carries the timestamp and wording Amazon asks for.', 'myfeeds-affiliate-feed-manager'); ?>
@@ -729,7 +729,7 @@ class MyFeeds_Feed_Manager {
 
                     <p class="myfeeds-amazon-note">
                         <strong><?php esc_html_e('Worth knowing before you buy:', 'myfeeds-affiliate-feed-manager'); ?></strong>
-                        <?php esc_html_e('Amazon only opens its product API to Associates accounts with 10 qualifying sales in the last 30 days. That is Amazon\'s rule, not ours, and it applies to every plugin that connects to them.', 'myfeeds-affiliate-feed-manager'); ?>
+                        <?php esc_html_e('Amazon only opens its product API to Associates accounts with 10 qualifying sales in the last 30 days. That is Amazon\'s rule, not ours, and it applies to every plugin that connects to them. It is also why Amazon sits on Pro: by the time Amazon lets you in, you are already selling.', 'myfeeds-affiliate-feed-manager'); ?>
                     </p>
 
                     <p class="myfeeds-amazon-cta">
