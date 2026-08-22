@@ -964,6 +964,9 @@ class MyFeeds_Feed_Manager {
             <p class="description">
                 <?php esc_html_e('Creates a draft post with the block already in it, so you do not have to find it in the inserter. Delete the draft whenever you like.', 'myfeeds-affiliate-feed-manager'); ?>
             </p>
+            <p class="description">
+                <?php esc_html_e('Publish it if you want to see the cards the way a reader does. The samples behave like real products, so they will be live on your site until you unpublish the post — clicking one leads to a page explaining that it is demo data.', 'myfeeds-affiliate-feed-manager'); ?>
+            </p>
         </div>
         <?php
     }

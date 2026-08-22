@@ -34,6 +34,12 @@ if (!defined('ABSPATH')) {
 class MyFeeds_Demo_Content {
 
     /**
+     * Where a demo card goes. Not a merchant and not an affiliate link -
+     * a page that explains what the reader just clicked.
+     */
+    const LINK_TARGET = 'https://myfeeds.site/demo-product/';
+
+    /**
      * Non-empty on purpose. get_displayable_feeds() drops any entry with
      * an empty url and rewrites the option, so a feed without one would
      * vanish on the next page load. The scheme is not http, so a path
@@ -41,6 +47,7 @@ class MyFeeds_Demo_Content {
      * out to some real host.
      */
     const FEED_URL  = 'demo://sample-products';
+
     const FEED_NAME = 'Demo products (sample data)';
 
     /**
@@ -277,10 +284,16 @@ class MyFeeds_Demo_Content {
     // =====================================================================
 
     /**
-     * Invented brands, invented merchants, invented prices, and links
-     * that go nowhere. None of this may look like a real listing: real
-     * product photos would not be ours to ship, and a real affiliate
-     * link would put our tracking into someone else's posts.
+     * Invented brands, invented merchants, invented prices. None of this
+     * may look like a real listing: real product photos would not be ours
+     * to ship, and a real affiliate link would put our tracking into
+     * someone else's posts.
+     *
+     * The link goes to a page that says it is a demo, rather than to '#'.
+     * A dead anchor hides the last third of what the plugin does - the
+     * card is a link, it opens in a new tab, it carries rel="nofollow
+     * sponsored" - and a reader who lands on a published demo post from
+     * anywhere gets an explanation instead of a page that does nothing.
      *
      * Two are on sale and the colours differ, because the discount badge
      * and the colour filter are among the things worth seeing before you
@@ -300,7 +313,7 @@ class MyFeeds_Demo_Content {
                 'old_price'      => 79.90,
                 'currency'       => 'USD',
                 'image_url'      => $img . 'sneaker-white-lowtop.webp',
-                'affiliate_link' => '#',
+                'affiliate_link' => self::LINK_TARGET,
                 'in_stock'       => 1,
                 'merchant'       => 'Stockroom',
             ),
@@ -313,7 +326,7 @@ class MyFeeds_Demo_Content {
                 'price'          => 84.90,
                 'currency'       => 'USD',
                 'image_url'      => $img . 'sneaker-black-hightop.webp',
-                'affiliate_link' => '#',
+                'affiliate_link' => self::LINK_TARGET,
                 'in_stock'       => 1,
                 'merchant'       => 'Stockroom',
             ),
@@ -326,7 +339,7 @@ class MyFeeds_Demo_Content {
                 'price'          => 89.00,
                 'currency'       => 'USD',
                 'image_url'      => $img . 'hoodie-heather-grey.webp',
-                'affiliate_link' => '#',
+                'affiliate_link' => self::LINK_TARGET,
                 'in_stock'       => 1,
                 'merchant'       => 'Outlet24',
             ),
@@ -339,7 +352,7 @@ class MyFeeds_Demo_Content {
                 'price'          => 48.00,
                 'currency'       => 'USD',
                 'image_url'      => $img . 'tote-canvas-natural.webp',
-                'affiliate_link' => '#',
+                'affiliate_link' => self::LINK_TARGET,
                 'in_stock'       => 1,
                 'merchant'       => 'Stockroom',
             ),
@@ -352,7 +365,7 @@ class MyFeeds_Demo_Content {
                 'price'          => 29.00,
                 'currency'       => 'USD',
                 'image_url'      => $img . 'beanie-knit-navy.webp',
-                'affiliate_link' => '#',
+                'affiliate_link' => self::LINK_TARGET,
                 'in_stock'       => 1,
                 'merchant'       => 'Nord Store',
             ),
@@ -366,7 +379,7 @@ class MyFeeds_Demo_Content {
                 'old_price'      => 149.00,
                 'currency'       => 'USD',
                 'image_url'      => $img . 'backpack-trail.webp',
-                'affiliate_link' => '#',
+                'affiliate_link' => self::LINK_TARGET,
                 'in_stock'       => 1,
                 'merchant'       => 'Outlet24',
             ),
@@ -379,7 +392,7 @@ class MyFeeds_Demo_Content {
                 'price'          => 39.00,
                 'currency'       => 'USD',
                 'image_url'      => $img . 'tee-boxy-offwhite.webp',
-                'affiliate_link' => '#',
+                'affiliate_link' => self::LINK_TARGET,
                 'in_stock'       => 1,
                 'merchant'       => 'Nord Store',
             ),
