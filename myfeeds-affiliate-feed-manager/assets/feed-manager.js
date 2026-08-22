@@ -1111,10 +1111,19 @@
                     if (response.success) {
                         // Remove the table row
                         var $row = $btn.closest('tr');
-                        $row.fadeOut(300, function() { $(this).remove(); });
+                        var d = response.data;
+                        $row.fadeOut(300, function() {
+                            $(this).remove();
+                            // Last feed gone: the table is now an empty
+                            // shell with no way back in. Swap it for the
+                            // empty state the server rendered, so nobody
+                            // has to reload to find Add your first feed.
+                            if (d.empty_state_html) {
+                                $('.myfeeds-feeds-table table').replaceWith(d.empty_state_html);
+                            }
+                        });
                         
                         // Update header stats from server response
-                        var d = response.data;
                         $('#myfeeds-active-feeds').text(d.active_feeds);
                         $('#myfeeds-total-products').text(d.total_products_formatted || formatNumber(d.total_products));
                         $('#myfeeds-avg-quality').text(d.avg_quality + '%');

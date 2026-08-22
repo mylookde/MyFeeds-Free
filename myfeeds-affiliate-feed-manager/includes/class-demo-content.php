@@ -43,9 +43,18 @@ class MyFeeds_Demo_Content {
     const FEED_URL  = 'demo://sample-products';
     const FEED_NAME = 'Demo products (sample data)';
 
+    /**
+     * Words that are certainly in product_name, so the suggestion in the
+     * next-steps card cannot come back empty. search_text is a FULLTEXT
+     * column, so a term has to be a whole word and at least three
+     * characters - "bag" would miss the two products filed under "Bags".
+     */
+    const SEARCH_HINTS = array('sneaker', 'hoodie', 'backpack');
+
     public static function init() {
         add_action('admin_post_myfeeds_load_demo', array(__CLASS__, 'handle_load'));
         add_action('admin_post_myfeeds_remove_demo', array(__CLASS__, 'handle_remove'));
+        add_action('admin_post_myfeeds_demo_draft', array(__CLASS__, 'handle_draft'));
     }
 
     // =====================================================================
@@ -113,6 +122,40 @@ class MyFeeds_Demo_Content {
 
         self::remove();
         self::redirect_back(__('Sample products removed. The feed slot is free again.', 'myfeeds-affiliate-feed-manager'));
+    }
+
+    /**
+     * Opens the editor on a draft that already contains the block.
+     *
+     * Finding it by hand means knowing that the thing you want is a
+     * block, that it is called Product Picker, and that MyFeeds is what
+     * you type to reach it. That is three pieces of knowledge a first-time
+     * user has no way to have, and it sits between them and the only
+     * screen where the plugin does anything visible.
+     *
+     * A draft rather than a published post: it is scaffolding, and the
+     * user throws it away or keeps writing in it.
+     */
+    public static function handle_draft() {
+        self::guard('myfeeds_demo_draft');
+
+        if (!current_user_can('edit_posts')) {
+            wp_die(esc_html__('You do not have permission to create posts.', 'myfeeds-affiliate-feed-manager'));
+        }
+
+        $post_id = wp_insert_post(array(
+            'post_title'   => __('MyFeeds sample post', 'myfeeds-affiliate-feed-manager'),
+            'post_content' => '<!-- wp:myfeeds/product-picker /-->',
+            'post_status'  => 'draft',
+            'post_type'    => 'post',
+        ), true);
+
+        if (is_wp_error($post_id) || !$post_id) {
+            self::redirect_back(__('The draft could not be created. Add the MyFeeds Product Picker block to a post yourself instead.', 'myfeeds-affiliate-feed-manager'), true);
+        }
+
+        wp_safe_redirect(admin_url('post.php?post=' . (int) $post_id . '&action=edit'));
+        exit;
     }
 
     private static function guard($nonce_action) {

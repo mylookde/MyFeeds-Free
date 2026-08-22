@@ -885,6 +885,33 @@ class MyFeeds_Feed_Manager {
     }
 
     /**
+     * Its own method because deleting the last feed has to put it back
+     * without a page load. ajax_delete_feed() renders this and hands it
+     * to the browser, so the markup and its translations stay here
+     * rather than being rebuilt a second time in JavaScript.
+     */
+    private function render_empty_state() {
+        ?>
+        <div class="myfeeds-empty-state" style="text-align:center; padding:48px 24px; border:1px dashed #c3c4c7; border-radius:8px; background:#fff;">
+            <h3 style="margin-top:0;"><?php esc_html_e('Add your first feed', 'myfeeds-affiliate-feed-manager'); ?></h3>
+            <p style="max-width:480px; margin:8px auto 20px; color:#50575e;">
+                <?php esc_html_e('Paste the product feed URL from your affiliate network. MyFeeds auto-detects the format and maps every product field for you.', 'myfeeds-affiliate-feed-manager'); ?>
+            </p>
+            <button type="button" id="myfeeds-add-feed-btn" class="button button-primary button-hero" data-testid="add-feed-btn">
+                + <?php esc_html_e('Add your first feed', 'myfeeds-affiliate-feed-manager'); ?>
+            </button>
+            <?php $this->render_demo_offer(); ?>
+        </div>
+        <?php
+    }
+
+    public function empty_state_html() {
+        ob_start();
+        $this->render_empty_state();
+        return ob_get_clean();
+    }
+
+    /**
      * The second door out of the empty state, for the visitor who has no
      * feed URL to hand. Deliberately quiet next to the primary button:
      * the real feed is still the goal, this is the way to see what that
@@ -903,6 +930,40 @@ class MyFeeds_Feed_Manager {
             <?php esc_html_e('No feed URL to hand?', 'myfeeds-affiliate-feed-manager'); ?>
             <?php $this->render_demo_action('myfeeds_load_demo', __('Load 7 sample products', 'myfeeds-affiliate-feed-manager'), 'button-link'); ?>
             <span class="description"><?php esc_html_e('so you can see the picker and the cards before you sign up anywhere.', 'myfeeds-affiliate-feed-manager'); ?></span>
+        </div>
+        <?php
+    }
+
+    /**
+     * What to do once the samples are loaded.
+     *
+     * The products land in the database and then nothing visible happens,
+     * because the place they show up is the block editor. Without this the
+     * user is left to work out on their own that they need a post, that
+     * they need a block, and that the block is found by typing MyFeeds
+     * into the inserter. The button skips all three.
+     */
+    private function render_demo_next_steps() {
+        if (!class_exists('MyFeeds_Demo_Content') || !MyFeeds_Demo_Content::is_active()) {
+            return;
+        }
+        $hints = implode(', ', MyFeeds_Demo_Content::SEARCH_HINTS);
+        ?>
+        <div class="myfeeds-demo-next">
+            <h3><?php esc_html_e('Your sample products are ready. Here is where to see them.', 'myfeeds-affiliate-feed-manager'); ?></h3>
+            <p>
+                <?php
+                printf(
+                    /* translators: %s: comma-separated example search terms */
+                    esc_html__('They live in the block editor, not on this screen. Open a post, add the MyFeeds Product Picker block, and search for something like %s.', 'myfeeds-affiliate-feed-manager'),
+                    '<strong>' . esc_html($hints) . '</strong>'
+                );
+                ?>
+            </p>
+            <?php $this->render_demo_action('myfeeds_demo_draft', __('Open a draft with the block ready', 'myfeeds-affiliate-feed-manager'), 'button button-primary'); ?>
+            <p class="description">
+                <?php esc_html_e('Creates a draft post with the block already in it, so you do not have to find it in the inserter. Delete the draft whenever you like.', 'myfeeds-affiliate-feed-manager'); ?>
+            </p>
         </div>
         <?php
     }
@@ -935,22 +996,14 @@ class MyFeeds_Feed_Manager {
     private function render_feeds_table($feeds) {
         $has_feed = !empty($feeds);
         ?>
+        <?php $this->render_demo_next_steps(); ?>
         <div class="myfeeds-feeds-table">
             <div class="myfeeds-feeds-table-header">
                 <h2><?php esc_html_e('Configured Feed', 'myfeeds-affiliate-feed-manager'); ?></h2>
                 <?php $this->render_amazon_teaser_button(); ?>
             </div>
             <?php if (!$has_feed): ?>
-                <div class="myfeeds-empty-state" style="text-align:center; padding:48px 24px; border:1px dashed #c3c4c7; border-radius:8px; background:#fff;">
-                    <h3 style="margin-top:0;"><?php esc_html_e('Add your first feed', 'myfeeds-affiliate-feed-manager'); ?></h3>
-                    <p style="max-width:480px; margin:8px auto 20px; color:#50575e;">
-                        <?php esc_html_e('Paste the product feed URL from your affiliate network. MyFeeds auto-detects the format and maps every product field for you.', 'myfeeds-affiliate-feed-manager'); ?>
-                    </p>
-                    <button type="button" id="myfeeds-add-feed-btn" class="button button-primary button-hero" data-testid="add-feed-btn">
-                        + <?php esc_html_e('Add your first feed', 'myfeeds-affiliate-feed-manager'); ?>
-                    </button>
-                    <?php $this->render_demo_offer(); ?>
-                </div>
+                <?php $this->render_empty_state(); ?>
             <?php else: ?>
             <table class="wp-list-table widefat striped">
                 <thead>
@@ -1646,6 +1699,11 @@ class MyFeeds_Feed_Manager {
             'total_products_formatted' => number_format_i18n($total_products),
             'active_feeds' => $active_feeds,
             'avg_quality' => $avg_quality,
+            // Removing the last row leaves an empty table behind, and the
+            // way back in - Add your first feed, and the demo offer - only
+            // exists in the empty state. Rendered here so the browser can
+            // put it in place instead of asking the user to reload.
+            'empty_state_html' => $active_feeds === 0 ? $this->empty_state_html() : '',
         ));
     }
     
