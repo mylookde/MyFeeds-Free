@@ -553,3 +553,28 @@
         gap: 8px;
     }
 }
+/* The editor side never declared a typeface. It did not have to while the
+   post canvas was part of the admin document and inherited its font. Since
+   WordPress renders the canvas in an iframe, our markup lands in a document
+   that carries neither the admin stylesheet nor, on many themes, any editor
+   styles - and an element with no font-family falls back to the browser
+   default, which is a serif. Hence buttons and product names suddenly set
+   in Times.
+
+   The same stack WordPress uses for wp-admin, stated rather than inherited.
+   Scoped to our own two roots so it cannot reach the theme's content. */
+.myfeeds-editor-wrapper,
+.myfeeds-editor-wrapper button,
+.myfeeds-editor-wrapper input,
+.myfeeds-editor-wrapper select,
+.myfeeds-spacious-modal,
+.myfeeds-spacious-modal button,
+.myfeeds-spacious-modal input,
+.myfeeds-spacious-modal select,
+.myfeeds-detail-modal,
+.myfeeds-detail-modal button,
+.myfeeds-detail-modal input,
+.myfeeds-detail-modal select {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
