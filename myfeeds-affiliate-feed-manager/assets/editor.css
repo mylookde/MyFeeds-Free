@@ -115,6 +115,25 @@
     flex-direction: column !important;
 }
 
+/* Gutenberg wraps whatever you hand the Modal in a container of its own,
+   so our scroll body and action bar are grandchildren of __content, not
+   children. Measured in the editor: __content's children come back as
+   ['components-modal__header', 'components-modal__children-container'].
+   Without this rule the flex above only lays out the header and that
+   wrapper, the wrapper has no height of its own, the body grows to fit
+   its content and the bar lands below the frame - which is exactly where
+   it kept ending up. Passing the column down one level puts our two
+   elements back in the layout.
+
+   Harmless if a later version drops the wrapper: the rule above then
+   applies to our elements directly and this one matches nothing. */
+.myfeeds-spacious-modal .components-modal__children-container {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
 .myfeeds-spacious-modal .components-modal__header {
     padding: 15px 20px !important;
     border-bottom: 1px solid #ddd !important;
