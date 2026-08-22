@@ -869,29 +869,36 @@ class MyFeeds_Search_Engine {
         $rows = (array) $rows;
 
         $brand_lookup = self::get_brand_lookup();
-        $buckets      = array('brand' => array(), 'colour' => array(), 'category' => array());
-        $distinct     = array();
+        // Re-shaped into exactly what the separate queries returned, then
+        // handed to the same tally the separate queries used. Counting them
+        // here a second time would have been a second implementation to keep
+        // in step, and it would already have differed: this path sorted with
+        // arsort(), which leaves equal counts in whatever order they were
+        // first seen, while tally_facet_with_size_strip() breaks those ties
+        // alphabetically.
+        $per_facet = array('brand' => array(), 'colour' => array(), 'category' => array());
+        $distinct  = array();
         $min = null;
         $max = null;
 
         foreach ($rows as $r) {
-            $key = mb_strtolower(self::strip_size_suffix($r['product_name'] ?? ''))
-                 . '|' . ($r['colour_norm'] ?? '');
-            $distinct[$key] = true;
+            $shared = array(
+                'product_name' => $r['product_name'] ?? '',
+                'colour_norm'  => $r['colour_norm'] ?? '',
+            );
+            $distinct[mb_strtolower(self::strip_size_suffix($shared['product_name'])) . '|' . $shared['colour_norm']] = true;
 
             foreach (array('brand', 'colour') as $facet) {
                 $value = $r[$facet . '_v'] ?? '';
                 if ($value === '' || $value === null) continue;
-                if (!isset($buckets[$facet][$value])) $buckets[$facet][$value] = array();
-                $buckets[$facet][$value][$key] = true;
+                $per_facet[$facet][] = array('facet_value' => $value) + $shared;
             }
 
             $cat = $r['category_v'] ?? '';
             if ($cat !== '' && $cat !== null) {
                 $norm = self::normalize_category_path($cat, $brand_lookup);
                 if ($norm !== '') {
-                    if (!isset($buckets['category'][$norm])) $buckets['category'][$norm] = array();
-                    $buckets['category'][$norm][$key] = true;
+                    $per_facet['category'][] = array('facet_value' => $norm) + $shared;
                 }
             }
 
@@ -903,19 +910,8 @@ class MyFeeds_Search_Engine {
             }
         }
 
-        foreach ($buckets as $facet => $values) {
-            $counts = array();
-            foreach ($values as $value => $set) {
-                $counts[$value] = count($set);
-            }
-            arsort($counts);
-            $out = array();
-            $i   = 0;
-            foreach ($counts as $value => $count) {
-                if ($i++ >= 50) break;
-                $out[] = array('value' => $value, 'count' => $count);
-            }
-            $facets[$facet] = $out;
+        foreach ($per_facet as $facet => $facet_rows) {
+            $facets[$facet] = array_slice(self::tally_facet_with_size_strip($facet_rows), 0, 50);
         }
 
         if ($min !== null) {
@@ -1048,7 +1044,6 @@ class MyFeeds_Search_Engine {
         // bucket by the normalized path while still deduplicating products.
         $args_no_category = array_merge($args, array('category' => array()));
         $fcat = self::build_filter_clause($args_no_category);
-        $facets['category'] = array();
         $sql_category = "SELECT LOWER(category) AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm
                          FROM {$table}
                          WHERE status = 'active'
@@ -1061,29 +1056,24 @@ class MyFeeds_Search_Engine {
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows_category = $wpdb->get_results($wpdb->prepare($sql_category, ...$params_category), ARRAY_A);
 
+        // Normalize the path first, then tally the same way brand and colour
+        // are tallied. This used to count into its own buckets and sort with
+        // arsort(), which put equal counts in first-seen order while the
+        // other two facets - and the merged path below - break those ties
+        // alphabetically.
         $brand_lookup = self::get_brand_lookup();
-        $cat_buckets = array();
+        $cat_rows = array();
         foreach ((array) $rows_category as $r) {
             if (empty($r['facet_value'])) continue;
             $norm = self::normalize_category_path($r['facet_value'], $brand_lookup);
             if ($norm === '') continue;
-            $key  = mb_strtolower(self::strip_size_suffix($r['product_name'] ?? ''));
-            $key .= '|' . ($r['colour_norm'] ?? '');
-            if (!isset($cat_buckets[$norm])) {
-                $cat_buckets[$norm] = array();
-            }
-            $cat_buckets[$norm][$key] = true;
+            $cat_rows[] = array(
+                'facet_value'  => $norm,
+                'product_name' => $r['product_name'] ?? '',
+                'colour_norm'  => $r['colour_norm'] ?? '',
+            );
         }
-        $grouped_cats = array();
-        foreach ($cat_buckets as $norm => $set) {
-            $grouped_cats[$norm] = count($set);
-        }
-        arsort($grouped_cats);
-        $slice_i = 0;
-        foreach ($grouped_cats as $value => $count) {
-            if ($slice_i++ >= 50) break;
-            $facets['category'][] = array('value' => $value, 'count' => $count);
-        }
+        $facets['category'] = array_slice(self::tally_facet_with_size_strip($cat_rows), 0, 50);
 
         // Price range hint (min/max in the keyword-matched set, respecting brand+colour filters)
         $args_for_range = $args;
