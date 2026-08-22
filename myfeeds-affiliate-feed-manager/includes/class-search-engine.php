@@ -832,6 +832,114 @@ class MyFeeds_Search_Engine {
      * so the user can switch between brands without the count collapsing to
      * just their current pick (Stylight/Algolia OR-facet semantics).
      */
+    /**
+     * One pass for all three facets, the price range and the deduplicated
+     * total, for the case where no facet filter is set.
+     *
+     * Grouping by the three facet columns plus (name, colour) gives exactly
+     * the tuples the separate queries used to fetch, so every tally below is
+     * the same number the three-query path produced - this is fewer queries,
+     * not a rougher answer. price is aggregated per group so the range comes
+     * out of the same rows instead of a fifth query.
+     *
+     * @return array facets, plus _total_dedup for the caller's total.
+     */
+    private static function merged_facets($table, $match_sql, $args, $has_ft_local, $ft_query_str, $like_values, $facets) {
+        global $wpdb;
+
+        $f      = self::build_filter_clause($args);
+        $params = array_merge($f['params'], $has_ft_local ? array($ft_query_str) : array(), $like_values);
+
+        $sql = "SELECT LOWER(brand) AS brand_v,
+                       LOWER(colour) AS colour_v,
+                       LOWER(category) AS category_v,
+                       product_name,
+                       COALESCE(LOWER(colour), '') AS colour_norm,
+                       MIN(price) AS price_min,
+                       MAX(price) AS price_max
+                FROM {$table}
+                WHERE status = 'active'
+                {$f['sql']}
+                AND {$match_sql}
+                GROUP BY brand_v, colour_v, category_v, product_name, colour_norm
+                LIMIT 10000";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A);
+        $rows = (array) $rows;
+
+        $brand_lookup = self::get_brand_lookup();
+        $buckets      = array('brand' => array(), 'colour' => array(), 'category' => array());
+        $distinct     = array();
+        $min = null;
+        $max = null;
+
+        foreach ($rows as $r) {
+            $key = mb_strtolower(self::strip_size_suffix($r['product_name'] ?? ''))
+                 . '|' . ($r['colour_norm'] ?? '');
+            $distinct[$key] = true;
+
+            foreach (array('brand', 'colour') as $facet) {
+                $value = $r[$facet . '_v'] ?? '';
+                if ($value === '' || $value === null) continue;
+                if (!isset($buckets[$facet][$value])) $buckets[$facet][$value] = array();
+                $buckets[$facet][$value][$key] = true;
+            }
+
+            $cat = $r['category_v'] ?? '';
+            if ($cat !== '' && $cat !== null) {
+                $norm = self::normalize_category_path($cat, $brand_lookup);
+                if ($norm !== '') {
+                    if (!isset($buckets['category'][$norm])) $buckets['category'][$norm] = array();
+                    $buckets['category'][$norm][$key] = true;
+                }
+            }
+
+            if ($r['price_min'] !== null && (float) $r['price_min'] > 0) {
+                $pmin = (float) $r['price_min'];
+                $pmax = (float) $r['price_max'];
+                $min  = ($min === null) ? $pmin : min($min, $pmin);
+                $max  = ($max === null) ? $pmax : max($max, $pmax);
+            }
+        }
+
+        foreach ($buckets as $facet => $values) {
+            $counts = array();
+            foreach ($values as $value => $set) {
+                $counts[$value] = count($set);
+            }
+            arsort($counts);
+            $out = array();
+            $i   = 0;
+            foreach ($counts as $value => $count) {
+                if ($i++ >= 50) break;
+                $out[] = array('value' => $value, 'count' => $count);
+            }
+            $facets[$facet] = $out;
+        }
+
+        if ($min !== null) {
+            $facets['price_range'] = array('min' => $min, 'max' => $max);
+        }
+
+        // The caller can skip its own DISTINCT query with this. Only honest
+        // while the group stayed under the cap - past that we have seen a
+        // slice of the match set, not all of it.
+        if (count($rows) < 10000) {
+            $facets['_total_dedup'] = count($distinct);
+        }
+
+        return $facets;
+    }
+
+    /**
+     * Kept next to the reader in compute_facets so the two cannot drift.
+     */
+    private static function cache_facets($cache_key, $facets) {
+        set_transient($cache_key, $facets, 5 * MINUTE_IN_SECONDS);
+        return $facets;
+    }
+
     private static function compute_facets($table, $ft_query_str, $short_tokens, $args, $phrase_constraints = array()) {
         global $wpdb;
         $facets = array('brand' => array(), 'colour' => array());
@@ -843,6 +951,24 @@ class MyFeeds_Search_Engine {
 
         if (!$has_ft_local && !$has_short_local && !$has_phr_local) {
             return $facets;
+        }
+
+        // Facets depend on the query and the filters, not on the page or the
+        // sort order, so paging through results and re-sorting them ask the
+        // same expensive question over and over. Short-lived on purpose: a
+        // sync changes what the answer should be, and five minutes of a
+        // slightly stale count costs less than recomputing it per keystroke.
+        $cache_key = 'myfeeds_facets_' . md5(serialize(array(
+            $ft_query_str,
+            $short_tokens,
+            $phrase_constraints,
+            $args['brand'], $args['colour'], $args['category'],
+            $args['min_price'], $args['max_price'],
+            $args['on_sale'], $args['in_stock'],
+        )));
+        $cached = get_transient($cache_key);
+        if (is_array($cached)) {
+            return $cached;
         }
 
         // Short tokens + quoted phrases AND-constrain the FT match. Same
@@ -868,6 +994,20 @@ class MyFeeds_Search_Engine {
         // colour) inflates the buckets because size variants of the same
         // product are counted separately ("Bape (15)" promised but the
         // brand filter delivered 3 once dedup collapsed them).
+
+        // Each facet has to be counted with its own filter lifted, or
+        // picking a brand would leave that brand as the only one on offer.
+        // When none of the three is set there is nothing to lift, the three
+        // queries are the same query, and one pass answers all of them -
+        // plus the price range and the deduplicated total. That matters:
+        // GROUP BY LOWER(brand) cannot use an index, so each of these is a
+        // temporary table over the whole match set. Three became one for
+        // the case that is by far the most common, the first search.
+        $facet_filters_active = !empty($args['brand']) || !empty($args['colour']) || !empty($args['category']);
+
+        if (!$facet_filters_active) {
+            return self::cache_facets($cache_key, self::merged_facets($table, $match_sql, $args, $has_ft_local, $ft_query_str, $like_values, $facets));
+        }
 
         // Brand facets: apply every filter except brand[]
         $args_no_brand = array_merge($args, array('brand' => array()));
@@ -964,7 +1104,7 @@ class MyFeeds_Search_Engine {
             );
         }
 
-        return $facets;
+        return self::cache_facets($cache_key, $facets);
     }
 
     /**
@@ -1347,6 +1487,63 @@ class MyFeeds_Search_Engine {
     // MAIN SEARCH METHOD
     // =========================================================================
 
+    /**
+     * Everything the candidate window needs, which is every column except
+     * raw_data.
+     *
+     * raw_data holds the merchant's whole record - forty-odd fields of JSON,
+     * kilobytes a row - and nothing between the query and the final slice
+     * reads it. Scoring uses product_name, brand, colour, category and
+     * feed_name; search_text stays because the scorer and the gender filter
+     * do read it. So the candidate window used to drag a megabyte of JSON
+     * through MySQL and PHP to throw nine tenths of it away.
+     */
+    const CANDIDATE_COLUMNS = 'id, external_id, feed_id, feed_name, product_name, price, original_price, currency, image_url, affiliate_link, brand, category, colour, in_stock, status, last_updated, search_text';
+
+    /**
+     * Fetch raw_data for the rows that survived scoring, dedup and the slice
+     * - fifty of them rather than five hundred - and put it back on the row
+     * so row_to_product_simple() finds it where it always did.
+     */
+    private static function hydrate_raw_data($table, $scored_rows) {
+        global $wpdb;
+
+        if (empty($scored_rows)) {
+            return $scored_rows;
+        }
+
+        $ids = array();
+        foreach ($scored_rows as $item) {
+            if (!empty($item['row']['id'])) {
+                $ids[] = (int) $item['row']['id'];
+            }
+        }
+        if (empty($ids)) {
+            return $scored_rows;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT id, raw_data FROM {$table} WHERE id IN ({$placeholders})",
+            ...$ids
+        ), ARRAY_A);
+
+        $by_id = array();
+        foreach ((array) $rows as $r) {
+            $by_id[(int) $r['id']] = $r['raw_data'];
+        }
+
+        foreach ($scored_rows as $i => $item) {
+            $rid = (int) ($item['row']['id'] ?? 0);
+            if (isset($by_id[$rid])) {
+                $scored_rows[$i]['row']['raw_data'] = $by_id[$rid];
+            }
+        }
+
+        return $scored_rows;
+    }
+
     public static function search($query, $limit = 50, $offset = 0) {
         global $wpdb;
         $table = MyFeeds_DB_Manager::table_name();
@@ -1534,7 +1731,7 @@ class MyFeeds_Search_Engine {
             }
             $params[] = $fetch_limit;
 
-            $sql = "SELECT * FROM {$table}
+            $sql = "SELECT " . self::CANDIDATE_COLUMNS . " FROM {$table}
                     WHERE status = 'active'
                     {$filter_sql}
                     AND " . implode(' AND ', $sql_parts) . "
@@ -1674,8 +1871,18 @@ class MyFeeds_Search_Engine {
         // would do the job in SQL but isn't available on MySQL 5.7, which
         // we still support. Capped at 5000 distinct tuples as a safety
         // bound for extremely broad queries.
+        // Facets first, because when they run unfiltered they have already
+        // counted the exact tuples the total is asking for and the query
+        // below becomes redundant.
+        $facets = null;
+        if (!empty($args['return_meta']) && !empty($args['include_facets'])) {
+            $facets = self::compute_facets($table, $ft_query_str, $short_tokens, $args, $phrase_constraints);
+        }
+
         $total_after_dedup = $dedup_count;
-        if (!empty($args['return_meta']) && $has_search_text && ($has_ft || $has_short_constraint || $has_phrases)) {
+        if (isset($facets['_total_dedup'])) {
+            $total_after_dedup = (int) $facets['_total_dedup'];
+        } elseif (!empty($args['return_meta']) && $has_search_text && ($has_ft || $has_short_constraint || $has_phrases)) {
             $count_filter   = self::build_filter_clause($args);
             $count_parts    = array();
             $count_params   = $count_filter['params'];
@@ -1712,6 +1919,9 @@ class MyFeeds_Search_Engine {
 
         $scored_rows = array_slice($scored_rows, $offset, $limit);
 
+        // Only now, for the handful that are actually going out.
+        $scored_rows = self::hydrate_raw_data($table, $scored_rows);
+
         // Log top 3 results with tier info
         $top3 = array_slice($scored_rows, 0, 3);
         $top3_log = array();
@@ -1738,9 +1948,9 @@ class MyFeeds_Search_Engine {
                     $suggestion = null; // No actual change
                 }
             }
-            $facets = null;
-            if (!empty($args['include_facets'])) {
-                $facets = self::compute_facets($table, $ft_query_str, $short_tokens, $args, $phrase_constraints);
+            // Internal bookkeeping, not part of the API surface.
+            if (is_array($facets)) {
+                unset($facets['_total_dedup']);
             }
             return array(
                 'products'   => array_values($products),
@@ -1857,7 +2067,7 @@ class MyFeeds_Search_Engine {
         // every dynamic value is bound through $all_values via prepare().
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table} WHERE status = 'active' AND {$where} LIMIT %d",
+            "SELECT " . self::CANDIDATE_COLUMNS . " FROM {$table} WHERE status = 'active' AND {$where} LIMIT %d",
             ...$all_values
         ), ARRAY_A);
 
