@@ -416,6 +416,7 @@ function myfeeds_load_includes() {
         'class-smart-mapper.php' => 'Smart Mapper Class',
         'class-network-handlers.php' => 'Network Handlers Class', 
         'class-feed-manager.php' => 'Feed Manager Class',
+        'class-demo-content.php' => 'Sample products for a fresh install (loaded on request only)',
         'class-upsell.php'       => 'Informational Upsell Banner',
         'class-review-ask.php'   => 'One-time wp.org review request',
         'class-feature-previews.php' => 'Feature Preview Pages',
@@ -531,6 +532,12 @@ class MyFeeds_Affiliate_Product_Picker {
                 $upsell = new MyFeeds_Upsell();
                 $upsell->init();
                 myfeeds_log("Upsell surfaces initialized");
+            }
+
+            // Sample products. Registers the two admin actions only; it
+            // writes nothing unless the user asks for it.
+            if (class_exists('MyFeeds_Demo_Content')) {
+                MyFeeds_Demo_Content::init();
             }
 
             // Initialize the one-time review request

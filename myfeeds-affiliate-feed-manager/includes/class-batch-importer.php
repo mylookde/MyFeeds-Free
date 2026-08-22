@@ -4750,6 +4750,14 @@ class MyFeeds_Batch_Importer {
             return;
         }
 
+        // The demo feed has no URL to fetch. Left unguarded the sync
+        // would fail against demo:// every night and fill the log for a
+        // site that has not configured anything yet.
+        if (class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_active()) {
+            myfeeds_log('Daily Quick Sync SKIPPED — only the demo feed is configured', 'info');
+            return;
+        }
+
         myfeeds_log('Daily Quick Sync triggered at ' . current_time('mysql'), 'info');
 
         update_option('myfeeds_last_auto_sync', array(
@@ -4770,6 +4778,11 @@ class MyFeeds_Batch_Importer {
         $status = get_option(self::OPTION_IMPORT_STATUS, array());
         if (!empty($status) && ($status['status'] ?? '') === 'running') {
             myfeeds_log('Weekly Full Import SKIPPED — another import is already running', 'info');
+            return;
+        }
+
+        if (class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_active()) {
+            myfeeds_log('Weekly Full Import SKIPPED — only the demo feed is configured', 'info');
             return;
         }
 

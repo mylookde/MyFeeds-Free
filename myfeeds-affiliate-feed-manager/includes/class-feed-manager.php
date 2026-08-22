@@ -289,25 +289,35 @@ class MyFeeds_Feed_Manager {
                     </div>
                 </div>
                 
+                <?php
+                // Sample data has no source to re-read, so both buttons
+                // would fetch demo:// and report a failure the user can do
+                // nothing about. Saying why is better than letting them
+                // find out.
+                $demo_only = class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_active();
+                $demo_hint = __('Sample products have no feed to update. Add your own feed to enable this.', 'myfeeds-affiliate-feed-manager');
+                ?>
                 <!-- BUTTONS ROW - Harmonized Layout -->
                 <div class="myfeeds-buttons-row">
                     <!-- UNIFIED REBUILD BUTTON - Primary Action -->
                     <div class="myfeeds-action-card myfeeds-primary-action">
-                        <button type="button" id="myfeeds-unified-rebuild" class="button button-primary myfeeds-action-btn">
+                        <button type="button" id="myfeeds-unified-rebuild" class="button button-primary myfeeds-action-btn"
+                            <?php if ($demo_only): ?>disabled title="<?php echo esc_attr($demo_hint); ?>"<?php endif; ?>>
                             🔄 <?php esc_html_e('Update All Feeds', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
                         <p class="description">
-                            <?php esc_html_e('Loads all products (active first)', 'myfeeds-affiliate-feed-manager'); ?>
+                            <?php echo esc_html($demo_only ? $demo_hint : __('Loads all products (active first)', 'myfeeds-affiliate-feed-manager')); ?>
                         </p>
                     </div>
                     
                     <!-- QUICK SYNC BUTTON - Active Products Only -->
                     <div class="myfeeds-action-card myfeeds-secondary-action">
-                        <button type="button" id="myfeeds-quick-sync" class="button button-secondary myfeeds-action-btn">
+                        <button type="button" id="myfeeds-quick-sync" class="button button-secondary myfeeds-action-btn"
+                            <?php if ($demo_only): ?>disabled title="<?php echo esc_attr($demo_hint); ?>"<?php endif; ?>>
                             ⚡ <?php esc_html_e('Quick Sync (Active Only)', 'myfeeds-affiliate-feed-manager'); ?>
                         </button>
                         <p class="description">
-                            <?php esc_html_e('Only products in posts/pages', 'myfeeds-affiliate-feed-manager'); ?>
+                            <?php echo esc_html($demo_only ? $demo_hint : __('Only products in posts/pages', 'myfeeds-affiliate-feed-manager')); ?>
                         </p>
                     </div>
                 </div>
@@ -874,6 +884,54 @@ class MyFeeds_Feed_Manager {
         <?php
     }
 
+    /**
+     * The second door out of the empty state, for the visitor who has no
+     * feed URL to hand. Deliberately quiet next to the primary button:
+     * the real feed is still the goal, this is the way to see what that
+     * would look like first.
+     *
+     * Shown only while no feed exists. Loading the demo creates one, so
+     * the offer removes itself and needs no "already seen" flag to
+     * remember anything across updates.
+     */
+    private function render_demo_offer() {
+        if (!class_exists('MyFeeds_Demo_Content') || !MyFeeds_Demo_Content::can_offer()) {
+            return;
+        }
+        ?>
+        <div class="myfeeds-demo-offer">
+            <?php esc_html_e('No feed URL to hand?', 'myfeeds-affiliate-feed-manager'); ?>
+            <?php $this->render_demo_action('myfeeds_load_demo', __('Load 7 sample products', 'myfeeds-affiliate-feed-manager'), 'button-link'); ?>
+            <span class="description"><?php esc_html_e('so you can see the picker and the cards before you sign up anywhere.', 'myfeeds-affiliate-feed-manager'); ?></span>
+        </div>
+        <?php
+    }
+
+    private function render_demo_remove_button() {
+        $this->render_demo_action(
+            'myfeeds_remove_demo',
+            __('Remove demo products', 'myfeeds-affiliate-feed-manager'),
+            'button button-small button-link-delete'
+        );
+    }
+
+    /**
+     * A form rather than a link: both actions write to the database, so
+     * they must not sit behind something a prefetcher or a crawler can
+     * trigger by following it.
+     */
+    private function render_demo_action($action, $label, $class) {
+        ?>
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="myfeeds-demo-form">
+            <?php wp_nonce_field($action); ?>
+            <input type="hidden" name="action" value="<?php echo esc_attr($action); ?>">
+            <button type="submit" class="<?php echo esc_attr($class); ?>" data-testid="<?php echo esc_attr(str_replace('_', '-', $action)); ?>">
+                <?php echo esc_html($label); ?>
+            </button>
+        </form>
+        <?php
+    }
+
     private function render_feeds_table($feeds) {
         $has_feed = !empty($feeds);
         ?>
@@ -891,6 +949,7 @@ class MyFeeds_Feed_Manager {
                     <button type="button" id="myfeeds-add-feed-btn" class="button button-primary button-hero" data-testid="add-feed-btn">
                         + <?php esc_html_e('Add your first feed', 'myfeeds-affiliate-feed-manager'); ?>
                     </button>
+                    <?php $this->render_demo_offer(); ?>
                 </div>
             <?php else: ?>
             <table class="wp-list-table widefat striped">
@@ -910,14 +969,25 @@ class MyFeeds_Feed_Manager {
                         <?php
                         $detected_network = isset($feed['detected_network']) ? $feed['detected_network'] : __('Auto-detected', 'myfeeds-affiliate-feed-manager');
                         $mapping_confidence = isset($feed['mapping_confidence']) ? $feed['mapping_confidence'] : 0;
+                        $is_demo = class_exists('MyFeeds_Demo_Content')
+                            && MyFeeds_Demo_Content::is_demo_feed($feed);
                         ?>
                         <tr data-feed-name="<?php echo esc_attr($feed['name']); ?>"
                             data-feed-key="<?php echo esc_attr($key); ?>">
-                            <td><strong><?php echo esc_html($feed['name']); ?></strong></td>
                             <td>
-                                <span class="myfeeds-feed-url" title="<?php echo esc_attr($feed['url']); ?>">
-                                    <?php echo esc_html(wp_parse_url($feed['url'], PHP_URL_HOST)); ?>
-                                </span>
+                                <strong><?php echo esc_html($feed['name']); ?></strong>
+                                <?php if ($is_demo): ?>
+                                    <span class="myfeeds-demo-badge"><?php esc_html_e('Demo', 'myfeeds-affiliate-feed-manager'); ?></span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($is_demo): ?>
+                                    <span class="myfeeds-feed-url"><?php esc_html_e('Bundled sample data', 'myfeeds-affiliate-feed-manager'); ?></span>
+                                <?php else: ?>
+                                    <span class="myfeeds-feed-url" title="<?php echo esc_attr($feed['url']); ?>">
+                                        <?php echo esc_html(wp_parse_url($feed['url'], PHP_URL_HOST)); ?>
+                                    </span>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <span class="myfeeds-network-badge <?php echo esc_attr(strtolower($detected_network)); ?>">
@@ -1015,6 +1085,13 @@ class MyFeeds_Feed_Manager {
                                 <?php endif; ?>
                             </td>
                             <td class="myfeeds-action-buttons">
+                                <?php if ($is_demo): ?>
+                                    <?php
+                                    // Nothing to edit and nothing to fetch, so the row offers
+                                    // the only thing that applies to sample data.
+                                    $this->render_demo_remove_button();
+                                    ?>
+                                <?php else: ?>
                                 <button type="button" class="button button-small myfeeds-edit-feed-btn"
                                     data-feed-key="<?php echo esc_attr($key); ?>"
                                     data-feed-name="<?php echo esc_attr($feed['name']); ?>"
@@ -1041,6 +1118,7 @@ class MyFeeds_Feed_Manager {
                                     <?php if ($is_importing): ?>disabled<?php endif; ?>>
                                     <?php esc_html_e('Delete', 'myfeeds-affiliate-feed-manager'); ?>
                                 </button>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -1108,6 +1186,14 @@ class MyFeeds_Feed_Manager {
             $detected_network = $this->detect_network_from_url($url);
             if (!$detected_network) {
                 $detected_network = $network_hint ? $network_hint : 'auto-detected';
+            }
+
+            // A real feed replaces the samples rather than inheriting
+            // them. Without this the merge below would hand the new feed
+            // the demo's stable id, and seven invented products would
+            // quietly become part of a real catalogue.
+            if (class_exists('MyFeeds_Demo_Content')) {
+                MyFeeds_Demo_Content::remove_if_active();
             }
 
             $existing = $this->get_feed();
@@ -1212,6 +1298,14 @@ class MyFeeds_Feed_Manager {
             $detected_network = $this->detect_network_from_url($url);
             if (!$detected_network) {
                 $detected_network = $network_hint ? $network_hint : 'auto-detected';
+            }
+
+            // A real feed replaces the samples rather than inheriting
+            // them. Without this the merge below would hand the new feed
+            // the demo's stable id, and seven invented products would
+            // quietly become part of a real catalogue.
+            if (class_exists('MyFeeds_Demo_Content')) {
+                MyFeeds_Demo_Content::remove_if_active();
             }
 
             $existing = $this->get_feed();
