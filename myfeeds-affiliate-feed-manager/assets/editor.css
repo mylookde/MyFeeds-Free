@@ -462,7 +462,7 @@
     flex: 1 1 auto !important;
     min-height: 0 !important;
     overflow-y: auto !important;
-    padding: 20px !important;
+    padding: 0 20px 20px 20px !important;
 }
 
 .myfeeds-search-controls {
@@ -470,9 +470,28 @@
     top: 0 !important;
     background: white !important;
     z-index: 10 !important;
-    padding: 15px !important;
+    padding: 15px 20px !important;
     border-bottom: 1px solid #ddd !important;
-    margin: -20px -20px 20px -20px !important;
+    /* No negative top margin any more. It was there to cover the body's
+       20px of top padding, and it did not: measured at 20px from the top of
+       the scroll area, which is the gap results were sliding through above
+       the bar. The body simply has no top padding now, so the bar starts
+       flush and there is nothing to slide behind. */
+    margin: 0 -20px 20px -20px !important;
+}
+
+/* The action bar. A flex item of the modal frame, next to the scrolling
+   body rather than inside it, so it is on screen whether the body scrolls
+   or not. flex:0 0 auto keeps it at its own height when the body is long. */
+.myfeeds-modal-actions {
+    flex: 0 0 auto !important;
+    display: flex !important;
+    gap: 10px !important;
+    justify-content: center !important;
+    align-items: center !important;
+    border-top: 1px solid #e5e7eb !important;
+    background: #f8f9fa !important;
+    padding: 16px 20px !important;
 }
 
 .myfeeds-results-grid {
