@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, shoppable, product feed, datafeed, awin
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.21
+Stable tag: 1.0.22
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -170,6 +170,15 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.22 =
+* Try the plugin before you have a feed. With no feed configured, the Feeds page now offers to load seven sample products, so you can open the Product Picker and see what a card looks like in your own theme. The offer only appears while you have no feed, the samples are marked as sample data throughout, and one button removes them. They take the free plugin's single feed slot, so removing them frees it for your real feed.
+* Product Picker: the Use and Cancel buttons are back. WordPress renders the post canvas in an iframe and caps a modal at 70% of the viewport; the picker asked for 95% of the viewport instead, which pushed its own bottom edge - and those two buttons - past the frame. Nothing in the modal names a height any more, so the results scroll and the buttons stay on screen however many come back.
+* Product Picker: buttons and product names are set in the admin typeface again, not a serif. The editor side never declared a font and inherited one from the admin page. Inside the iframe there is nothing to inherit, and an element with no font falls back to the browser default.
+* Product Picker: searching a large feed is roughly three times faster - measured on a real feed, 6.6 seconds down to 2.1. The candidate query stopped pulling every product's full source record through the database only to discard it, the three filter counts became a single pass when no filter is set, and those counts are held for five minutes so paging and re-sorting stop asking the same expensive question.
+* Product Picker: the search bar no longer lets results slide through a gap above it, and the Add button in the detail view is the same purple as the button a screen before it.
+* Feeds page: adding your first feed shows it straight away, and deleting your last one brings the empty state back. Both used to need a page reload before anything appeared to happen.
+* Feeds page: the feed URL field links to a page listing where each affiliate network hides its product feed export.
 
 = 1.0.21 =
 * The importer knows six more feed formats. Tradedoubler, Commission Junction, Impact and Rakuten now come with their column names built in, and Pepperjam and FlexOffers are recognised at all. Before this, a feed from one of those networks fell through to the generic guesser and left you mapping columns by hand on the Mapping Editor screen. Nothing else changed: feeds that already import correctly keep their saved mapping.
