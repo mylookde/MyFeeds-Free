@@ -581,3 +581,43 @@ tr.myfeeds-feed-inactive .button-link-delete {
     padding: 20px;
     margin: 20px 0;
 }
+
+/* Sample products: the offer in the empty state, and the row that
+   appears once they are loaded. Kept visually quieter than a real feed
+   so nobody mistakes the demo for their own catalogue. */
+.myfeeds-demo-offer {
+    max-width: 480px;
+    margin: 18px auto 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #50575e;
+}
+.myfeeds-demo-offer .description {
+    font-size: 13px;
+    font-style: normal;
+}
+
+/* The action is a form, so the button has to sit in the sentence rather
+   than start a new block of its own. */
+.myfeeds-demo-form {
+    display: inline;
+}
+.myfeeds-demo-offer .myfeeds-demo-form .button-link {
+    font-size: 13px;
+    text-decoration: underline;
+}
+
+.myfeeds-demo-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 7px;
+    border-radius: 9px;
+    background: #f0f0f1;
+    border: 1px solid #dcdcde;
+    color: #50575e;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
