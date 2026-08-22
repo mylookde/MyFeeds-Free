@@ -99,11 +99,22 @@
 }
 
 /* Modal Styles - Fixed for proper display */
+/* Gutenberg caps the modal frame at 70% of the viewport. Measured here:
+   515px of 736, which is little for a grid of product cards. */
+.myfeeds-spacious-modal {
+    max-height: 90% !important;
+}
+
 .myfeeds-spacious-modal .components-modal__content {
     max-width: 95vw !important;
-    max-height: 95vh !important;
     width: 95vw !important;
-    height: 95vh !important;
+    /* Against the frame, not the viewport. 95vh made this box 699px tall
+       inside a frame that was 515 - measured in the editor - so its bottom
+       184px hung outside the modal, and the action bar lives in exactly
+       that band. Every height in here is now a share of the box above it,
+       so nothing can ask for room its parent does not have. */
+    height: 100% !important;
+    max-height: 100% !important;
     padding: 0 !important;
     overflow: hidden !important;
     /* The body below has to be told how much room is left over after the
@@ -150,13 +161,26 @@
     z-index: 100003 !important; /* Higher than search modal */
 }
 
+/* Same shape of fix as the search modal above: the frame decides how much
+   room there is, so ask it rather than the viewport. */
+.myfeeds-detail-modal {
+    max-height: 90% !important;
+}
+
 .myfeeds-detail-modal .components-modal__content {
     max-width: 95vw !important;
-    max-height: 95vh !important;
     width: 95vw !important;
-    height: 95vh !important;
+    height: 100% !important;
+    max-height: 100% !important;
     padding: 0 !important;
     overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.myfeeds-detail-modal .components-modal__children-container {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
     display: flex !important;
     flex-direction: column !important;
 }
