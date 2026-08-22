@@ -454,6 +454,17 @@ class MyFeeds_Feed_Manager {
                                            value="" required data-testid="feed-url-input">
                                     <p class="description">
                                         <?php esc_html_e('The direct URL to your affiliate product feed.', 'myfeeds-affiliate-feed-manager'); ?>
+                                        <?php
+                                        // Every network buries this in a different screen, and not
+                                        // finding it is where a first-time setup actually stops.
+                                        printf(
+                                            /* translators: %s: link to the per-network guides */
+                                            ' ' . esc_html__('Not sure where to get it? %s.', 'myfeeds-affiliate-feed-manager'),
+                                            '<a href="https://myfeeds.site/networks/" target="_blank" rel="noopener">'
+                                            . esc_html__('Step-by-step for AWIN, CJ, TradeDoubler, Impact, Rakuten and more', 'myfeeds-affiliate-feed-manager')
+                                            . '</a>'
+                                        );
+                                        ?>
                                     </p>
                                 </td>
                             </tr>
