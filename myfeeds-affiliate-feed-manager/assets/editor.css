@@ -301,7 +301,7 @@
 }
 
 .myfeeds-thumb-image:hover {
-    border-color: #007cba !important;
+    border-color: #667eea !important;
     transform: scale(1.05) !important;
 }
 
@@ -430,9 +430,9 @@
 }
 
 .myfeeds-attribute-value:hover {
-    background: #007cba !important;
-    color: white !important;
-    border-color: #007cba !important;
+    background: #667eea !important;
+    color: #fff !important;
+    border-color: #667eea !important;
 }
 
 /* Product Actions - CRITICAL: Sticky at bottom, always visible */
@@ -471,21 +471,30 @@
     transform: translateY(-1px) !important;
 }
 
+/* The brand gradient, not core's admin blue. This is the same button as
+   "Use N Products" one screen back. Core's blue was also still on the
+   thumbnail and size-chip hovers and the selection ring in the same view,
+   so those went with it - the picker is purple everywhere else. */
 .myfeeds-add-button {
-    background: #007cba !important;
-    color: white !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: #fff !important;
     border: none !important;
     padding: 12px 24px !important;
     border-radius: 6px !important;
     font-size: 14px !important;
     font-weight: 600 !important;
     cursor: pointer !important;
-    transition: all 0.2s ease !important;
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2) !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
 }
 
-.myfeeds-add-button:hover {
-    background: #005177 !important;
+/* Lift and widen the shadow, leave the colour alone - the same hover the
+   other primary buttons use. */
+.myfeeds-add-button:hover,
+.myfeeds-add-button:focus {
+    color: #fff !important;
     transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35) !important;
 }
 
 /* Responsive Design */
@@ -568,7 +577,7 @@
 }
 
 .myfeeds-result-item.is-selected {
-    box-shadow: 0 0 0 2px #007cba;
+    box-shadow: 0 0 0 2px #667eea;
 }
 
 .myfeeds-result-item.is-invalid {
