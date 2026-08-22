@@ -106,6 +106,13 @@
     height: 95vh !important;
     padding: 0 !important;
     overflow: hidden !important;
+    /* The body below has to be told how much room is left over after the
+       header. Measuring that against the viewport instead cost us the
+       Use/Cancel buttons: the scroll area came out taller than the frame
+       and its bottom edge - where they sit - was cut off by the overflow
+       above. */
+    display: flex !important;
+    flex-direction: column !important;
 }
 
 .myfeeds-spacious-modal .components-modal__header {
@@ -449,7 +456,11 @@
 
 /* Modal content wrapper for proper scrolling */
 .myfeeds-modal-content {
-    height: calc(100vh - 120px) !important;
+    /* Whatever is left under the header, and no more. min-height:0 is
+       what actually allows a flex item to be shorter than its content -
+       without it the box grows to fit and scrolls nothing. */
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
     overflow-y: auto !important;
     padding: 20px !important;
 }
