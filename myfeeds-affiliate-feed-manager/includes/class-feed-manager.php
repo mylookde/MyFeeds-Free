@@ -912,6 +912,21 @@ class MyFeeds_Feed_Manager {
     }
 
     /**
+     * The feeds table as it would render right now.
+     *
+     * Saving the first feed has the same shape of problem deleting the last
+     * one had, from the other side: the empty state is a div where a table
+     * belongs, so the browser has no tbody to append a row to and nothing
+     * visibly happens until the page is reloaded. The server renders the
+     * table, the browser puts it where the empty state was.
+     */
+    public function feeds_table_html() {
+        ob_start();
+        $this->render_feeds_table(self::get_displayable_feeds());
+        return ob_get_clean();
+    }
+
+    /**
      * The second door out of the empty state, for the visitor who has no
      * feed URL to hand. Deliberately quiet next to the primary button:
      * the real feed is still the goal, this is the way to see what that
@@ -1425,6 +1440,7 @@ class MyFeeds_Feed_Manager {
                     'import_scheduled' => $import_scheduled,
                     'feed_key' => 0,
                     'detected_network' => $detected_network,
+                    'table_html' => $this->feeds_table_html(),
                 ));
                 return;
             }
@@ -1502,6 +1518,7 @@ class MyFeeds_Feed_Manager {
                 'import_scheduled' => $import_scheduled,
                 'feed_key' => 0,
                 'detected_network' => $detected_network,
+                'table_html' => $this->feeds_table_html(),
             ));
 
         } catch (\Throwable $e) {

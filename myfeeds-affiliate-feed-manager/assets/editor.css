@@ -102,26 +102,26 @@
 /* Gutenberg caps the modal frame at 70% of the viewport. Measured here:
    515px of 736, which is little for a grid of product cards. */
 .myfeeds-spacious-modal {
+    /* The only cap in the chain. Everything below is a flex item that
+       shrinks to fit, so no inner box needs to name a height - which is
+       what went wrong before: height:100% against a parent that is sized
+       by its content resolves to auto, so with a short result list it
+       looked right and with a full one nothing scrolled and the action
+       bar was cut off. */
     max-height: 90% !important;
+    display: flex !important;
+    flex-direction: column !important;
 }
 
 .myfeeds-spacious-modal .components-modal__content {
     max-width: 95vw !important;
     width: 95vw !important;
-    /* Against the frame, not the viewport. 95vh made this box 699px tall
-       inside a frame that was 515 - measured in the editor - so its bottom
-       184px hung outside the modal, and the action bar lives in exactly
-       that band. Every height in here is now a share of the box above it,
-       so nothing can ask for room its parent does not have. */
-    height: 100% !important;
-    max-height: 100% !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
     padding: 0 !important;
     overflow: hidden !important;
-    /* The body below has to be told how much room is left over after the
-       header. Measuring that against the viewport instead cost us the
-       Use/Cancel buttons: the scroll area came out taller than the frame
-       and its bottom edge - where they sit - was cut off by the overflow
-       above. */
     display: flex !important;
     flex-direction: column !important;
 }
@@ -164,14 +164,26 @@
 /* Same shape of fix as the search modal above: the frame decides how much
    room there is, so ask it rather than the viewport. */
 .myfeeds-detail-modal {
+    /* The only cap in the chain. Everything below is a flex item that
+       shrinks to fit, so no inner box needs to name a height - which is
+       what went wrong before: height:100% against a parent that is sized
+       by its content resolves to auto, so with a short result list it
+       looked right and with a full one nothing scrolled and the action
+       bar was cut off. */
     max-height: 90% !important;
+    display: flex !important;
+    flex-direction: column !important;
 }
 
 .myfeeds-detail-modal .components-modal__content {
     max-width: 95vw !important;
     width: 95vw !important;
-    height: 100% !important;
-    max-height: 100% !important;
+    /* Takes what the frame has left, and may shrink below its content -
+       which is what min-height:0 is for. No percentage anywhere. */
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
     padding: 0 !important;
     overflow: hidden !important;
     display: flex !important;

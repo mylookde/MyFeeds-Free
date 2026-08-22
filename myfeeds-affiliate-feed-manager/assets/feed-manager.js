@@ -779,11 +779,20 @@
                                         '<button type="button" class="button button-small button-link-delete myfeeds-delete-feed-btn" data-feed-key="' + feedKey + '" data-feed-name="' + feedName + '" data-product-count="0" disabled>Delete</button>' +
                                     '</td></tr>';
                                 
-                                // Remove "Welcome to MyFeeds" empty state row if present
-                                $('.myfeeds-empty-state').closest('tr').remove();
-                                
-                                // Append new row to table
-                                $('.myfeeds-feeds-table tbody').append(newRow);
+                                // With no feed configured there is no table at
+                                // all - the empty state is a div in its place -
+                                // so there was no tbody to append to and nothing
+                                // happened until the page was reloaded. (The
+                                // line below used to look for a tr; the empty
+                                // state stopped being one a long time ago.)
+                                // The server sends the rendered table for
+                                // exactly this case.
+                                if (!$('.myfeeds-feeds-table tbody').length && response.data.table_html) {
+                                    $('.myfeeds-feeds-table').replaceWith(response.data.table_html);
+                                } else {
+                                    $('.myfeeds-empty-state').remove();
+                                    $('.myfeeds-feeds-table tbody').append(newRow);
+                                }
                                 
                                 // Update header active feeds count
                                 var currentFeeds = parseInt($('#myfeeds-active-feeds').text()) || 0;
