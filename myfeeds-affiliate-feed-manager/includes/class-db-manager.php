@@ -701,6 +701,27 @@ class MyFeeds_DB_Manager {
      * @param array $external_ids Array of product IDs
      * @return array Associative array [external_id => product_data]
      */
+    /**
+     * The columns the editor's selected tiles are refreshed from.
+     *
+     * Deliberately not `*`. The one caller of get_products() is the
+     * products-by-ids endpoint, which the block editor hits on mount to
+     * bring its saved tiles up to date, and it reads seven fields off each
+     * product. `*` also drags raw_data - the merchant's whole record, forty
+     * odd fields of JSON, kilobytes a row - out of the database and, via
+     * row_to_product()'s merge, on into the response body.
+     */
+    const TILE_COLUMNS = 'external_id, product_name, price, original_price, currency, image_url, affiliate_link, brand, category, colour, in_stock, status, feed_id, feed_name, last_updated';
+
+    /**
+     * Products by external id, in the shape the editor tiles consume.
+     *
+     * Note `original_price` is emitted under both names. row_to_product()
+     * renames it to old_price, so the editor's `original_price` only ever
+     * arrived through the raw_data merge - drop raw_data without this and
+     * the old price silently stops refreshing, with nothing visibly broken
+     * to point at it.
+     */
     public static function get_products($external_ids) {
         global $wpdb;
         $table = self::table_name();
@@ -711,7 +732,7 @@ class MyFeeds_DB_Manager {
 
         $placeholders = implode(',', array_fill(0, count($external_ids), '%s'));
         $query = $wpdb->prepare(
-            "SELECT * FROM {$table} WHERE external_id IN ({$placeholders})",
+            "SELECT " . self::TILE_COLUMNS . " FROM {$table} WHERE external_id IN ({$placeholders})",
             ...$external_ids
         );
 
@@ -719,8 +740,25 @@ class MyFeeds_DB_Manager {
         $rows = $wpdb->get_results($query, ARRAY_A);
         $products = array();
 
-        foreach ($rows as $row) {
-            $products[$row['external_id']] = self::row_to_product($row);
+        foreach ((array) $rows as $row) {
+            $products[$row['external_id']] = array(
+                'id'             => $row['external_id'],
+                'title'          => $row['product_name'] ?? '',
+                'price'          => floatval($row['price'] ?? 0),
+                'original_price' => floatval($row['original_price'] ?? 0),
+                'old_price'      => floatval($row['original_price'] ?? 0),
+                'currency'       => $row['currency'] ?? 'EUR',
+                'image_url'      => $row['image_url'] ?? '',
+                'affiliate_link' => $row['affiliate_link'] ?? '',
+                'brand'          => $row['brand'] ?? '',
+                'category'       => $row['category'] ?? '',
+                'colour'         => $row['colour'] ?? '',
+                'in_stock'       => (int) ($row['in_stock'] ?? 1),
+                'status'         => $row['status'] ?? 'active',
+                'merchant'       => $row['feed_name'] ?? '',
+                'feed_id'        => (int) ($row['feed_id'] ?? 0),
+                'last_updated'   => $row['last_updated'] ?? '',
+            );
         }
 
         return $products;

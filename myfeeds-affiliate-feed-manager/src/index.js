@@ -12,6 +12,84 @@
   const nonce = data.nonce || '';
   const PLACEHOLDER_IMG = pluginUrl + "assets/placeholder.png";
 
+  // Each picker block refreshes its saved tiles from the database when it
+  // mounts. Blocks mount independently, so a post with seven pickers made
+  // seven POSTs to the same endpoint - and what costs the time in each is
+  // WordPress booting for the request, not the lookup, which is a single
+  // indexed query. Seven boots for one question.
+  //
+  // So the blocks ask through here instead: the ids are collected over one
+  // tick and go out together. Callers still get only the products they
+  // asked for, in the order they asked.
+  let pendingIds = [];
+  let pendingWaiters = [];
+  let pendingTimer = null;
+
+  // The endpoint takes at most 100 ids per call, and a post with enough
+  // blocks can clear that in one batch.
+  const IDS_PER_REQUEST = 100;
+
+  function postProductIds(ids) {
+    return fetch(apiUrl + 'products-by-ids', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WP-Nonce': nonce
+      },
+      body: JSON.stringify({ ids: ids })
+    })
+      .then(function (r) { return r.json(); })
+      // One failed chunk must not lose the products the others found.
+      .catch(function () { return []; });
+  }
+
+  function flushProductBatch() {
+    const waiters = pendingWaiters;
+    const seen = {};
+    const unique = [];
+    pendingIds.forEach(function (id) {
+      const key = String(id);
+      if (!seen[key]) { seen[key] = true; unique.push(key); }
+    });
+
+    pendingIds = [];
+    pendingWaiters = [];
+    pendingTimer = null;
+
+    const chunks = [];
+    for (let i = 0; i < unique.length; i += IDS_PER_REQUEST) {
+      chunks.push(unique.slice(i, i + IDS_PER_REQUEST));
+    }
+
+    Promise.all(chunks.map(postProductIds)).then(function (lists) {
+      const byId = {};
+      lists.forEach(function (list) {
+        if (!Array.isArray(list)) return;
+        list.forEach(function (p) {
+          const pid = String(p.id || p.aw_product_id || '');
+          if (pid) byId[pid] = p;
+        });
+      });
+      waiters.forEach(function (w) {
+        w.resolve(w.ids
+          .map(function (id) { return byId[String(id)]; })
+          .filter(Boolean));
+      });
+    });
+  }
+
+  function fetchProductsByIds(ids) {
+    return new Promise(function (resolve) {
+      if (!apiUrl || !ids || ids.length === 0) { resolve([]); return; }
+      pendingIds = pendingIds.concat(ids);
+      pendingWaiters.push({ ids: ids, resolve: resolve });
+      if (pendingTimer === null) {
+        pendingTimer = setTimeout(flushProductBatch, 0);
+      }
+    });
+  }
+
   // Utility: robust price + images + shop resolution
   function toNumber(val) {
     if (val === null || val === undefined) return 0;
@@ -216,16 +294,7 @@
         
         var ids = selected.map(function(p) { return String(p.id); });
         
-        fetch(apiUrl + 'products-by-ids', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 
-            'Content-Type': 'application/json',
-            'X-WP-Nonce': nonce 
-          },
-          body: JSON.stringify({ ids: ids })
-        })
-        .then(function(r) { return r.json(); })
+        fetchProductsByIds(ids)
         .then(function(freshProducts) {
           if (!Array.isArray(freshProducts) || freshProducts.length === 0) return;
           
