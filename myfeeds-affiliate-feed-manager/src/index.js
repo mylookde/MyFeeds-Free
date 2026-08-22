@@ -1571,18 +1571,20 @@
                   minWidth: "200px"
                 }
               }, isLoadingMore ? "Loading..." : "Load More Results")
-            ),
-
-            // Modal Actions - sticky at bottom
-            React.createElement("div", { style: { position: "sticky", bottom: "0", textAlign: "center", borderTop: "1px solid #e5e7eb", background: "#f8f9fa", margin: "18px -20px 0 -20px", padding: "16px 20px", zIndex: 10 } },
-              React.createElement("div", { style: { display: "flex", gap: "10px", justifyContent: "center" } },
-                React.createElement(Button, { isPrimary: true, onClick: saveSelection, disabled: selected.length === 0, style: { padding: "10px 18px", fontSize: "14px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, "Use " + selected.length + " Products"),
-                React.createElement(Button, { isSecondary: true, onClick: function(){ setSelected(attributes.selectedProducts || []); setShowModal(false); }, style: { padding: "10px 18px", fontSize: "14px", background: "#fff", color: "#667eea", border: "1px solid #667eea", borderRadius: "6px" } }, "Cancel")
-              )
             )
-          )
-        ),
+          ),
 
+
+            // Modal actions. A sibling of the scrolling body rather than its
+            // last child: as a child it could only be reached by scrolling,
+            // and whenever the body did not overflow there was no scrolling
+            // to reach it with. As a flex item of the frame it simply sits at
+            // the bottom, always.
+            React.createElement("div", { className: "myfeeds-modal-actions" },
+              React.createElement(Button, { isPrimary: true, onClick: saveSelection, disabled: selected.length === 0, style: { padding: "10px 18px", fontSize: "14px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, "Use " + selected.length + " Products"),
+              React.createElement(Button, { isSecondary: true, onClick: function(){ setSelected(attributes.selectedProducts || []); setShowModal(false); }, style: { padding: "10px 18px", fontSize: "14px", background: "#fff", color: "#667eea", border: "1px solid #667eea", borderRadius: "6px" } }, "Cancel")
+            )
+        ),
         // Product Detail Modal - FIXED: Always shows on top, proper navigation
         showProductDetail && React.createElement(Modal, { title: "", onRequestClose: function(){ 
           console.log("🔙 MYFEEDS DEBUG: Detail modal X button clicked - returning to search results"); 
