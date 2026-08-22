@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, shoppable, product feed, datafeed, awin
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.22
+Stable tag: 1.0.23
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -170,6 +170,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.23 =
+* Opening a post that holds several product blocks is faster. Each block asked the database to refresh its saved products on its own, so a post with seven of them made seven separate requests - and what takes the time in one of those is WordPress starting up to answer it, not the lookup. The blocks now ask together, in one request. The answer also stopped carrying the full merchant record for every product, forty-odd fields of it, when a saved tile reads seven.
 
 = 1.0.22 =
 * Try the plugin before you have a feed. With no feed configured, the Feeds page now offers to load seven sample products, so you can open the Product Picker and see what a card looks like in your own theme. The offer only appears while you have no feed, the samples are marked as sample data throughout, and one button removes them. They take the free plugin's single feed slot, so removing them frees it for your real feed.
