@@ -1,6 +1,6 @@
-=== MyFeeds — Shoppable Affiliate Product Cards ===
+=== MyFeeds — Affiliate Product Feed Importer & Shoppable Product Cards ===
 Contributors: myfeeds
-Tags: affiliate, shoppable, product feed, datafeed, awin
+Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
 Stable tag: 1.0.23
@@ -70,7 +70,7 @@ Install MyFeeds, paste one feed URL, and make your next post shoppable.
 
 = Related paid plugins =
 
-This plugin is fully functional on its own. Separate, independent paid plugins called **MyFeeds Starter**, **MyFeeds Pro** and **MyFeeds E-commerce** are available at [myfeeds.site](https://myfeeds.site). They add things like a carousel block, a visual card designer with Google Fonts, Amazon products through Amazon's Creators API, click and conversion analytics, and a full multi-feed shop system. They are not required to use this plugin.
+This plugin is fully functional on its own. Separate, independent paid plugins called **MyFeeds Starter**, **MyFeeds Pro** and **MyFeeds E-commerce** are available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins). They add things like a carousel block, a visual card designer with Google Fonts, Amazon products through Amazon's Creators API, click and conversion analytics, and a full multi-feed shop system. They are not required to use this plugin.
 
 == Installation ==
 
@@ -86,6 +86,26 @@ This plugin is fully functional on its own. Separate, independent paid plugins c
 Sign up with an affiliate network (such as AWIN, CJ Affiliate, Rakuten, or Impact), navigate to the product feed section (usually labelled "Create a feed" or "Product feeds"), and copy the feed URL.
 
 == Frequently Asked Questions ==
+
+= How do I upload a merchant product feed to WordPress? =
+
+Install MyFeeds, open **MyFeeds → Feeds**, and paste the feed URL your affiliate network gave you. MyFeeds downloads the file, works out which column is the title, the price, the image and the affiliate link, and imports every product into your own database. CSV, TSV, XML and JSON all work, compressed or not, and nothing has to be uploaded by hand.
+
+= How do I add affiliate products to a blog post? =
+
+Open any post in the block editor and add the **MyFeeds – Product Picker** block. Search your imported catalogue by name, brand, colour or category, tick the products you want, and they appear as product cards with image, price and a buy button. No copying links, no HTML.
+
+= How do I keep affiliate prices up to date on my site? =
+
+MyFeeds re-reads your feed every night and refreshes what is already in your posts, so the price a reader sees is the price the merchant is charging today. A weekly full import catches products that were added or withdrawn. You can also sync any feed by hand at any time.
+
+= Which affiliate networks provide a product feed? =
+
+Most of the large ones do: AWIN, Tradedoubler, CJ Affiliate, Impact, Rakuten Advertising, Pepperjam, FlexOffers and Sovrn all publish product feeds, and so do many merchants directly. Look in your network's dashboard for a section called "Product feeds", "Datafeeds" or "Create a feed". MyFeeds reads the file whatever it is called.
+
+= Can I build an affiliate store or shop page with this? =
+
+This plugin puts product cards inside your posts and pages. A full storefront with its own categories, filters and sorting is a paid feature and not part of this plugin.
 
 = How long does an import take? =
 
@@ -151,7 +171,7 @@ No data is sent to any other external service. The plugin stores imported produc
 
 == Source Code ==
 
-The full source for this plugin is open-source. See <https://myfeeds.site> for the project homepage and links to the public repository.
+The full source for this plugin is open-source. See [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=source) for the project homepage and links to the public repository.
 
 * Block editor source: `src/index.js`
 * Build tool: terser via `npm run build` (configuration in `package.json`)
