@@ -190,6 +190,15 @@ if (!class_exists('MyFeeds_Logger')) {
 
 class MyFeeds_Batch_Importer {
     
+    /**
+     * The single hook every update route fires. Free used the literal
+     * string in five places and self::CENTRAL_HOOK in a sixth, which
+     * does not exist here - so the inline takeover, the path that runs
+     * when the loopback request never arrives, died on an undefined
+     * constant and the import sat at 1% forever.
+     */
+    const CENTRAL_HOOK = 'myfeeds_start_feed_update';
+
     const OPTION_IMPORT_STATUS = 'myfeeds_import_status';
     const OPTION_IMPORT_QUEUE = 'myfeeds_import_queue';
     const OPTION_ACTIVE_IDS = 'myfeeds_active_product_ids';
@@ -311,7 +320,7 @@ class MyFeeds_Batch_Importer {
         
         try {
             if ($action === 'myfeeds_bg_full_update') {
-                do_action('myfeeds_start_feed_update', 'direct', array('mode' => self::MODE_FULL));
+                do_action(self::CENTRAL_HOOK, 'direct', array('mode' => self::MODE_FULL));
             } elseif ($action === 'myfeeds_bg_quick_sync') {
                 $active_ids = isset($args['active_ids']) ? json_decode($args['active_ids'], true) : array();
                 if (!empty($active_ids)) {
@@ -339,7 +348,7 @@ class MyFeeds_Batch_Importer {
         
         // Central hook - unified entry point for all feed updates
         // Now accepts $mode parameter: 'full' or 'active_only'
-        add_action('myfeeds_start_feed_update', array($this, 'handle_central_update'), 10, 2);
+        add_action(self::CENTRAL_HOOK, array($this, 'handle_central_update'), 10, 2);
         
         // AJAX handlers for admin
         add_action('wp_ajax_myfeeds_start_batch_import', array($this, 'ajax_start_batch_import'));
@@ -415,7 +424,7 @@ class MyFeeds_Batch_Importer {
         MyFeeds_Logger::info('Background Full Update: Starting execution');
 
         try {
-            do_action('myfeeds_start_feed_update', 'background', array('mode' => self::MODE_FULL));
+            do_action(self::CENTRAL_HOOK, 'background', array('mode' => self::MODE_FULL));
             MyFeeds_Logger::info('Background Full Update: Completed successfully');
         } catch (\Throwable $e) {
             MyFeeds_Logger::error('Background Full Update failed: ' . $e->getMessage());
@@ -4767,7 +4776,7 @@ class MyFeeds_Batch_Importer {
             'feed_name' => '',
         ));
 
-        do_action('myfeeds_start_feed_update', 'daily', array('mode' => self::MODE_ACTIVE_ONLY));
+        do_action(self::CENTRAL_HOOK, 'daily', array('mode' => self::MODE_ACTIVE_ONLY));
     }
 
     /**
@@ -4795,7 +4804,7 @@ class MyFeeds_Batch_Importer {
             'feed_name' => '',
         ));
 
-        do_action('myfeeds_start_feed_update', 'weekly', array('mode' => self::MODE_FULL));
+        do_action(self::CENTRAL_HOOK, 'weekly', array('mode' => self::MODE_FULL));
     }
     
     // =========================================================================
@@ -4950,7 +4959,7 @@ class MyFeeds_Batch_Importer {
             $result = $this->start_single_feed_import($feed_key);
         } else {
             // Use central hook for full import
-            do_action('myfeeds_start_feed_update', 'ajax', array('mode' => self::MODE_FULL));
+            do_action(self::CENTRAL_HOOK, 'ajax', array('mode' => self::MODE_FULL));
             $result = true;
         }
         

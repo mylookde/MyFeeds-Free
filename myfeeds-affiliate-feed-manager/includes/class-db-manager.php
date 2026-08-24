@@ -269,25 +269,47 @@ class MyFeeds_DB_Manager {
         $table = self::table_name();
         
         // DIAG LOG 7: Log feed deletion with product count before delete
-        if (!empty($feed_name)) {
+        if (!empty($feed_name) && intval($feed_id) > 0) {
+            $count_before = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE feed_id = %d OR feed_name = %s",
+                intval($feed_id),
+                $feed_name
+            ));
+        } elseif (!empty($feed_name)) {
             $count_before = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE feed_name = %s", $feed_name));
         } else {
             $count_before = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE feed_id = %d", intval($feed_id)));
         }
         myfeeds_log("DIAG feed_delete: feed_id={$feed_id}, feed_name={$feed_name}, products_found={$count_before}", 'info');
         
-        if (!empty($feed_name)) {
-            // Delete by feed_name (catches all products regardless of wrong feed_id)
+        // Both keys, not one. Matching on the name alone missed every row
+        // whose feed_name had been filled from the merchant field instead
+        // of the feed - "UGG DE" where the feed was called "UGG" - and
+        // matching on the id alone missed rows written before the feed had
+        // a stable_id. Either match is enough; a row can only belong to
+        // one feed.
+        $feed_id = intval($feed_id);
+
+        if ($feed_id > 0 && !empty($feed_name)) {
+            $deleted = $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table} WHERE feed_id = %d OR feed_name = %s",
+                $feed_id,
+                $feed_name
+            ));
+        } elseif (!empty($feed_name)) {
             $deleted = $wpdb->query($wpdb->prepare(
                 "DELETE FROM {$table} WHERE feed_name = %s",
                 $feed_name
             ));
-        } else {
-            // Fallback: delete by feed_id only
+        } elseif ($feed_id > 0) {
             $deleted = $wpdb->query($wpdb->prepare(
                 "DELETE FROM {$table} WHERE feed_id = %d",
-                intval($feed_id)
+                $feed_id
             ));
+        } else {
+            // Neither key: deleting on that would empty the table.
+            myfeeds_log('DB: refusing to delete products without a feed id or name.', 'error');
+            $deleted = 0;
         }
         
         // Clear count caches
@@ -310,8 +332,20 @@ class MyFeeds_DB_Manager {
      * @return array feed_ids to delete; empty means delete nothing
      */
     public static function orphaned_feed_ids($feeds, $present_feed_ids) {
+        // No feeds configured is a legitimate state - it is what "I deleted
+        // my last feed" looks like - and treating it as "clean nothing"
+        // meant the products stayed in the table forever, still showing in
+        // the picker and still counted in the header. The caller decides
+        // whether the empty list is trustworthy; see cleanup_orphaned_products().
         if (empty($feeds)) {
-            return array();
+            $orphans = array();
+            foreach ($present_feed_ids as $id) {
+                $id = intval($id);
+                if (!in_array($id, $orphans, true)) {
+                    $orphans[] = $id;
+                }
+            }
+            return $orphans;
         }
 
         $valid_ids = array();
@@ -326,6 +360,8 @@ class MyFeeds_DB_Manager {
             $valid_ids[] = $sid;
         }
 
+        // 0 is never a stable_id, so a row carrying it belongs to no feed
+        // and nothing will ever remove it by name either.
         $orphans = array();
         foreach ($present_feed_ids as $id) {
             $id = intval($id);
@@ -351,7 +387,16 @@ class MyFeeds_DB_Manager {
             return 0;
         }
 
-        $feeds = get_option('myfeeds_feeds', array());
+        // A missing option and an option holding an empty list look the same
+        // through get_option's default. Only the second one means "the user
+        // deleted every feed"; the first could be a database hiccup, and
+        // acting on it would empty the products table.
+        $feeds = get_option('myfeeds_feeds', null);
+        if ($feeds === null || !is_array($feeds)) {
+            myfeeds_log('DB Cleanup: feed list unreadable, standing down.', 'error');
+            return 0;
+        }
+
         $present_ids = $wpdb->get_col("SELECT DISTINCT feed_id FROM {$table}");
         $orphan_ids = self::orphaned_feed_ids($feeds, $present_ids);
 

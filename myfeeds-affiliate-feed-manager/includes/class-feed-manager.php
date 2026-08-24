@@ -3031,7 +3031,12 @@ class MyFeeds_Feed_Manager {
 
         foreach ($feeds as $feed_key => $feed) {
             myfeeds_log("Processing feed: " . $feed['name'], 'debug');
-            
+
+            // Kept per feed so the rows can be written with the feed they
+            // actually came from. The shared $items below still collects
+            // everything for the JSON index path.
+            $feed_items = array();
+
             $resp = myfeeds_remote_get($feed['url'], array('timeout' => 30));
             if (is_wp_error($resp)) {
                 myfeeds_log('Feed error: ' . $feed['url'] . ' - ' . $resp->get_error_message(), 'error');
@@ -3085,6 +3090,7 @@ class MyFeeds_Feed_Manager {
                 if (!empty($mapped['id'])) {
                     $mapped['feed_name'] = $feed['name'];
                     $items[(string)$mapped['id']] = $mapped;
+                    $feed_items[(string)$mapped['id']] = $mapped;
                     $product_count++;
                 }
             }
@@ -3095,18 +3101,39 @@ class MyFeeds_Feed_Manager {
             // Update feed product count
             $feeds[$feed_key]['product_count'] = $product_count;
             $feeds[$feed_key]['last_sync'] = current_time('mysql');
-            
+
+            // Write this feed's rows now, tagged with this feed.
+            //
+            // They used to be collected across every feed and written once
+            // at the end as upsert_batch($items, 0, ''), which left every
+            // row with feed_id = 0 and no feed name - and product_to_row()
+            // then filled feed_name from the merchant field. Deleting the
+            // feed later matched neither the id nor the name, so the
+            // products stayed in the database and kept showing up in the
+            // picker and in the header count. Measured on the test site:
+            // 5,792 products belonging to feeds that no longer existed.
+            if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode() && !empty($feed_items)) {
+                $stable_id = (int) ($feeds[$feed_key]['stable_id'] ?? 0);
+                if ($stable_id === 0) {
+                    $stable_id = (int) MyFeeds_DB_Manager::assign_stable_id($feeds[$feed_key]);
+                }
+
+                if ($stable_id > 0) {
+                    MyFeeds_DB_Manager::upsert_batch($feed_items, $stable_id, $feed['name']);
+                } else {
+                    myfeeds_log("Rebuild: refusing to write '{$feed['name']}' without a stable_id - "
+                        . 'rows that carry no feed cannot be removed with it.', 'error');
+                }
+            }
+
             myfeeds_log("Processed $product_count products from feed: " . $feed['name'], 'info');
         }
 
         // Save updated feeds with product counts
         update_option(self::OPTION_KEY, $feeds);
 
-        // DB mode: write products to DB instead of JSON file
+        // DB mode: rows were already written per feed inside the loop above.
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
-            if (!empty($items)) {
-                MyFeeds_DB_Manager::upsert_batch($items, 0, '');
-            }
             myfeeds_log('Feed index written to DB (' . count($items) . ' total items)', 'info');
         } else {
             $path = myfeeds_uploads_dir() . '/' . self::INDEX_FILE;
@@ -3808,6 +3835,12 @@ class MyFeeds_Feed_Manager {
             }
             array_splice($feeds, $key, 1);
             update_option(self::OPTION_KEY, $feeds);
+
+            // Same sweep the AJAX delete does. Without it this button
+            // leaves behind exactly what the other one cleans up.
+            if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
+                MyFeeds_DB_Manager::cleanup_orphaned_products();
+            }
         }
         
         $this->redirect_with_success(esc_html__('Feed deleted successfully!', 'myfeeds-affiliate-feed-manager'));
