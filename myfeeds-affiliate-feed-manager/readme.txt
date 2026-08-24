@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.23
+Stable tag: 1.0.24
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,17 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.24 =
+* Update All could not finish on some hosts. The importer runs the work in a background request to your own site; where that request is blocked - by hosting configuration, by a password-protected staging site - it falls back to running the import inline. That fallback referred to something that did not exist and stopped with an error the log recorded and nobody saw, so the progress bar sat at 1% until you gave up. On those hosts importing was simply impossible. Fixed.
+* An import that could not read a feed now says so. A feed URL behind a login, a typo, an expired key: all of them used to end on "Update completed successfully" with a green tick and no products. The panel now names each feed it could not read and stays open until you dismiss it.
+* Feeds that arrive as a .zip are unpacked for you. Several networks ship their catalogue that way, and until now the archive was handed to the CSV parser, which produced nothing and reported nothing. Files that are not feeds at all - an archive MyFeeds cannot open, a PDF, or the HTML login page a network returns when a link needs authentication - are now named in the error instead of being parsed as a spreadsheet.
+* You can upload a feed file. Four networks hand publishers a file and no link, and the answer used to be "find your own hosting for it first". The dialog now offers a URL or an upload, recommends the URL, and says plainly that an uploaded file does not refresh by itself - the feeds list shows it as such. Accepted: .csv, .tsv, .psv, .ssv, .txt, .tab, .xml, .json, .jsonl, .ndjson, .gz and .zip.
+* Deleting a feed now removes its products. They used to stay in the database, keep appearing in the Product Picker and keep inflating the product count on the Feeds page. Products that a published post still shows are the exception: those are kept so your pages do not go blank, with the values they last had, and they are no longer offered when you add new ones.
+* The progress bar moves while an import runs. It updated once per batch of a thousand rows, so a small feed showed nothing at all between starting and finishing.
+* MyFeeds now tidies up after itself. Once a day it removes options left behind by versions you no longer run, expired cached data, and its own finished background jobs once they are more than a week old. Other plugins' jobs are never touched.
+* The feed address is checked before it is fetched. A feed URL that points at the server itself or into a private network is refused, so a mistyped or malicious address cannot be used to make your site fetch things that were never meant to face the internet.
+* Advanced options: pipe-separated is now offered as a format, which is what several networks publish. Choosing a file pre-selects the matching format from its name. The gzip entry is gone because compression is unpacked before the file is read. The network list drops Amazon, which has its own connection flow, and adds FlexOffers, Sovrn and Other.
 
 = 1.0.23 =
 * Opening a post that holds several product blocks is faster. Each block asked the database to refresh its saved products on its own, so a post with seven of them made seven separate requests - and what takes the time in one of those is WordPress starting up to answer it, not the lookup. The blocks now ask together, in one request. The answer also stopped carrying the full merchant record for every product, forty-odd fields of it, when a saved tile reads seven.
