@@ -379,6 +379,40 @@ class MyFeeds_DB_Manager {
      * configured feed is still without a stable_id.
      * Returns number of deleted rows.
      */
+
+    /**
+     * Status for a product whose feed is gone but which a post still shows.
+     *
+     * Deliberately not 'unavailable' - that means the merchant dropped the
+     * item and the card renders as a placeholder. These are different: the
+     * product is fine, the feed that fed it simply is not configured any
+     * more, so the card must keep rendering with the last values it had.
+     */
+    const STATUS_ARCHIVED = 'archived';
+
+    /**
+     * External ids that appear in published posts and pages.
+     *
+     * @return array<int,string>
+     */
+    public static function placed_product_ids() {
+        if (!class_exists('MyFeeds_Batch_Importer') || !class_exists('MyFeeds_Smart_Mapper')) {
+            return array();
+        }
+
+        try {
+            $importer = new MyFeeds_Batch_Importer(new MyFeeds_Smart_Mapper());
+            $ids = $importer->get_active_product_ids(false);
+        } catch (\Throwable $e) {
+            // If we cannot work out what is on the site, we must not be the
+            // ones deciding what to delete from it.
+            myfeeds_log('Cleanup: could not read placed products, standing down: ' . $e->getMessage(), 'error');
+            return array();
+        }
+
+        return is_array($ids) ? array_values(array_unique(array_map('strval', $ids))) : array();
+    }
+
     public static function cleanup_orphaned_products() {
         global $wpdb;
         $table = self::table_name();
@@ -406,16 +440,41 @@ class MyFeeds_DB_Manager {
         }
 
         $placeholders = implode(',', array_fill(0, count($orphan_ids), '%d'));
+
+        // Products a post still shows are frozen, not deleted.
+        //
+        // Losing a feed - by downgrading, by removing it, by the plan
+        // limit taking it away - must not blank out cards that are live on
+        // the site. Those keep rendering with the values they last had;
+        // they simply stop updating, which is what a reader would expect
+        // if the plugin had been switched off. Everything else from that
+        // feed goes, so the picker stops offering products the site can no
+        // longer refresh.
+        $placed = self::placed_product_ids();
+        $archived = 0;
+
+        if (!empty($placed)) {
+            foreach (array_chunk($placed, 500) as $chunk) {
+                $keep_ph = implode(',', array_fill(0, count($chunk), '%s'));
+                $archived += (int) $wpdb->query($wpdb->prepare(
+                    "UPDATE {$table} SET status = %s
+                     WHERE feed_id IN ({$placeholders}) AND external_id IN ({$keep_ph})",
+                    array_merge(array(self::STATUS_ARCHIVED), $orphan_ids, $chunk)
+                ));
+            }
+        }
+
         $deleted = $wpdb->query($wpdb->prepare(
-            "DELETE FROM {$table} WHERE feed_id IN ({$placeholders})",
-            ...$orphan_ids
+            "DELETE FROM {$table} WHERE feed_id IN ({$placeholders}) AND status <> %s",
+            array_merge($orphan_ids, array(self::STATUS_ARCHIVED))
         ));
 
         // Clear count caches
         delete_transient('myfeeds_active_count_cache');
         delete_transient('myfeeds_feed_counts_cache');
 
-        myfeeds_log("DB Cleanup: Deleted {$deleted} products from feed_ids [" . implode(',', $orphan_ids) . "] that belong to no configured feed", 'info');
+        myfeeds_log("DB Cleanup: Deleted {$deleted} products from feed_ids [" . implode(',', $orphan_ids)
+            . "] that belong to no configured feed; kept {$archived} that a published post still shows", 'info');
 
         return (int) $deleted;
     }

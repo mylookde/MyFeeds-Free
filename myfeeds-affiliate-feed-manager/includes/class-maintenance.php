@@ -54,13 +54,92 @@ class MyFeeds_Maintenance {
     }
 
     /**
-     * @return array{options:int,transients:int}
+     * @return array{options:int,transients:int,actions:int}
      */
     public static function sweep() {
         return array(
             'options'    => self::drop_dead_options(),
             'transients' => self::drop_expired_transients(),
+            'actions'    => self::drop_old_actions(),
         );
+    }
+
+    /**
+     * How long a finished background job stays readable.
+     *
+     * A week: long enough that someone investigating "why did my prices
+     * not update on Tuesday" can still see Tuesday, short enough that the
+     * tables do not grow without end on a site that syncs nightly.
+     *
+     * @return int seconds
+     */
+    public static function retention_seconds() {
+        /**
+         * Filter how long finished MyFeeds background jobs are kept.
+         *
+         * @param int $seconds Default one week.
+         */
+        return (int) apply_filters('myfeeds_action_retention', 7 * DAY_IN_SECONDS);
+    }
+
+    /**
+     * Delete our own finished Action Scheduler rows once they are old.
+     *
+     * Deliberately scoped to hooks that start with myfeeds_, and
+     * deliberately NOT done by filtering action_scheduler_retention_period.
+     * Action Scheduler is a shared library - WooCommerce ships it too - and
+     * that filter is global. Shortening it would quietly delete another
+     * plugin's job history on the same site, which is not ours to do.
+     *
+     * @return int rows removed
+     */
+    private static function drop_old_actions() {
+        global $wpdb;
+
+        $actions = $wpdb->prefix . 'actionscheduler_actions';
+        $logs    = $wpdb->prefix . 'actionscheduler_logs';
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$actions}'") !== $actions) {
+            return 0;
+        }
+
+        $cutoff = gmdate('Y-m-d H:i:s', time() - self::retention_seconds());
+
+        $ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT action_id FROM {$actions}
+             WHERE hook LIKE %s
+               AND status IN ('complete', 'failed', 'canceled')
+               AND scheduled_date_gmt < %s
+             LIMIT 1000",
+            $wpdb->esc_like('myfeeds_') . '%',
+            $cutoff
+        ));
+
+        if (empty($ids)) {
+            return 0;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+
+        // Logs first: a log row pointing at an action that no longer
+        // exists is exactly the kind of debris this is meant to remove.
+        $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$logs} WHERE action_id IN ({$placeholders})",
+            ...$ids
+        ));
+
+        $removed = (int) $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$actions} WHERE action_id IN ({$placeholders})",
+            ...$ids
+        ));
+
+        if ($removed > 0 && function_exists('myfeeds_log')) {
+            $days = round(self::retention_seconds() / DAY_IN_SECONDS);
+            myfeeds_log("Maintenance: removed {$removed} finished background job(s) older than {$days} day(s)", 'info');
+        }
+
+        return $removed;
     }
 
     /**
