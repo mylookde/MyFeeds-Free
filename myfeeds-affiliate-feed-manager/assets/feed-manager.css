@@ -450,6 +450,29 @@ tr.myfeeds-feed-inactive .button-link-delete {
     color: #8a6d1f !important;
 }
 
+/* Feeds that could not be read. Amber rather than red: the import did
+   finish, some feeds simply did not answer. */
+.myfeeds-import-errors {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-left: 3px solid #d9a441;
+    background: #fdf6e3;
+    border-radius: 4px;
+}
+
+.myfeeds-import-errors ul {
+    margin: 0;
+    padding-left: 18px;
+    list-style: disc;
+}
+
+.myfeeds-import-errors li {
+    margin: 4px 0;
+    color: #6b5514;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
 .myfeeds-network-badge {
     display: inline-block;
     padding: 2px 8px;

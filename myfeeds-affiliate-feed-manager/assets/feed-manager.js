@@ -205,20 +205,48 @@
                 });
             }
             
+            // Feed names and error strings come from third-party feeds and
+            // network responses, so they are never trusted as markup.
+            function escapeHtmlText(s) {
+                return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+                    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+                });
+            }
+
             function showCompletionState(status) {
-                // Switch panel to success style
+                // A feed the server could not download is recorded in
+                // status.errors and was, until now, read by nobody. The
+                // panel said "completed successfully" over an import that
+                // had fetched nothing - a feed URL behind a login, a typo,
+                // a network that had revoked the key all looked identical
+                // to success, and the only trace was a line in a log file
+                // no site owner reads.
+                var failures = Array.isArray(status.errors) ? status.errors : [];
+
                 $('#myfeeds-import-panel').addClass('completed');
                 $('#myfeeds-progress-fill').addClass('completed').css('width', '100%');
                 $('#myfeeds-import-percent').text('100%');
-                
-                // Update title
-                $('#myfeeds-status-title').html('✅ Update completed successfully!');
-                
-                // Hide cancel button
                 $('#myfeeds-cancel-import').hide();
-                
-                // Show success message
-                $('#myfeeds-success-message').fadeIn(300);
+                $('#myfeeds-import-errors').remove();
+
+                if (failures.length) {
+                    $('#myfeeds-status-title').html('⚠️ Update finished, but ' + failures.length
+                        + (failures.length === 1 ? ' feed could not be read' : ' feeds could not be read'));
+
+                    var list = failures.map(function (f) {
+                        var name = f.feed || 'Feed';
+                        var msg = f.error || f.message || 'Unknown error';
+                        return '<li><strong>' + escapeHtmlText(name) + ':</strong> ' + escapeHtmlText(msg) + '</li>';
+                    }).join('');
+
+                    $('#myfeeds-import-panel').append(
+                        '<div id="myfeeds-import-errors" class="myfeeds-import-errors">'
+                        + '<ul>' + list + '</ul></div>'
+                    );
+                } else {
+                    $('#myfeeds-status-title').html('✅ Update completed successfully!');
+                    $('#myfeeds-success-message').fadeIn(300);
+                }
                 
                 // Bug 2 fix: Update per-feed mapping quality in the table
                 if (status.feed_qualities) {
@@ -235,6 +263,12 @@
                     });
                 }
                 
+                // A panel that reports a failure must not disappear on its
+                // own - the whole point is that the operator sees it.
+                if (failures.length) {
+                    return;
+                }
+
                 // Auto-hide after 5 seconds
                 setTimeout(function() {
                     hideStatusPanel();
