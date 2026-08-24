@@ -200,7 +200,7 @@ function myfeeds_get_feed_content($feed_url, $feed_index, $run_id) {
         MyFeeds_Logger::info("FeedCache: MISS for feed_index={$feed_index}, downloading from {$feed_url}");
     }
     
-    $response = wp_remote_get($feed_url, array(
+    $response = myfeeds_remote_get($feed_url, array(
         'timeout' => 60,
         'headers' => array('Accept-Encoding' => 'gzip, deflate'),
     ));
@@ -329,7 +329,7 @@ function myfeeds_ensure_feed_cached($feed_url, $feed_index, $run_id) {
     $temp_path = $cache_path . '.download';
     
     // Stream download directly to temp file — body never enters PHP memory
-    $response = wp_remote_get($feed_url, array(
+    $response = myfeeds_remote_get($feed_url, array(
         'timeout' => 120,
         'stream'  => true,
         'filename' => $temp_path,

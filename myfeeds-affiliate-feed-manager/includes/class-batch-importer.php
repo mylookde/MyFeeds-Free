@@ -1275,7 +1275,7 @@ class MyFeeds_Batch_Importer {
      * Fetch sample data from feed URL
      */
     private function fetch_feed_sample($url) {
-        $response = wp_remote_get($url, array(
+        $response = myfeeds_remote_get($url, array(
             'timeout' => 15,
             'limit_response_size' => 65536,
             'headers' => array('Accept-Encoding' => 'gzip, deflate'),
@@ -2442,7 +2442,7 @@ class MyFeeds_Batch_Importer {
         // =====================================================================
         // FEED DOWNLOAD: Stream feed to disk cache (ZERO RAM usage)
         // OOM FIX: Uses myfeeds_ensure_feed_cached() which streams via
-        // wp_remote_get(stream=true). Feed body never enters PHP memory.
+        // myfeeds_remote_get(stream=true). Feed body never enters PHP memory.
         // =====================================================================
         $feed_name = $current_feed['feed_name'] ?? 'unknown';
         $feed_url = $current_feed['feed_url'];
@@ -3382,7 +3382,7 @@ class MyFeeds_Batch_Importer {
         }
         
         // Download feed data
-        $response = wp_remote_get($url, array(
+        $response = myfeeds_remote_get($url, array(
             'timeout' => 60,
             'headers' => array('Accept-Encoding' => 'gzip, deflate'),
         ));

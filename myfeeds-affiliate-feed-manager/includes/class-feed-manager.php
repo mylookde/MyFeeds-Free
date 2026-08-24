@@ -436,8 +436,20 @@ class MyFeeds_Feed_Manager {
                 <div class="myfeeds-modal-body">
                     <div class="myfeeds-help-text">
                         <p><?php esc_html_e('This plugin supports product feeds from all major affiliate networks. Simply provide your feed name and URL – the smart mapping system will automatically detect and map all product fields!', 'myfeeds-affiliate-feed-manager'); ?></p>
-                        <p class="description"><?php esc_html_e('Supported networks: AWIN, Webgains, Admitad, TradeDoubler, Impact.com, Partnerize, Rakuten, CJ, ShareASale, and more.', 'myfeeds-affiliate-feed-manager'); ?></p>
-                        <p><strong><?php esc_html_e('Supported formats:', 'myfeeds-affiliate-feed-manager'); ?></strong> CSV, TSV, CSV (semicolon), CSV (gzip), XML, JSON, JSON-Lines</p>
+                        <p><strong><?php esc_html_e('Supported formats:', 'myfeeds-affiliate-feed-manager'); ?></strong> CSV, TSV, CSV (semicolon), CSV (pipe), XML, JSON, JSON-Lines &mdash; plain, gzip or zip</p>
+                        <?php if (class_exists('MyFeeds_Feed_Upload')) : ?>
+                            <p><strong><?php esc_html_e('If you upload a file:', 'myfeeds-affiliate-feed-manager'); ?></strong>
+                                <?php echo esc_html(MyFeeds_Feed_Upload::allowed_extensions_label()); ?>
+                                &mdash;
+                                <?php
+                                printf(
+                                    /* translators: %s: maximum upload size for this server */
+                                    esc_html__('archives are unpacked for you, up to %s.', 'myfeeds-affiliate-feed-manager'),
+                                    esc_html(size_format(wp_max_upload_size()))
+                                );
+                                ?>
+                            </p>
+                        <?php endif; ?>
                     </div>
                     
                     <form id="myfeeds-feed-form" method="post" enctype="multipart/form-data">
@@ -510,16 +522,6 @@ class MyFeeds_Feed_Manager {
                                     <input name="feed_file" type="file" id="feed_file"
                                            accept="<?php echo esc_attr(class_exists('MyFeeds_Feed_Upload') ? MyFeeds_Feed_Upload::allowed_extensions_label() : ''); ?>"
                                            data-testid="feed-file-input">
-                                    <p class="description">
-                                        <?php
-                                        printf(
-                                            /* translators: 1: list of accepted extensions, 2: maximum upload size */
-                                            esc_html__('Accepted: %1$s - compressed archives are unpacked for you. Up to %2$s.', 'myfeeds-affiliate-feed-manager'),
-                                            esc_html(class_exists('MyFeeds_Feed_Upload') ? MyFeeds_Feed_Upload::allowed_extensions_label() : ''),
-                                            esc_html(size_format(wp_max_upload_size()))
-                                        );
-                                        ?>
-                                    </p>
                                     <p class="description myfeeds-upload-warning">
                                         <?php esc_html_e('This file will not update by itself. When your network publishes a new version, come back and upload it again.', 'myfeeds-affiliate-feed-manager'); ?>
                                     </p>
@@ -797,7 +799,7 @@ class MyFeeds_Feed_Manager {
 
                     <p class="myfeeds-amazon-note">
                         <strong><?php esc_html_e('Worth knowing before you buy:', 'myfeeds-affiliate-feed-manager'); ?></strong>
-                        <?php esc_html_e('Amazon only opens its product API to Associates accounts with 10 qualifying sales in the last 30 days. That is Amazon\'s rule, not ours, and it applies to every plugin that connects to them. It is also why Amazon sits on Pro: by the time Amazon lets you in, you are already selling.', 'myfeeds-affiliate-feed-manager'); ?>
+                        <?php esc_html_e('Amazon only opens its product API to Associates accounts with 10 qualifying sales in the last 30 days. That is Amazon\'s rule, not ours, and it applies to every plugin that connects to them.', 'myfeeds-affiliate-feed-manager'); ?>
                     </p>
 
                     <p class="myfeeds-amazon-cta">
@@ -2014,7 +2016,7 @@ class MyFeeds_Feed_Manager {
      * Used by "Test Feed" button — downloads more data, higher timeout
      */
     public function test_feed_url($url, $format_hint = '') {
-        $response = wp_remote_get($url, array('timeout' => 60));
+        $response = myfeeds_remote_get($url, array('timeout' => 60));
         
         if (is_wp_error($response)) {
             return new WP_Error('connection_failed', 'Could not connect to feed URL: ' . $response->get_error_message());
@@ -2069,7 +2071,7 @@ class MyFeeds_Feed_Manager {
      */
     private function quick_test_feed_url($url, $format_hint = '') {
         $is_likely_gzip = function_exists('myfeeds_is_gzip_url') && myfeeds_is_gzip_url($url);
-        $response = wp_remote_get($url, array(
+        $response = myfeeds_remote_get($url, array(
             'timeout' => $is_likely_gzip ? 30 : 10,
             'limit_response_size' => $is_likely_gzip ? 2097152 : 32768, // 2MB for gzip, 32KB otherwise
         ));
@@ -3030,7 +3032,7 @@ class MyFeeds_Feed_Manager {
         foreach ($feeds as $feed_key => $feed) {
             myfeeds_log("Processing feed: " . $feed['name'], 'debug');
             
-            $resp = wp_remote_get($feed['url'], array('timeout' => 30));
+            $resp = myfeeds_remote_get($feed['url'], array('timeout' => 30));
             if (is_wp_error($resp)) {
                 myfeeds_log('Feed error: ' . $feed['url'] . ' - ' . $resp->get_error_message(), 'error');
                 continue;

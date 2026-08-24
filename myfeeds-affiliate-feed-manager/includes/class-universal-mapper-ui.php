@@ -589,7 +589,7 @@ class MyFeeds_Universal_Mapper_UI {
         $feed = $feeds[$feed_key];
         
         // Download a small portion of the feed to get columns
-        $response = wp_remote_get($feed['url'], array(
+        $response = myfeeds_remote_get($feed['url'], array(
             'timeout' => 30,
             'headers' => array('Accept-Encoding' => 'gzip, deflate'),
         ));

@@ -371,7 +371,7 @@ class MyFeeds_Network_Handlers {
             return new WP_Error('invalid_url', 'Could not build feed URL');
         }
         
-        $response = wp_remote_get($feed_url, [
+        $response = myfeeds_remote_get($feed_url, [
             'timeout' => 30,
             'headers' => [
                 'User-Agent' => 'WordPress/' . get_bloginfo('version') . ' MyFeeds Plugin/' . MYFEEDS_VERSION

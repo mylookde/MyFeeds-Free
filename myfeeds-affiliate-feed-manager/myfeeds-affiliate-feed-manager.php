@@ -407,6 +407,7 @@ function myfeeds_load_includes() {
     // Load all include files
     $includes_dir = MYFEEDS_PLUGIN_DIR . 'includes/';
     $include_files = array(
+        'myfeeds-http.php' => 'Feed fetch guard (the one door every feed download goes through)',
         'class-feed-reader.php' => 'Universal Feed Reader (CSV/TSV/XML/JSON)',
         'class-settings-manager.php' => 'Settings Manager Class',
         'class-db-manager.php' => 'Database Manager Class',
