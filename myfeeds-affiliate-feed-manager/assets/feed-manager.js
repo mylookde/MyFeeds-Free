@@ -781,6 +781,46 @@
                 $('#feed_file').prop('required', isUpload && !$form.data('hasStoredUpload'));
             }
 
+
+            // When a file is chosen, pre-select the format that matches its
+            // extension. The importer detects this on its own, but a hint the
+            // user can see is a hint they can correct - and the one case where
+            // detection has to guess is a pipe- or semicolon-separated .txt,
+            // which is exactly what Rakuten and Pepperjam hand out.
+            //
+            // Compression is deliberately not a format here: gzip and zip are
+            // unpacked before the reader sees the file, so .csv.gz maps to csv.
+            function formatHintFromFilename(name) {
+                var lower = String(name || '').toLowerCase();
+                lower = lower.replace(/\.(gz|zip)$/, '');
+                var ext = lower.split('.').pop();
+
+                switch (ext) {
+                    case 'csv':    return 'csv';
+                    case 'tsv':
+                    case 'tab':    return 'tsv';
+                    case 'psv':    return 'psv';
+                    case 'ssv':    return 'ssv';
+                    case 'xml':    return 'xml';
+                    case 'json':   return 'json';
+                    case 'jsonl':
+                    case 'ndjson': return 'json_lines';
+                    default:       return '';   // .txt could be any of them - let detection decide
+                }
+            }
+
+            $(document).on('change', '#feed_file', function () {
+                var file = this.files && this.files[0];
+                if (!file) return;
+
+                var hint = formatHintFromFilename(file.name);
+                var $hint = $('#feed_format_hint');
+
+                // Never overwrite a choice the user made on purpose.
+                if (hint && $hint.val() === '') {
+                    $hint.val(hint);
+                }
+            });
             $form.on('change', 'input[name="feed_source"]', applyFeedSource);
             applyFeedSource();
 

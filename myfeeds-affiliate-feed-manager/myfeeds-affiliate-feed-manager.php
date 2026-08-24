@@ -408,6 +408,7 @@ function myfeeds_load_includes() {
     $includes_dir = MYFEEDS_PLUGIN_DIR . 'includes/';
     $include_files = array(
         'myfeeds-http.php' => 'Feed fetch guard (the one door every feed download goes through)',
+        'class-maintenance.php' => 'Housekeeping (removes options and transients older versions left behind)',
         'class-feed-reader.php' => 'Universal Feed Reader (CSV/TSV/XML/JSON)',
         'class-settings-manager.php' => 'Settings Manager Class',
         'class-db-manager.php' => 'Database Manager Class',
@@ -540,6 +541,13 @@ class MyFeeds_Affiliate_Product_Picker {
             // writes nothing unless the user asks for it.
             if (class_exists('MyFeeds_Demo_Content')) {
                 MyFeeds_Demo_Content::init();
+            }
+
+            // Also here, not only in activate(): an install that upgraded
+            // into this version never runs the activation hook again, and
+            // would never get the housekeeping job scheduled.
+            if (class_exists('MyFeeds_Maintenance')) {
+                MyFeeds_Maintenance::init();
             }
 
             // Initialize the one-time review request
@@ -705,6 +713,10 @@ class MyFeeds_Affiliate_Product_Picker {
                 wp_schedule_event(time(), 'every_minute', 'myfeeds_check_import_queue');
             }
             
+            if (class_exists('MyFeeds_Maintenance')) {
+                MyFeeds_Maintenance::init();
+            }
+
             flush_rewrite_rules();
             myfeeds_log("Plugin activation completed successfully");
         } catch (Exception $e) {
@@ -758,6 +770,10 @@ class MyFeeds_Affiliate_Product_Picker {
         delete_option('myfeeds_import_status');
         delete_option('myfeeds_import_queue');
         
+        if (class_exists('MyFeeds_Maintenance')) {
+            MyFeeds_Maintenance::deactivate();
+        }
+
         flush_rewrite_rules();
         myfeeds_log("Plugin deactivation completed - all cron jobs cleared");
     }

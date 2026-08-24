@@ -542,12 +542,12 @@ class MyFeeds_Feed_Manager {
                                             <option value="csv"><?php esc_html_e('CSV (Comma-separated)', 'myfeeds-affiliate-feed-manager'); ?></option>
                                             <option value="tsv"><?php esc_html_e('TSV (Tab-separated)', 'myfeeds-affiliate-feed-manager'); ?></option>
                                             <option value="ssv"><?php esc_html_e('CSV (Semicolon-separated)', 'myfeeds-affiliate-feed-manager'); ?></option>
-                                            <option value="csv_gz"><?php esc_html_e('CSV (gzip compressed)', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="psv"><?php esc_html_e('CSV (Pipe-separated)', 'myfeeds-affiliate-feed-manager'); ?></option>
                                             <option value="xml"><?php esc_html_e('XML', 'myfeeds-affiliate-feed-manager'); ?></option>
                                             <option value="json"><?php esc_html_e('JSON', 'myfeeds-affiliate-feed-manager'); ?></option>
                                             <option value="json_lines"><?php esc_html_e('JSON-Lines', 'myfeeds-affiliate-feed-manager'); ?></option>
                                         </select>
-                                        <p class="description"><?php esc_html_e('Leave as auto-detect unless you experience issues', 'myfeeds-affiliate-feed-manager'); ?></p>
+                                        <p class="description"><?php esc_html_e('Leave as auto-detect unless you experience issues. This describes what is inside the file - gzip and zip are unpacked before it is read, so there is no separate option for them.', 'myfeeds-affiliate-feed-manager'); ?></p>
                                     </td>
                                 </tr>
                                 
@@ -567,8 +567,9 @@ class MyFeeds_Feed_Manager {
                                             <option value="impact"><?php esc_html_e('Impact.com', 'myfeeds-affiliate-feed-manager'); ?></option>
                                             <option value="partnerize"><?php esc_html_e('Partnerize', 'myfeeds-affiliate-feed-manager'); ?></option>
                                             <option value="rakuten"><?php esc_html_e('Rakuten Advertising', 'myfeeds-affiliate-feed-manager'); ?></option>
-                                            <option value="ebay"><?php esc_html_e('eBay Partner Network', 'myfeeds-affiliate-feed-manager'); ?></option>
-                                            <option value="amazon"><?php esc_html_e('Amazon Associates', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="flexoffers"><?php esc_html_e('FlexOffers', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="sovrn"><?php esc_html_e('Sovrn Commerce', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="other"><?php esc_html_e('Other', 'myfeeds-affiliate-feed-manager'); ?></option>
                                         </select>
                                     </td>
                                 </tr>

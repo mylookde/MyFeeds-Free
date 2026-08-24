@@ -2667,11 +2667,27 @@ class MyFeeds_Batch_Importer {
             // Fix P1: Log batch build start
             myfeeds_log("BATCH_BUILD_START: iteration={$iteration}, offset={$current_offset}, rows={$rows_to_process}, feed='{$feed_name}'", 'debug');
             
+            $last_progress_ping = microtime(true);
+
             for ($i = $current_offset; $i < $batch_end; $i++) {
                 $row_idx = $i - $current_offset; // 0-based within this batch
                 
                 $raw = $reader->read_next();
                 if ($raw === false) break; // EOF
+
+                // Report from inside the batch, not only between batches.
+                // A batch is a thousand rows, and the queue entry the
+                // progress bar reads was written once per batch - so a feed
+                // that fits in one batch showed 5% for as long as it took
+                // and then jumped to 99%. Twice a second is enough to look
+                // alive without turning the import into a write loop.
+                if ((microtime(true) - $last_progress_ping) >= 0.5) {
+                    $last_progress_ping = microtime(true);
+                    $queue[$feed_index]['offset'] = $i;
+                    $queue[$feed_index]['total_rows'] = $total_rows;
+                    $queue[$feed_index]['status'] = 'processing';
+                    update_option(self::OPTION_IMPORT_QUEUE, $queue, false);
+                }
                 
                 $product_id = $this->extract_product_id_fast($raw);
                 if (!$product_id) {
@@ -2758,20 +2774,15 @@ class MyFeeds_Batch_Importer {
                 'last_updated' => time(),
             ), false);
 
-            // Status + Queue: every 5 iterations OR on last iteration of feed
-            if ($iteration % 5 === 0 || $current_offset >= $total_rows) {
-                update_option(self::OPTION_IMPORT_STATUS, $status, false);
-                
-                $queue[$feed_index]['offset'] = $current_offset;
-                $queue[$feed_index]['total_rows'] = $total_rows;
-                $queue[$feed_index]['status'] = 'processing';
-                update_option(self::OPTION_IMPORT_QUEUE, $queue, false);
-            } else {
-                // Still update queue offset in memory for feed-complete logic
-                $queue[$feed_index]['offset'] = $current_offset;
-                $queue[$feed_index]['total_rows'] = $total_rows;
-                $queue[$feed_index]['status'] = 'processing';
-            }
+            // Written every iteration. This used to run every fifth, which
+            // on a 19,000-row feed meant four updates across the whole run
+            // and a progress bar that stood still between them.
+            $queue[$feed_index]['offset'] = $current_offset;
+            $queue[$feed_index]['total_rows'] = $total_rows;
+            $queue[$feed_index]['status'] = 'processing';
+
+            update_option(self::OPTION_IMPORT_STATUS, $status, false);
+            update_option(self::OPTION_IMPORT_QUEUE, $queue, false);
             
             $iter_duration = round((microtime(true) - $iter_start) * 1000);
             MyFeeds_Logger::debug("AS Job: iteration={$iteration}, rows={$current_offset}/{$total_rows}, processed={$processed_count}, skipped_priority={$skipped_priority}, building_total={$building_total}, duration={$iter_duration}ms");
