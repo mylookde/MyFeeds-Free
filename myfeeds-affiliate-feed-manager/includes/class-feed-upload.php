@@ -30,6 +30,9 @@ class MyFeeds_Feed_Upload {
     /** Folder under the plugin uploads dir that holds uploaded feeds. */
     const SUBDIR = 'uploaded';
 
+    /** Bumped when the rules below change, so an older file gets replaced. */
+    const HTACCESS_MARKER = '# MyFeeds upload guard v2';
+
     /** Hard ceiling, independent of php.ini, so the error is ours and readable. */
     const MAX_BYTES = 524288000; // 500 MB
 
@@ -112,16 +115,44 @@ class MyFeeds_Feed_Upload {
         }
 
         $htaccess = trailingslashit($dir) . '.htaccess';
-        if (!file_exists($htaccess)) {
-            $rules = "Options -Indexes\n"
-                   . "<Files *>\n"
-                   . "  SetHandler default-handler\n"
-                   . "</Files>\n"
-                   . "php_flag engine off\n"
-                   . "AddType text/plain .php .phtml .php3 .php4 .php5 .php7 .phps\n";
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-            @file_put_contents($htaccess, $rules);
+        $current  = file_exists($htaccess)
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents
+            ? (string) @file_get_contents($htaccess)
+            : '';
+
+        // The marker lets a later version replace rules written by an
+        // earlier one. Without it the first file ever written is the
+        // file that stays, mistakes included.
+        if (strpos($current, self::HTACCESS_MARKER) !== false) {
+            return;
         }
+
+        // Every directive is wrapped in the module that owns it.
+        // `php_flag` in particular exists only under mod_php: on the
+        // very common Apache-plus-PHP-FPM setup an unwrapped php_flag
+        // is an unknown directive, and Apache answers the whole folder
+        // with 500 rather than ignoring the line. Hardening that can
+        // take a customer's feeds offline is not hardening.
+        $rules = self::HTACCESS_MARKER . "\n"
+               . "<IfModule mod_autoindex.c>\n"
+               . "  Options -Indexes\n"
+               . "</IfModule>\n"
+               . "<IfModule mod_mime.c>\n"
+               . "  RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phps\n"
+               . "  AddType text/plain .php .phtml .php3 .php4 .php5 .php7 .php8 .phps\n"
+               . "</IfModule>\n"
+               . "<IfModule mod_php.c>\n"
+               . "  php_flag engine off\n"
+               . "</IfModule>\n"
+               . "<IfModule mod_php7.c>\n"
+               . "  php_flag engine off\n"
+               . "</IfModule>\n"
+               . "<IfModule mod_php5.c>\n"
+               . "  php_flag engine off\n"
+               . "</IfModule>\n";
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+        @file_put_contents($htaccess, $rules);
     }
 
     /**
