@@ -37,6 +37,135 @@ function myfeeds_is_gzip_url($url) {
 }
 
 /**
+ * Check if a URL points to a zip archive.
+ *
+ * @param string $url Feed URL
+ * @return bool
+ */
+function myfeeds_is_zip_url($url) {
+    $path = strtolower(wp_parse_url($url, PHP_URL_PATH) ?: '');
+    return (bool) preg_match('/\.zip$/i', $path);
+}
+
+/**
+ * Pick the entry inside a zip that is most likely to be the feed.
+ *
+ * Networks ship the catalogue next to readmes, checksums and the
+ * __MACOSX sidecar a Mac adds when it compresses. Extension wins over
+ * size, because a 2 KB readme.txt must never beat a 400 MB catalogue,
+ * and among equals the largest wins.
+ *
+ * @param ZipArchive $zip Opened archive.
+ * @return array{name:string,size:int}|null
+ */
+function myfeeds_pick_zip_entry($zip) {
+    $feed_ext = array('csv', 'tsv', 'psv', 'ssv', 'txt', 'xml', 'json', 'jsonl', 'ndjson');
+    $best = null;
+    $best_rank = -1;
+
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $stat = $zip->statIndex($i);
+        if (!$stat) {
+            continue;
+        }
+        $name = $stat['name'];
+
+        if (substr($name, -1) === '/' || strpos($name, '__MACOSX/') === 0) {
+            continue;
+        }
+        $base = basename($name);
+        if ($base === '' || $base[0] === '.') {
+            continue;
+        }
+        if ((int) $stat['size'] === 0) {
+            continue;
+        }
+
+        $ext = strtolower((string) pathinfo($base, PATHINFO_EXTENSION));
+        $rank = in_array($ext, $feed_ext, true) ? 1 : 0;
+
+        if ($rank > $best_rank || ($rank === $best_rank && $best !== null && (int) $stat['size'] > $best['size'])) {
+            $best = array('name' => $name, 'size' => (int) $stat['size']);
+            $best_rank = $rank;
+        }
+    }
+
+    return $best;
+}
+
+/**
+ * Extract the feed out of a zip into $dest_path.
+ *
+ * Streams entry -> destination in chunks; a catalogue zip can unpack to
+ * several hundred megabytes and must never be held in memory.
+ *
+ * @param string $zip_path  Downloaded archive on disk.
+ * @param string $dest_path Where the extracted feed should land.
+ * @return true|WP_Error
+ */
+function myfeeds_extract_zip_feed($zip_path, $dest_path) {
+    if (!class_exists('ZipArchive')) {
+        return new WP_Error(
+            'zip_unsupported',
+            'This feed is a .zip archive, but PHP on this server has no zip support. '
+            . 'Ask your host to enable the zip extension, or unpack the file and point MyFeeds at the extracted file.'
+        );
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($zip_path) !== true) {
+        return new WP_Error('zip_error', 'The downloaded file looks like a .zip but could not be opened.');
+    }
+
+    $entry = myfeeds_pick_zip_entry($zip);
+    if ($entry === null) {
+        $zip->close();
+        return new WP_Error('zip_empty', 'The .zip archive contains no readable feed file.');
+    }
+
+    $in = $zip->getStream($entry['name']);
+    if (!$in) {
+        $zip->close();
+        return new WP_Error('zip_error', "Cannot read '{$entry['name']}' out of the .zip archive.");
+    }
+
+    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Streaming required for large feed files
+    $out = @fopen($dest_path, 'wb');
+    if (!$out) {
+        fclose($in);
+        $zip->close();
+        return new WP_Error('write_error', 'Cannot write the extracted feed to the cache folder.');
+    }
+
+    $written = 0;
+    while (!feof($in)) {
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
+        $chunk = fread($in, 65536);
+        if ($chunk === false || $chunk === '') {
+            break;
+        }
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+        fwrite($out, $chunk);
+        $written += strlen($chunk);
+    }
+    fclose($in);
+    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+    fclose($out);
+    $zip->close();
+
+    if ($written === 0) {
+        @wp_delete_file($dest_path);
+        return new WP_Error('zip_empty', "'{$entry['name']}' in the .zip archive is empty.");
+    }
+
+    if (class_exists('MyFeeds_Logger')) {
+        MyFeeds_Logger::info("FeedCache: Extracted '{$entry['name']}' ({$written} bytes) from zip");
+    }
+
+    return true;
+}
+
+/**
  * Get feed content — from cache if available, otherwise download and cache.
  * 
  * The cache is keyed by feed_index + run_id, ensuring each import run
@@ -90,8 +219,26 @@ function myfeeds_get_feed_content($feed_url, $feed_index, $run_id) {
     // Handle gzip-compressed content (two detection methods):
     // a) URL ends on .gz or .csv.gz
     // b) Magic bytes \x1f\x8b at start of response
+    $is_zip = myfeeds_is_zip_url($feed_url) || substr($body, 0, 4) === "PK\x03\x04";
+    if ($is_zip) {
+        $tmp_zip = wp_tempnam('myfeeds_zip_');
+        if (!$tmp_zip || !@file_put_contents($tmp_zip, $body)) {
+            return new WP_Error('write_error', 'Cannot stage the .zip archive for extraction.');
+        }
+        $tmp_out = $tmp_zip . '.out';
+        $extracted = myfeeds_extract_zip_feed($tmp_zip, $tmp_out);
+        wp_delete_file($tmp_zip);
+        if (is_wp_error($extracted)) {
+            @wp_delete_file($tmp_out);
+            return $extracted;
+        }
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents
+        $body = (string) @file_get_contents($tmp_out);
+        wp_delete_file($tmp_out);
+    }
+
     $is_gzip = myfeeds_is_gzip_url($feed_url) || substr($body, 0, 2) === "\x1f\x8b";
-    if ($is_gzip) {
+    if (!$is_zip && $is_gzip) {
         $decoded = function_exists('gzdecode') ? @gzdecode($body) : false;
         if ($decoded !== false) {
             $body = $decoded;
@@ -215,10 +362,21 @@ function myfeeds_ensure_feed_cached($feed_url, $feed_index, $run_id) {
         return new WP_Error('file_read_error', 'Cannot read downloaded file');
     }
     // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Streaming required for large feed files
-    $magic = fread($fh, 2);
+    $magic4 = fread($fh, 4);
+    $magic  = substr($magic4, 0, 2);
     // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Streaming required for large feed files
     fclose($fh);
     
+    $is_zip = myfeeds_is_zip_url($feed_url) || $magic4 === "PK\x03\x04";
+    if ($is_zip) {
+        $extracted = myfeeds_extract_zip_feed($temp_path, $cache_path);
+        @wp_delete_file($temp_path);
+        if (is_wp_error($extracted)) {
+            return $extracted;
+        }
+        return $cache_path;
+    }
+
     $is_gzip = myfeeds_is_gzip_url($feed_url) || $magic === "\x1f\x8b";
     if ($is_gzip) {
         // Decompress gzip to final cache path using streaming (64KB chunks)

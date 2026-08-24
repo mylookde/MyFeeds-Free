@@ -54,6 +54,9 @@ class MyFeeds_Feed_Reader {
     private $xml_string_index = 0;
 
 
+    /** @var string Why the file could not be read, empty when it could. */
+    private $unsupported_reason = '';
+
     // -- JSON state --
     /** @var array All decoded items (JSON array mode) */
     private $json_items = array();
@@ -83,6 +86,13 @@ class MyFeeds_Feed_Reader {
             return false;
         }
 
+        $binary = self::sniff_binary_container($file_path);
+        if ($binary !== '') {
+            $this->unsupported_reason = $binary;
+            myfeeds_log("Feed Reader: {$binary}", 'error');
+            return false;
+        }
+
         $this->format = $this->detect_format($file_path, $format_hint);
 
         switch ($this->format) {
@@ -104,6 +114,65 @@ class MyFeeds_Feed_Reader {
 
         myfeeds_log("Feed Reader: Unknown format '{$this->format}'", 'error');
         return false;
+    }
+
+    /**
+     * Why the last open() failed, in words a site owner can act on.
+     *
+     * @return string Empty when the file opened fine.
+     */
+    public function get_unsupported_reason() {
+        return $this->unsupported_reason;
+    }
+
+    /**
+     * Recognise files that are not text at all.
+     *
+     * detect_format() ends on `return 'csv'`, so anything unrecognised
+     * used to be parsed as CSV. An archive or a PDF then produced zero
+     * products and no error - the operator saw an import that "worked"
+     * and an empty catalogue. Naming the file type is the whole point.
+     *
+     * @param string $file_path Absolute path to the cached feed file.
+     * @return string Empty when the file looks like text.
+     */
+    private static function sniff_binary_container($file_path) {
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Need raw read for signature detection
+        $fh = @fopen($file_path, 'rb');
+        if (!$fh) {
+            return '';
+        }
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
+        $head = (string) fread($fh, 32);
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        fclose($fh);
+
+        $signatures = array(
+            "PK\x03\x04" => 'This feed is a .zip archive. Unpack it and point MyFeeds at the file inside, or ask your host to enable PHP zip support.',
+            "PK\x05\x06" => 'This feed is an empty .zip archive.',
+            "\x1f\x8b"    => 'This feed is still gzip-compressed and could not be unpacked. Point MyFeeds at the uncompressed file.',
+            'BZh'         => 'This feed is a .bz2 archive, which MyFeeds cannot unpack. Extract it and use the file inside.',
+            "Rar!"        => 'This feed is a .rar archive, which MyFeeds cannot unpack. Extract it and use the file inside.',
+            "7z\xbc\xaf"  => 'This feed is a .7z archive, which MyFeeds cannot unpack. Extract it and use the file inside.',
+            '%PDF'        => 'This file is a PDF, not a product feed. Check the feed URL.',
+        );
+
+        foreach ($signatures as $magic => $reason) {
+            if (strncmp($head, $magic, strlen($magic)) === 0) {
+                return $reason;
+            }
+        }
+
+        // An HTML error page served with HTTP 200 is the other common
+        // case: the network answered, just not with a feed.
+        // Only <!DOCTYPE html is a web page; <!DOCTYPE products SYSTEM ...
+        // is a perfectly good XML feed with a DTD.
+        $lower = strtolower(ltrim($head));
+        if (strncmp($lower, '<!doctype html', 14) === 0 || strncmp($lower, '<html', 5) === 0) {
+            return 'The feed URL returned a web page, not a product feed. Check that the link points straight at the file and needs no login.';
+        }
+
+        return '';
     }
 
     /**
