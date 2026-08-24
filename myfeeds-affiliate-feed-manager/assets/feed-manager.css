@@ -405,6 +405,51 @@ tr.myfeeds-feed-inactive .button-link-delete {
     font-size: 12px;
 }
 
+/* An uploaded feed is frozen at the moment of upload. The row has to
+   say so, otherwise the nightly sync badge next to it reads as a promise
+   the file cannot keep. */
+.myfeeds-feed-url-uploaded {
+    background: #fdf6e3;
+    color: #6b5514;
+}
+
+.myfeeds-feed-frozen {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: #f0e6c8;
+    color: #6b5514;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    white-space: nowrap;
+    cursor: help;
+}
+
+.myfeeds-source-choice label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-right: 18px;
+}
+
+.myfeeds-source-recommended {
+    background: #e8f5ee;
+    color: #1e7d4f;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    padding: 1px 6px;
+    border-radius: 10px;
+}
+
+.myfeeds-upload-warning {
+    color: #8a6d1f !important;
+}
+
 .myfeeds-network-badge {
     display: inline-block;
     padding: 2px 8px;

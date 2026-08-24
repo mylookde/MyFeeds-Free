@@ -415,6 +415,7 @@ function myfeeds_load_includes() {
         'class-universal-mapper-ui.php' => 'Universal Mapper UI Class',
         'class-smart-mapper.php' => 'Smart Mapper Class',
         'class-network-handlers.php' => 'Network Handlers Class', 
+        'class-feed-upload.php' => 'Feed File Upload (fallback for networks that hand out a file, not a link)',
         'class-feed-manager.php' => 'Feed Manager Class',
         'class-demo-content.php' => 'Sample products for a fresh install (loaded on request only)',
         'class-upsell.php'       => 'Informational Upsell Banner',

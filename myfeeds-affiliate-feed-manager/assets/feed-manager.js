@@ -651,6 +651,10 @@
                 $('#feed_url').val('');
                 $('#feed_format_hint').val('');
                 $('#feed_network_hint').val('');
+                $('#feed_file').val('');
+                $form.data('hasStoredUpload', false);
+                $form.find('input[name="feed_source"][value="url"]').prop('checked', true);
+                applyFeedSource();
                 $modal.fadeIn(200);
                 $('#feed_name').focus();
             });
@@ -672,6 +676,14 @@
                 $('#feed_url').val(url);
                 $('#feed_format_hint').val(formatHint);
                 $('#feed_network_hint').val(networkHint);
+
+                var isUploaded = $btn.data('feed-uploaded') === 1 || $btn.data('feed-uploaded') === '1';
+                $('#feed_file').val('');
+                $form.data('hasStoredUpload', isUploaded);
+                $form.find('input[name="feed_source"][value="' + (isUploaded ? 'upload' : 'url') + '"]')
+                     .prop('checked', true);
+                applyFeedSource();
+
                 $modal.fadeIn(200);
                 $('#feed_name').focus();
             });
@@ -719,6 +731,25 @@
                 }
             });
             
+            // (applyFeedSource is a function declaration, so it is hoisted
+            // and the Add/Edit handlers above may call it.)
+            // Source switch: URL or uploaded file. The URL field carries
+            // `required`, so it has to lose it when hidden - a hidden
+            // required field blocks submit with a validation bubble the
+            // browser cannot even point at.
+            function applyFeedSource() {
+                var mode = $form.find('input[name="feed_source"]:checked').val() || 'url';
+                var isUpload = mode === 'upload';
+
+                $form.find('.myfeeds-source-row-url').toggle(!isUpload);
+                $form.find('.myfeeds-source-row-upload').toggle(isUpload);
+                $('#feed_url').prop('required', !isUpload);
+                $('#feed_file').prop('required', isUpload && !$form.data('hasStoredUpload'));
+            }
+
+            $form.on('change', 'input[name="feed_source"]', applyFeedSource);
+            applyFeedSource();
+
             // AJAX form submit
             $form.on('submit', function(e) {
                 e.preventDefault();
@@ -727,10 +758,24 @@
                 // Basic validation
                 var feedName = $('#feed_name').val().trim();
                 var feedUrl = $('#feed_url').val().trim();
-                if (!feedName || !feedUrl) {
+                var isUpload = $form.find('input[name="feed_source"]:checked').val() === 'upload';
+                var fileInput = document.getElementById('feed_file');
+                var hasFile = !!(fileInput && fileInput.files && fileInput.files.length);
+
+                if (!feedName) {
                     alert(i18n.feedNameUrlRequired);
                     return;
                 }
+                if (isUpload) {
+                    if (!hasFile && !$form.data('hasStoredUpload')) {
+                        alert(i18n.feedFileRequired || 'Choose a file to upload, or switch back to a feed URL.');
+                        return;
+                    }
+                } else if (!feedUrl) {
+                    alert(i18n.feedNameUrlRequired);
+                    return;
+                }
+
 
                 isSaving = true;
                 var isEdit = $feedKey.val() !== '';
@@ -746,11 +791,30 @@
                 $('.myfeeds-feeds-table-header').after($notice);
                 
                 // Collect form data
-                var formData = $form.serialize();
-                formData += '&action=myfeeds_save_feed_ajax';
-                formData += '&nonce=' + nonce;
-                
-                $.post(ajaxUrl, formData)
+                // Collect form data. jQuery's serialize() drops file inputs
+                // entirely, so an upload has to travel as FormData - and
+                // FormData needs processData/contentType off or jQuery
+                // stringifies it back into nothing.
+                var request;
+                if (hasFile) {
+                    var fd = new FormData($form[0]);
+                    fd.append('action', 'myfeeds_save_feed_ajax');
+                    fd.append('nonce', nonce);
+                    request = $.ajax({
+                        url: ajaxUrl,
+                        method: 'POST',
+                        data: fd,
+                        processData: false,
+                        contentType: false
+                    });
+                } else {
+                    var formData = $form.serialize();
+                    formData += '&action=myfeeds_save_feed_ajax';
+                    formData += '&nonce=' + nonce;
+                    request = $.post(ajaxUrl, formData);
+                }
+
+                request
                     .done(function(response) {
                         if (response.success) {
                             // Show success
@@ -763,7 +827,11 @@
                                 var feedName = $('#feed_name').val();
                                 var feedUrl = $('#feed_url').val();
                                 var feedHost = '';
-                                try { feedHost = new URL(feedUrl).hostname; } catch(e) { feedHost = feedUrl.substring(0, 40); }
+                                if (response.data.source_label) {
+                                    feedHost = response.data.source_label;
+                                } else {
+                                    try { feedHost = new URL(feedUrl).hostname; } catch(e) { feedHost = feedUrl.substring(0, 40); }
+                                }
                                 var detectedNetwork = response.data.detected_network || 'auto-detected';
                                 
                                 var newRow = '<tr data-feed-name="' + feedName + '" data-feed-key="' + feedKey + '">' +

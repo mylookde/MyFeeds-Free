@@ -172,6 +172,7 @@ class MyFeeds_Feed_Manager {
                     'editFeed'            => __('Edit Feed:', 'myfeeds-affiliate-feed-manager'),
                     'saveChanges'         => __('Save Changes', 'myfeeds-affiliate-feed-manager'),
                     'feedNameUrlRequired' => __('Feed name and URL are required.', 'myfeeds-affiliate-feed-manager'),
+                    'feedFileRequired' => __('Choose a file to upload, or switch back to a feed URL.', 'myfeeds-affiliate-feed-manager'),
                     'savingChanges'       => __('Saving changes...', 'myfeeds-affiliate-feed-manager'),
                     'addingFeed'          => __('Adding feed...', 'myfeeds-affiliate-feed-manager'),
                     'unknownError'        => __('An unknown error occurred.', 'myfeeds-affiliate-feed-manager'),
@@ -439,7 +440,7 @@ class MyFeeds_Feed_Manager {
                         <p><strong><?php esc_html_e('Supported formats:', 'myfeeds-affiliate-feed-manager'); ?></strong> CSV, TSV, CSV (semicolon), CSV (gzip), XML, JSON, JSON-Lines</p>
                     </div>
                     
-                    <form id="myfeeds-feed-form" method="post">
+                    <form id="myfeeds-feed-form" method="post" enctype="multipart/form-data">
                         <?php wp_nonce_field('myfeeds_save_feed'); ?>
                         <input type="hidden" name="feed_key" id="myfeeds-feed-key" value="">
                         
@@ -456,6 +457,28 @@ class MyFeeds_Feed_Manager {
                             </tr>
                             
                             <tr>
+                                <th scope="row"><?php esc_html_e('Where is the feed?', 'myfeeds-affiliate-feed-manager'); ?></th>
+                                <td>
+                                    <fieldset class="myfeeds-source-choice">
+                                        <label>
+                                            <input type="radio" name="feed_source" value="url" checked
+                                                   data-testid="feed-source-url">
+                                            <?php esc_html_e('At a URL', 'myfeeds-affiliate-feed-manager'); ?>
+                                            <span class="myfeeds-source-recommended"><?php esc_html_e('recommended', 'myfeeds-affiliate-feed-manager'); ?></span>
+                                        </label>
+                                        <label>
+                                            <input type="radio" name="feed_source" value="upload"
+                                                   data-testid="feed-source-upload">
+                                            <?php esc_html_e('Upload a file', 'myfeeds-affiliate-feed-manager'); ?>
+                                        </label>
+                                    </fieldset>
+                                    <p class="description">
+                                        <?php esc_html_e('A URL keeps itself current: MyFeeds refetches it every night, so prices and stock stay right. An uploaded file cannot do that - it stays exactly as it was the moment you uploaded it. Upload only when your network hands you a file and no link.', 'myfeeds-affiliate-feed-manager'); ?>
+                                    </p>
+                                </td>
+                            </tr>
+
+                            <tr class="myfeeds-source-row myfeeds-source-row-url">
                                 <th scope="row">
                                     <label for="feed_url"><?php esc_html_e('Feed URL', 'myfeeds-affiliate-feed-manager'); ?> *</label>
                                 </th>
@@ -475,6 +498,30 @@ class MyFeeds_Feed_Manager {
                                             . '</a>'
                                         );
                                         ?>
+                                    </p>
+                                </td>
+                            </tr>
+
+                            <tr class="myfeeds-source-row myfeeds-source-row-upload" style="display:none;">
+                                <th scope="row">
+                                    <label for="feed_file"><?php esc_html_e('Feed file', 'myfeeds-affiliate-feed-manager'); ?> *</label>
+                                </th>
+                                <td>
+                                    <input name="feed_file" type="file" id="feed_file"
+                                           accept="<?php echo esc_attr(class_exists('MyFeeds_Feed_Upload') ? MyFeeds_Feed_Upload::allowed_extensions_label() : ''); ?>"
+                                           data-testid="feed-file-input">
+                                    <p class="description">
+                                        <?php
+                                        printf(
+                                            /* translators: 1: list of accepted extensions, 2: maximum upload size */
+                                            esc_html__('Accepted: %1$s - compressed archives are unpacked for you. Up to %2$s.', 'myfeeds-affiliate-feed-manager'),
+                                            esc_html(class_exists('MyFeeds_Feed_Upload') ? MyFeeds_Feed_Upload::allowed_extensions_label() : ''),
+                                            esc_html(size_format(wp_max_upload_size()))
+                                        );
+                                        ?>
+                                    </p>
+                                    <p class="description myfeeds-upload-warning">
+                                        <?php esc_html_e('This file will not update by itself. When your network publishes a new version, come back and upload it again.', 'myfeeds-affiliate-feed-manager'); ?>
                                     </p>
                                 </td>
                             </tr>
@@ -1054,6 +1101,20 @@ class MyFeeds_Feed_Manager {
                             <td>
                                 <?php if ($is_demo): ?>
                                     <span class="myfeeds-feed-url"><?php esc_html_e('Bundled sample data', 'myfeeds-affiliate-feed-manager'); ?></span>
+                                <?php elseif (class_exists('MyFeeds_Feed_Upload') && MyFeeds_Feed_Upload::is_uploaded_url($feed['url'])): ?>
+                                    <span class="myfeeds-feed-url myfeeds-feed-url-uploaded"
+                                          title="<?php echo esc_attr(MyFeeds_Feed_Upload::describe_staleness($feed)); ?>">
+                                        <?php
+                                        $uploaded_label = isset($feed['uploaded_name']) ? $feed['uploaded_name'] : '';
+                                        echo esc_html($uploaded_label !== ''
+                                            ? $uploaded_label
+                                            : __('uploaded file', 'myfeeds-affiliate-feed-manager'));
+                                        ?>
+                                    </span>
+                                    <span class="myfeeds-feed-frozen"
+                                          title="<?php echo esc_attr(MyFeeds_Feed_Upload::describe_staleness($feed)); ?>">
+                                        <?php esc_html_e('does not refresh', 'myfeeds-affiliate-feed-manager'); ?>
+                                    </span>
                                 <?php else: ?>
                                     <span class="myfeeds-feed-url" title="<?php echo esc_attr($feed['url']); ?>">
                                         <?php echo esc_html(wp_parse_url($feed['url'], PHP_URL_HOST)); ?>
@@ -1167,6 +1228,7 @@ class MyFeeds_Feed_Manager {
                                     data-feed-key="<?php echo esc_attr($key); ?>"
                                     data-feed-name="<?php echo esc_attr($feed['name']); ?>"
                                     data-feed-url="<?php echo esc_attr($feed['url']); ?>"
+                                    data-feed-uploaded="<?php echo (class_exists('MyFeeds_Feed_Upload') && MyFeeds_Feed_Upload::is_uploaded_url($feed['url'])) ? '1' : '0'; ?>"
                                     data-feed-format="<?php echo esc_attr($feed['format_hint'] ?? ''); ?>"
                                     data-feed-network="<?php echo esc_attr($feed['network_hint'] ?? 'awin'); ?>"
                                     data-testid="edit-feed-<?php echo esc_attr($key); ?>">
@@ -1245,6 +1307,20 @@ class MyFeeds_Feed_Manager {
             $format_hint = isset($_POST['feed_format_hint']) ? sanitize_text_field(wp_unslash($_POST['feed_format_hint'])) : '';
             $network_hint = isset($_POST['feed_network_hint']) ? sanitize_text_field(wp_unslash($_POST['feed_network_hint'])) : '';
 
+            // Free is single-feed: there is no $feeds array and no $key here,
+            // the one configured feed comes from get_feed().
+            $existing = $this->get_feed();
+            if (!is_array($existing)) {
+                $existing = array();
+            }
+            $source = $this->resolve_feed_source($url, $name, $existing);
+            if (is_wp_error($source)) {
+                $this->redirect_with_error($source->get_error_message());
+                return;
+            }
+            $url = $source['url'];
+            $uploaded = $source['upload'];
+
             if (empty($name) || empty($url)) {
                 $this->redirect_with_error(__('Feed name and URL are required.', 'myfeeds-affiliate-feed-manager'));
                 return;
@@ -1277,6 +1353,8 @@ class MyFeeds_Feed_Manager {
                 'detected_network' => $detected_network,
                 'last_updated' => current_time('mysql'),
             );
+
+            $entry = $this->stamp_upload_fields($entry, $url, $uploaded, $existing);
 
             if ($existing) {
                 $entry = array_merge($existing, $entry);
@@ -1335,6 +1413,122 @@ class MyFeeds_Feed_Manager {
     }
     
     /**
+     * What the freshly inserted table row should show in the source column.
+     *
+     * For a URL the row shows the host, which the browser can work out on
+     * its own. For an upload there is no meaningful host - it is our own
+     * site - so the server has to say what to print instead.
+     *
+     * @param string     $url      Resolved feed URL.
+     * @param array|null $uploaded Upload result, when there was one.
+     * @return string Empty when the browser should fall back to the host.
+     */
+    private function source_label_for($url, $uploaded) {
+        if (!class_exists('MyFeeds_Feed_Upload') || !MyFeeds_Feed_Upload::is_uploaded_url($url)) {
+            return '';
+        }
+
+        if (is_array($uploaded) && $uploaded['original'] !== '') {
+            return $uploaded['original'];
+        }
+
+        return __('uploaded file', 'myfeeds-affiliate-feed-manager');
+    }
+
+    /**
+     * Record how a feed's file arrived, so the UI can stop promising a
+     * sync that cannot happen.
+     *
+     * Kept separate from the two save handlers because they build the
+     * same entry twice; a rule written once is a rule that cannot drift.
+     *
+     * @param array       $entry    Entry under construction.
+     * @param string      $url      Resolved feed URL.
+     * @param array|null  $uploaded Result of a fresh upload, if there was one.
+     * @param array       $existing The entry being edited, if any.
+     * @return array
+     */
+    private function stamp_upload_fields($entry, $url, $uploaded, $existing = array()) {
+        $is_upload = class_exists('MyFeeds_Feed_Upload') && MyFeeds_Feed_Upload::is_uploaded_url($url);
+
+        $entry['source'] = $is_upload ? 'upload' : 'url';
+
+        if (!$is_upload) {
+            $entry['uploaded_at'] = '';
+            $entry['uploaded_name'] = '';
+            return $entry;
+        }
+
+        if (is_array($uploaded)) {
+            $entry['uploaded_at'] = current_time('mysql');
+            $entry['uploaded_name'] = $uploaded['original'];
+        } else {
+            // Same file as before: keep the original timestamp, or the
+            // age shown in the table resets every time the feed is edited.
+            $entry['uploaded_at'] = isset($existing['uploaded_at']) && $existing['uploaded_at'] !== ''
+                ? $existing['uploaded_at']
+                : current_time('mysql');
+            $entry['uploaded_name'] = isset($existing['uploaded_name']) ? $existing['uploaded_name'] : '';
+        }
+
+        return $entry;
+    }
+
+    /**
+     * Resolve the feed source of a save request into a URL.
+     *
+     * Both save paths - the classic admin-post one and the AJAX one -
+     * need exactly this, and the whole point of storing an upload as a
+     * URL is that everything downstream stays unaware of the difference.
+     *
+     * @param string $posted_url URL as submitted, already sanitised.
+     * @param string $name       Feed name, used to build the filename.
+     * @param array  $existing   The feed entry being edited, if any.
+     * @return array{url:string,upload:array|null}|WP_Error
+     */
+    private function resolve_feed_source($posted_url, $name, $existing = array()) {
+        $wants_upload = isset($_POST['feed_source'])
+            && sanitize_text_field(wp_unslash($_POST['feed_source'])) === 'upload';
+
+        $has_file = isset($_FILES['feed_file'])
+            && isset($_FILES['feed_file']['error'])
+            && $_FILES['feed_file']['error'] !== UPLOAD_ERR_NO_FILE;
+
+        if (!$wants_upload && !$has_file) {
+            return array('url' => $posted_url, 'upload' => null);
+        }
+
+        // Editing an uploaded feed without picking a new file keeps the
+        // one already stored, so "save" on an unchanged dialog is not a
+        // way to lose your catalogue.
+        if ($wants_upload && !$has_file) {
+            $current = isset($existing['url']) ? $existing['url'] : '';
+            if (class_exists('MyFeeds_Feed_Upload') && MyFeeds_Feed_Upload::is_uploaded_url($current)) {
+                return array('url' => $current, 'upload' => null);
+            }
+            return new WP_Error('no_file', __('Choose a file to upload, or switch back to a feed URL.', 'myfeeds-affiliate-feed-manager'));
+        }
+
+        if (!class_exists('MyFeeds_Feed_Upload')) {
+            return new WP_Error('no_upload_support', __('Feed uploads are unavailable on this installation.', 'myfeeds-affiliate-feed-manager'));
+        }
+
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- MyFeeds_Feed_Upload::handle() validates every field of this entry.
+        $stored = MyFeeds_Feed_Upload::handle($_FILES['feed_file'], $name);
+        if (is_wp_error($stored)) {
+            return $stored;
+        }
+
+        // Replacing a file leaves the old one behind otherwise.
+        $previous = isset($existing['url']) ? $existing['url'] : '';
+        if ($previous !== '' && $previous !== $stored['url']) {
+            MyFeeds_Feed_Upload::delete_by_url($previous);
+        }
+
+        return array('url' => $stored['url'], 'upload' => $stored);
+    }
+
+    /**
      * AJAX handler for saving feeds (called from modal)
      * Save-first approach: Feed is always saved, test runs after.
      */
@@ -1350,6 +1544,20 @@ class MyFeeds_Feed_Manager {
             $url = esc_url_raw(wp_unslash($_POST['feed_url'] ?? ''));
             $format_hint = sanitize_text_field(wp_unslash($_POST['feed_format_hint'] ?? ''));
             $network_hint = sanitize_text_field(wp_unslash($_POST['feed_network_hint'] ?? ''));
+
+            // Free is single-feed: there is no $feeds array and no $key here,
+            // the one configured feed comes from get_feed().
+            $existing = $this->get_feed();
+            if (!is_array($existing)) {
+                $existing = array();
+            }
+            $source = $this->resolve_feed_source($url, $name, $existing);
+            if (is_wp_error($source)) {
+                wp_send_json_error(array('message' => $source->get_error_message()));
+                return;
+            }
+            $url = $source['url'];
+            $uploaded = $source['upload'];
 
             if (empty($name) || empty($url)) {
                 wp_send_json_error(array('message' => __('Feed name and URL are required.', 'myfeeds-affiliate-feed-manager')));
@@ -1390,6 +1598,8 @@ class MyFeeds_Feed_Manager {
                 'detected_network' => $detected_network,
                 'last_updated' => current_time('mysql'),
             );
+
+            $entry = $this->stamp_upload_fields($entry, $url, $uploaded, $existing);
 
             if ($existing) {
                 $entry = array_merge($existing, $entry);
@@ -1440,7 +1650,9 @@ class MyFeeds_Feed_Manager {
                     'import_scheduled' => $import_scheduled,
                     'feed_key' => 0,
                     'detected_network' => $detected_network,
-                    'table_html' => $this->feeds_table_html(),
+                    'source_label' => $this->source_label_for($url, $uploaded),
+                    'source_label' => $this->source_label_for($url, $uploaded),
+                'table_html' => $this->feeds_table_html(),
                 ));
                 return;
             }
@@ -1691,6 +1903,14 @@ class MyFeeds_Feed_Manager {
         }
         
         // Remove feed from config
+        // An uploaded feed owns a file on disk; the entry going away must
+        // take it with it. This is the second delete path - the admin-post
+        // one is handle_delete_feed() - and a cleanup in only one of them
+        // is a cleanup that works until someone uses the other button.
+        if (class_exists('MyFeeds_Feed_Upload')) {
+            MyFeeds_Feed_Upload::delete_by_url($feeds[$feed_key]['url'] ?? '');
+        }
+
         array_splice($feeds, $feed_key, 1);
         update_option(self::OPTION_KEY, $feeds);
         
@@ -3578,6 +3798,12 @@ class MyFeeds_Feed_Manager {
         $feeds = get_option(self::OPTION_KEY, array());
         
         if (isset($feeds[$key])) {
+            // An uploaded feed owns a file on disk. Dropping the entry
+            // without it leaves the whole catalogue in the uploads folder,
+            // reachable by anyone who guesses the name.
+            if (class_exists('MyFeeds_Feed_Upload')) {
+                MyFeeds_Feed_Upload::delete_by_url($feeds[$key]['url'] ?? '');
+            }
             array_splice($feeds, $key, 1);
             update_option(self::OPTION_KEY, $feeds);
         }
