@@ -12,11 +12,11 @@ Make your blog shoppable. Import your merchants' affiliate product feed and plac
 
 == Description ==
 
-**Tired of hunting for products, pasting affiliate links, fixing the ones that died, and earning from ads alone? Make your blog shoppable!**
+**Tired of hunting for products, pasting affiliate links, fixing the ones that quietly stopped working, and earning from ads alone? Make your blog shoppable!**
 
-Embedding affiliate links by hand costs you valuable time. Time you should spend writing new posts, researching, and running your business. Instead, looking after your links eats it up: dead links to replace, new products to find, prices to check. Most affiliates lose sales because their links have died, or because a plain text link just doesn't invite a click. So how do you show your products in a way readers actually want to explore?
+Embedding affiliate links by hand costs you valuable time. Time you should spend writing new posts, researching, and running your business. Instead, looking after your links eats it up: links that lead nowhere to replace, new products to find, prices to check. Most affiliates lose sales because a link went out of date without telling them, or because a plain text link just doesn't invite a click. So how do you show your products in a way readers actually want to explore?
 
-MyFeeds does that for you. Instead of text links that slowly die inside your posts, your readers see product cards that show the merchant, the brand, the title and the price. The cards refresh every day, so the price your reader sees is the price your merchant is charging.
+MyFeeds does that for you. Instead of text links that quietly go out of date inside your posts, your readers see product cards that show the merchant, the brand, the title and the price. The cards refresh every day, so the price your reader sees is the price your merchant is charging.
 
 All you do is copy the product feed link from your affiliate network and paste it into MyFeeds. Once the feed is imported, the **Product Picker** block lets you search it right inside the block editor, by keyword, with filters when you need them.
 
@@ -32,7 +32,7 @@ The block editor stays your block editor. The plugin works in the background.
 
 * **Your posts become shoppable.** A grid your readers can scan: image, brand, price, discount, shipping, and your link. You compose it in seconds inside the block editor.
 * **Your prices stop lying.** The price your reader sees today is the price on the merchant's checkout right now.
-* **Your posts stop rotting.** Dead products surface so you can replace them. Stock that comes back lights up again. Nothing decays silently.
+* **Your posts stay current.** Discontinued products surface so you can replace them. Stock that comes back lights up again. Nothing changes behind your back.
 * **You publish faster.** Two letters in the editor, the product appears, you click, the card is in. You never leave the post you're writing.
 * **Your site stays yours.** Products live in your own WordPress database. Visitors don't wait on a third-party server, and nothing about them is sent off-site when a page loads.
 * **You never learn a file format.** Whatever your network sends, MyFeeds reads it and works out which column is the price, which is the image, which is the link.
