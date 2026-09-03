@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.24
+Stable tag: 1.0.25
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.25 =
+* The plugin now lists MyFeeds as its author instead of a personal name, and links to myfeeds.site. Only the entry on your Plugins screen changes; nothing about how the plugin works is affected.
 
 = 1.0.24 =
 * Update All could not finish on some hosts. The importer runs the work in a background request to your own site; where that request is blocked - by hosting configuration, by a password-protected staging site - it falls back to running the import inline. That fallback referred to something that did not exist and stopped with an error the log recorded and nobody saw, so the progress bar sat at 1% until you gave up. On those hosts importing was simply impossible. Fixed.

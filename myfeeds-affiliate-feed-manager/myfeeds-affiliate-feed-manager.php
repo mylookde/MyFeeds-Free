@@ -3,8 +3,9 @@
  * Plugin Name: MyFeeds — Shoppable Affiliate Product Cards
  * Plugin URI: https://myfeeds.site
  * Description: Make your blog shoppable. Import an affiliate product feed and place searchable product tiles in any post. Prices and links stay current.
- * Version: 1.0.24
- * Author: Marlon Weber
+ * Version: 1.0.25
+ * Author: MyFeeds
+ * Author URI: https://myfeeds.site
  * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: myfeeds-affiliate-feed-manager
@@ -38,7 +39,7 @@ if (!defined('ABSPATH')) {
 // =============================================================================
 
 // Define plugin constants
-define('MYFEEDS_VERSION', '1.0.24');
+define('MYFEEDS_VERSION', '1.0.25');
 define('MYFEEDS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('MYFEEDS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('MYFEEDS_PLUGIN_FILE', __FILE__);
