@@ -290,26 +290,57 @@ class MyFeeds_DB_Manager {
         // one feed.
         $feed_id = intval($feed_id);
 
+        // The parentheses are not decoration: AND binds tighter than OR,
+        // so an unbracketed scope would leave the feed_id half standing
+        // on its own once the placed-products guard is appended below,
+        // and delete exactly the rows the guard is there to protect.
         if ($feed_id > 0 && !empty($feed_name)) {
-            $deleted = $wpdb->query($wpdb->prepare(
-                "DELETE FROM {$table} WHERE feed_id = %d OR feed_name = %s",
-                $feed_id,
-                $feed_name
-            ));
+            $scope = '(feed_id = %d OR feed_name = %s)';
+            $scope_args = array($feed_id, $feed_name);
         } elseif (!empty($feed_name)) {
-            $deleted = $wpdb->query($wpdb->prepare(
-                "DELETE FROM {$table} WHERE feed_name = %s",
-                $feed_name
-            ));
+            $scope = '(feed_name = %s)';
+            $scope_args = array($feed_name);
         } elseif ($feed_id > 0) {
-            $deleted = $wpdb->query($wpdb->prepare(
-                "DELETE FROM {$table} WHERE feed_id = %d",
-                $feed_id
-            ));
+            $scope = '(feed_id = %d)';
+            $scope_args = array($feed_id);
         } else {
             // Neither key: deleting on that would empty the table.
             myfeeds_log('DB: refusing to delete products without a feed id or name.', 'error');
-            $deleted = 0;
+            return 0;
+        }
+
+        // A product that is placed in a post is kept, marked unavailable.
+        // The block stores nothing but the id, so a hard-deleted row
+        // leaves the post unable to name what it lost and the editor
+        // unable to tell the author what used to be there. Every query
+        // filters status = 'active' and the picker skips unavailable
+        // rows, so it is just as gone from the site - it simply still
+        // exists.
+        //
+        // Deliberately not STATUS_ARCHIVED: that means a product kept
+        // visible after losing a licence, which is the opposite of this.
+        $placed = self::placed_product_ids();
+
+        if (!empty($placed)) {
+            $ph = implode(',', array_fill(0, count($placed), '%s'));
+            $kept = $wpdb->query($wpdb->prepare(
+                "UPDATE {$table} SET status = 'unavailable', unavailable_since = %s
+                 WHERE {$scope} AND external_id IN ({$ph})",
+                array_merge(array(current_time('mysql')), $scope_args, $placed)
+            ));
+            if ($kept) {
+                myfeeds_log("DELETE_FEED_PRODUCTS: kept {$kept} placed products as unavailable", 'info');
+            }
+
+            $deleted = $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table} WHERE {$scope} AND external_id NOT IN ({$ph})",
+                array_merge($scope_args, $placed)
+            ));
+        } else {
+            $deleted = $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table} WHERE {$scope}",
+                $scope_args
+            ));
         }
         
         // Clear count caches

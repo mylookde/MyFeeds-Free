@@ -152,9 +152,8 @@ class MyFeeds_Product_Picker {
      * - Each product card is built by render_product_card(), which keeps
      *   incoming product fields raw and escapes them at every concat
      *   point (see that method's docblock).
-     * - The placeholder helpers (render_missing_product_placeholder /
-     *   render_unavailable_product_placeholder) wrap their inputs with
-     *   intval / esc_attr / esc_html via sprintf.
+     * - The placeholder helper (render_missing_product_placeholder)
+     *   wraps its inputs with intval / esc_attr / esc_html via sprintf.
      * - The optional Schema.org JSON-LD <script> appended at the end is
      *   built by MyFeeds_Schema_Generator::product_list_jsonld(), which
      *   uses wp_json_encode with JSON_HEX_TAG | JSON_HEX_AMP so embedded
@@ -232,8 +231,16 @@ class MyFeeds_Product_Picker {
                 continue;
             }
 
+            // Gone for good: the merchant dropped it, or the affiliate
+            // programme behind the whole feed ended. It used to render a
+            // grey card reading "This product is no longer available",
+            // which to a reader is a broken tile in the middle of a row
+            // about something they cannot act on. Leave it out instead.
+            //
+            // The comparison is exactly 'unavailable'. 'archived' is a
+            // different thing - a product kept alive on a site that lost
+            // its licence - and it has to keep rendering.
             if (isset($product_data['status']) && $product_data['status'] === 'unavailable') {
-                $output .= $this->render_unavailable_product_placeholder($idx, $requested_id);
                 continue;
             }
 
@@ -261,6 +268,14 @@ class MyFeeds_Product_Picker {
 
         myfeeds_log('PP_render_complete: total=' . count($products) . ', rendered=' . $rendered_count, 'info');
 
+        // Nothing survived the filters. Return nothing at all rather than
+        // an empty grid: the container carries margins and a gap, so an
+        // empty one leaves a hole in the post where a product row used to
+        // be, which reads as a rendering fault.
+        if ($rendered_count === 0) {
+            return '';
+        }
+
         return $output;
     }
     
@@ -283,28 +298,6 @@ class MyFeeds_Product_Picker {
         );
     }
     
-    /**
-     * FIX 5: Render a placeholder for products marked as unavailable in feed
-     * Shows a clear message without price, image, or affiliate link.
-     * Layout remains intact to prevent shifting of other product cards.
-     */
-    private function render_unavailable_product_placeholder($index, $product_id = '') {
-        $message = __('This product is no longer available', 'myfeeds-affiliate-feed-manager');
-        
-        return sprintf(
-            '<div class="myfeeds-product-card myfeeds-unavailable-product" data-index="%d" data-status="unavailable" data-id="%s">
-                <div class="myfeeds-unavailable-image">
-                    <div class="myfeeds-unavailable-icon">&#10006;</div>
-                </div>
-                <div class="myfeeds-product-details">
-                    <div class="myfeeds-unavailable-text">%s</div>
-                </div>
-            </div>',
-            intval($index),
-            esc_attr($product_id),
-            esc_html($message)
-        );
-    }
     
     /**
      * Safe debug logging for render process
