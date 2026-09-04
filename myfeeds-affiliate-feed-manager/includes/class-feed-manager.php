@@ -82,7 +82,6 @@ class MyFeeds_Feed_Manager {
         // Admin hooks
         add_action('admin_menu', array($this, 'register_admin_pages'));
         add_action('admin_post_myfeeds_save_feed', array($this, 'handle_save_feed'));
-        add_action('admin_post_myfeeds_delete_feed', array($this, 'handle_delete_feed'));
         add_action('admin_post_myfeeds_test_feed', array($this, 'handle_test_feed'));
         add_action('admin_post_myfeeds_rebuild_index', array($this, 'handle_rebuild_index'));
         add_action('admin_post_myfeeds_regenerate_mappings', array($this, 'handle_regenerate_mappings'));
@@ -1907,9 +1906,15 @@ class MyFeeds_Feed_Manager {
         
         // Remove feed from config
         // An uploaded feed owns a file on disk; the entry going away must
-        // take it with it. This is the second delete path - the admin-post
-        // one is handle_delete_feed() - and a cleanup in only one of them
-        // is a cleanup that works until someone uses the other button.
+        // take it with it.
+        //
+        // This is now the ONLY path that removes a feed from the option.
+        // There used to be a second, on admin_post, that dropped the entry
+        // without deleting the feed's products. It was unreachable - the
+        // Delete button is a plain <button> driven by AJAX, and no nonce
+        // for that action was ever rendered - so it never fired; a comment
+        // here warned about it instead of it being removed. Removed on
+        // 2026-09-04. A second path, if ever needed, calls this one.
         if (class_exists('MyFeeds_Feed_Upload')) {
             MyFeeds_Feed_Upload::delete_by_url($feeds[$feed_key]['url'] ?? '');
         }
@@ -3816,36 +3821,6 @@ class MyFeeds_Feed_Manager {
         exit;
     }
     
-    /**
-     * Handle feed deletion
-     */
-    public function handle_delete_feed() {
-        if (!current_user_can('manage_options') || !check_admin_referer('myfeeds_delete_feed')) {
-            wp_die(esc_html__('Security check failed', 'myfeeds-affiliate-feed-manager'));
-        }
-
-        $key = isset($_POST['feed_key']) ? intval(wp_unslash($_POST['feed_key'])) : 0;
-        $feeds = get_option(self::OPTION_KEY, array());
-        
-        if (isset($feeds[$key])) {
-            // An uploaded feed owns a file on disk. Dropping the entry
-            // without it leaves the whole catalogue in the uploads folder,
-            // reachable by anyone who guesses the name.
-            if (class_exists('MyFeeds_Feed_Upload')) {
-                MyFeeds_Feed_Upload::delete_by_url($feeds[$key]['url'] ?? '');
-            }
-            array_splice($feeds, $key, 1);
-            update_option(self::OPTION_KEY, $feeds);
-
-            // Same sweep the AJAX delete does. Without it this button
-            // leaves behind exactly what the other one cleans up.
-            if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
-                MyFeeds_DB_Manager::cleanup_orphaned_products();
-            }
-        }
-        
-        $this->redirect_with_success(esc_html__('Feed deleted successfully!', 'myfeeds-affiliate-feed-manager'));
-    }
     
     /**
      * Handle index rebuild

@@ -61,7 +61,44 @@ class MyFeeds_Maintenance {
             'options'    => self::drop_dead_options(),
             'transients' => self::drop_expired_transients(),
             'actions'    => self::drop_old_actions(),
+            'orphans'    => self::drop_orphaned_products(),
         );
+    }
+
+    /**
+     * Products whose feed no longer exists.
+     *
+     * Deleting a feed already clears its products, so on a healthy site
+     * this finds nothing. It is here for the case where something else
+     * removed a feed and did not: a restored backup, an edit made
+     * straight in the database, a delete path nobody has written yet.
+     *
+     * Such a row is worse than useless. It keeps status='active', so it
+     * passes every query in the plugin, and none of them checks the feed
+     * list. It still has its image and its price, and its link points
+     * into a programme the site no longer has.
+     *
+     * Filtering the feed list at read time instead is the wrong fix:
+     * cleanup_orphaned_products() deliberately keeps products a published
+     * post is showing, as STATUS_ARCHIVED, so live cards do not go blank.
+     * A read-time filter on feed_id would drop exactly those.
+     *
+     * Safe to run unattended: it deletes nothing when the feed list is
+     * empty, and stands down entirely if a configured feed has no
+     * stable_id.
+     *
+     * @return int
+     */
+    private static function drop_orphaned_products() {
+        if (!class_exists('MyFeeds_DB_Manager')
+            || !method_exists('MyFeeds_DB_Manager', 'cleanup_orphaned_products')) {
+            return 0;
+        }
+        if (method_exists('MyFeeds_DB_Manager', 'is_db_mode') && !MyFeeds_DB_Manager::is_db_mode()) {
+            return 0;
+        }
+
+        return (int) MyFeeds_DB_Manager::cleanup_orphaned_products();
     }
 
     /**
