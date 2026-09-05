@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.27
+Stable tag: 1.0.28
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.28 =
+* A card no longer sends readers to a size that has sold out. Feeds ship one row per size, and the address stored with a product carries the size along with it - so a reader following a card whose size had gone landed on exactly the size that was gone. MyFeeds now recognises the sizes of one product and links to one that can be bought. Colours stay apart: the grouping is confirmed against the product photograph, so a card showing the sand-coloured pair never links to the black one.
 
 = 1.0.27 =
 * There is one way to delete a feed again. A second one existed that dropped the feed from your settings and left every one of its products in the database - rows with an image, a price and a link into a partnership that had ended, which the product picker would still offer you. It could not actually be reached from the plugin's screens, so nothing was broken by it; it is gone now rather than waiting to be found.

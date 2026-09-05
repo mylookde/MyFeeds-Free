@@ -3,7 +3,7 @@
  * Plugin Name: MyFeeds — Shoppable Affiliate Product Cards
  * Plugin URI: https://myfeeds.site
  * Description: Make your blog shoppable. Import an affiliate product feed and place searchable product tiles in any post. Prices and links stay current.
- * Version: 1.0.27
+ * Version: 1.0.28
  * Author: MyFeeds
  * Author URI: https://myfeeds.site
  * License: GPLv2 or later
@@ -39,7 +39,7 @@ if (!defined('ABSPATH')) {
 // =============================================================================
 
 // Define plugin constants
-define('MYFEEDS_VERSION', '1.0.27');
+define('MYFEEDS_VERSION', '1.0.28');
 define('MYFEEDS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('MYFEEDS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('MYFEEDS_PLUGIN_FILE', __FILE__);
@@ -410,6 +410,7 @@ function myfeeds_load_includes() {
     $include_files = array(
         'myfeeds-http.php' => 'Feed fetch guard (the one door every feed download goes through)',
         'class-maintenance.php' => 'Housekeeping (removes options and transients older versions left behind)',
+        'class-variants.php' => 'Size variants (one garment, many rows - so a card does not link to a sold-out size)',
         'class-feed-reader.php' => 'Universal Feed Reader (CSV/TSV/XML/JSON)',
         'class-settings-manager.php' => 'Settings Manager Class',
         'class-db-manager.php' => 'Database Manager Class',

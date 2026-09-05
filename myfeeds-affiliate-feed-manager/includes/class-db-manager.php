@@ -2310,6 +2310,20 @@ class MyFeeds_DB_Manager {
      * CRITICAL: The 'id' field in the returned array MUST equal the external_id
      * in the database, which MUST equal the selectedProducts[x]['id'] in Gutenberg blocks.
      */
+    /**
+     * The same shaping, for callers outside this class.
+     *
+     * row_to_product() is private and stays private; this is the door
+     * for code that has a row in hand and needs the product shape the
+     * rest of the plugin speaks - the variant lookup, for one.
+     *
+     * @param array $row
+     * @return array
+     */
+    public static function product_from_row($row) {
+        return self::row_to_product($row);
+    }
+
     private static function row_to_product($row) {
         $product = array(
             'id'                  => $row['external_id'],

@@ -244,6 +244,26 @@ class MyFeeds_Product_Picker {
                 continue;
             }
 
+            // A sold-out size is not a sold-out product. Feeds ship a row
+            // per size and the block points at one of them; the stored
+            // link carries ?variant=<that size>, so a reader following a
+            // card whose size has gone lands on exactly the size that is
+            // gone. The card here keeps rendering either way - what
+            // changes is that it now leads somewhere they can buy.
+            if (isset($product_data['in_stock']) && (int) $product_data['in_stock'] === 0
+                && class_exists('MyFeeds_Variants')) {
+                $sibling = MyFeeds_Variants::buyable_sibling($product_data);
+                if ($sibling) {
+                    myfeeds_log('PP_variant_swap: ' . ($product_data['id'] ?? '?')
+                        . ' -> ' . ($sibling['id'] ?? '?'), 'info');
+                    $product_data = $sibling;
+                    // The id check below would otherwise call this
+                    // deliberate swap a mismatch and render a
+                    // placeholder where the card should be.
+                    $requested_id = (string) ($sibling['id'] ?? $requested_id);
+                }
+            }
+
             $returned_id = isset($product_data['id']) ? (string)$product_data['id'] : '';
             if ($returned_id !== $requested_id && $returned_id !== '') {
                 myfeeds_log('PP_id_mismatch: requested=' . $requested_id . ', got=' . $returned_id, 'error');
