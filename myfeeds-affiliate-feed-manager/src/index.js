@@ -261,6 +261,13 @@
       const [selected, setSelected] = useState(attributes.selectedProducts || []);
       const [error, setError] = useState(null);
       const [showProductDetail, setShowProductDetail] = useState(null);
+      // Which of the product's images the big frame is showing. Reset
+      // whenever another product opens, so the new one starts on its
+      // own main image rather than on the one clicked in the last.
+      const [detailImage, setDetailImage] = useState(null);
+      useEffect(function () {
+        setDetailImage(null);
+      }, [showProductDetail && (showProductDetail.id || showProductDetail.external_id)]);
       const [searchOffset, setSearchOffset] = useState(0);
       const [hasMoreResults, setHasMoreResults] = useState(false);
       const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -1179,6 +1186,13 @@
             height: 100% !important;
             object-fit: cover !important;
           }
+          /* A thumbnail that does something has to look like it does. */
+          .myfeeds-thumb-image { cursor: pointer !important; transition: border-color .12s ease !important; }
+          .myfeeds-thumb-image:hover { border-color: #949494 !important; }
+          .myfeeds-thumb-image.is-active {
+            border-color: #2271b1 !important;
+            box-shadow: 0 0 0 1px #2271b1 !important;
+          }
           .myfeeds-product-info {
             flex: 1 !important;
             /* CRITICAL: Remove any overflow restrictions */
@@ -1665,16 +1679,24 @@
               // Product Images Section
               React.createElement("div", { className: "myfeeds-product-images" },
                 React.createElement("div", { className: "myfeeds-main-image" },
-                  React.createElement("img", { src: (showProductDetail && (showProductDetail.large_image || showProductDetail.merchant_image_url || showProductDetail.alternate_image || showProductDetail.image_url || showProductDetail.aw_image_url || showProductDetail.image || showProductDetail.picture)) || PLACEHOLDER_IMG, alt: showProductDetail && (showProductDetail.title || showProductDetail.product_name) || 'Product' })
+                  React.createElement("img", { src: detailImage || (showProductDetail && (showProductDetail.large_image || showProductDetail.image_url || showProductDetail.merchant_image_url || showProductDetail.image)) || "", alt: (showProductDetail && (showProductDetail.title || showProductDetail.product_name)) || "" }),
                 ),
                 (function(){ 
                   const imgs = detailImages(showProductDetail || {}); 
+                  const current = detailImage || imgs[0];
+                  // Every image is a thumbnail, the main one included, so
+                  // there is a way back to it after looking at another.
                   return imgs.length > 1 ? React.createElement("div", { className: "myfeeds-additional-images" },
-                    imgs.slice(1, 8).map(function(imgUrl, idx){ 
+                    imgs.slice(0, 8).map(function(imgUrl, idx){ 
                       return React.createElement("div", { 
                         key: 'thumb-' + idx, 
-                        className: "myfeeds-thumb-image"
-                      }, React.createElement("img", { src: imgUrl, alt: 'Image ' + (idx+2) })); 
+                        className: "myfeeds-thumb-image" + (imgUrl === current ? " is-active" : ""),
+                        role: "button",
+                        tabIndex: 0,
+                        title: "Show this image",
+                        onClick: function(){ setDetailImage(imgUrl); },
+                        onKeyDown: function(e){ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetailImage(imgUrl); } }
+                      }, React.createElement("img", { src: imgUrl, alt: 'Image ' + (idx+1) })); 
                     })
                   ) : null; 
                 })()
