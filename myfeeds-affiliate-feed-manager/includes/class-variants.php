@@ -32,9 +32,6 @@ if (!defined('ABSPATH')) {
 
 class MyFeeds_Variants {
 
-    /** How many name-prefix candidates to look at. A size run is small. */
-    const CANDIDATE_LIMIT = 40;
-
     /**
      * A product name with its trailing size removed.
      *
@@ -123,32 +120,28 @@ class MyFeeds_Variants {
         $table = MyFeeds_DB_Manager::table_name();
         $like  = $wpdb->esc_like($base) . '%';
 
-        $where = 'product_name LIKE %s AND status = %s AND in_stock = 1';
-        $args  = array($like, 'active');
+        // The image match belongs in the query, not after it. Reading a
+        // fixed number of prefix matches and sifting them here would
+        // mean an unordered cap deciding what we get to see - and on a
+        // base name with more rows than the cap, the one size that is
+        // in stock could sit outside it and read as "nothing available".
+        // MySQL uses idx_name_colour for the prefix either way.
+        $where = 'product_name LIKE %s AND status = %s AND in_stock = 1'
+            . ' AND image_url = %s AND external_id <> %s';
+        $args  = array($like, 'active', $image, (string) ($product['id'] ?? ''));
+
         if ($feed > 0) {
             $where .= ' AND feed_id = %d';
             $args[] = $feed;
         }
-        $args[] = self::CANDIDATE_LIMIT;
 
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders built above
-        $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table} WHERE {$where} LIMIT %d",
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE {$where} LIMIT 1",
             $args
         ), ARRAY_A);
 
-        foreach ((array) $rows as $row) {
-            if ((string) $row['image_url'] !== $image) {
-                continue;
-            }
-            if ((string) $row['external_id'] === (string) ($product['id'] ?? '')) {
-                continue;
-            }
-
-            return MyFeeds_DB_Manager::product_from_row($row);
-        }
-
-        return null;
+        return $row ? MyFeeds_DB_Manager::product_from_row($row) : null;
     }
 
     /**
