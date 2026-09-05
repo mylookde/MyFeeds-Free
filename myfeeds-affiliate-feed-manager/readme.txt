@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.26
+Stable tag: 1.0.27
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,10 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.27 =
+* There is one way to delete a feed again. A second one existed that dropped the feed from your settings and left every one of its products in the database - rows with an image, a price and a link into a partnership that had ended, which the product picker would still offer you. It could not actually be reached from the plugin's screens, so nothing was broken by it; it is gone now rather than waiting to be found.
+* The daily housekeeping also clears out products whose feed no longer exists, whatever removed it - a restored backup, an edit made straight in the database. Products a published post is showing are kept, as before, so your live pages never go blank.
 
 = 1.0.26 =
 * A product that is no longer available is left out of your pages instead of being shown as a grey "no longer available" card. That card told a reader nothing they could act on, and it made a good post look broken. Where a block has nothing left to show it now renders nothing at all, rather than an empty gap.
