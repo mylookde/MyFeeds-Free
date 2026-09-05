@@ -2241,6 +2241,12 @@ class MyFeeds_Feed_Manager {
             'permission_callback' => function() { return current_user_can('edit_posts'); },
         ));
 
+        register_rest_route('myfeeds/v1', '/product-size-variants', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'rest_get_product_size_variants'),
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
+        ));
+
         register_rest_route('myfeeds/v1', '/product-color-siblings', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_product_color_siblings'),
@@ -2315,6 +2321,25 @@ class MyFeeds_Feed_Manager {
      * or any cached counts. Strictly additive on top of the existing
      * pipeline.
      */
+    /**
+     * Every size of the open product, each with its own row.
+     *
+     * The sizes endpoint returns labels; choosing a size has to change
+     * the link, and the link belongs to the row for that size.
+     */
+    public function rest_get_product_size_variants(WP_REST_Request $req) {
+        $id = (string) $req->get_param('id');
+        if ($id === '') {
+            return rest_ensure_response(array());
+        }
+
+        if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
+            return rest_ensure_response(MyFeeds_DB_Manager::get_size_variants($id));
+        }
+
+        return rest_ensure_response(array());
+    }
+
     public function rest_get_product_color_siblings(WP_REST_Request $req) {
         $id = sanitize_text_field($req->get_param('id'));
         if ($id === '') {

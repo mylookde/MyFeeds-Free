@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.28
+Stable tag: 1.0.29
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,10 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.29 =
+* In the product detail view, clicking one of the smaller images now shows it in the large frame. They were there to look at and did nothing.
+* Choosing a size now selects that size. Picking a colour already switched the product for real - link, price and all - but a size only changed what was highlighted, so adding the product to a post linked to whichever size the search had opened. Pick 42 and the card links to 42.
 
 = 1.0.28 =
 * A card no longer sends readers to a size that has sold out. Feeds ship one row per size, and the address stored with a product carries the size along with it - so a reader following a card whose size had gone landed on exactly the size that was gone. MyFeeds now recognises the sizes of one product and links to one that can be bought. Colours stay apart: the grouping is confirmed against the product photograph, so a card showing the sand-coloured pair never links to the black one.

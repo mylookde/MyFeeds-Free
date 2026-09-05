@@ -979,6 +979,112 @@ class MyFeeds_DB_Manager {
      * @param string $colour Colour value (can be empty)
      * @return array List of size strings
      */
+    /**
+     * The size a row stands for, wherever the feed happens to put it.
+     *
+     * @param array $raw Decoded raw_data.
+     * @return string
+     */
+    public static function size_from_raw($raw) {
+        if (!is_array($raw)) {
+            return '';
+        }
+
+        if (!empty($raw['size'])) {
+            return is_array($raw['size']) ? (string) ($raw['size'][0] ?? '') : (string) $raw['size'];
+        }
+        if (isset($raw['attributes']['size'])) {
+            $s = $raw['attributes']['size'];
+            return is_array($s) ? (string) ($s[0] ?? '') : (string) $s;
+        }
+        if (!empty($raw['Fashion:size'])) {
+            return (string) $raw['Fashion:size'];
+        }
+
+        return '';
+    }
+
+    /**
+     * Every size of one product, each with the row behind it.
+     *
+     * get_available_sizes() returns the size labels only, which is all
+     * the picker needed while a size was just something to look at. Once
+     * choosing a size has to change what gets linked, the label is not
+     * enough - the id, the link and the price belong to the row for that
+     * size, and they differ.
+     *
+     * Same product name and same colour: a different colour is a
+     * different garment and has its own size run.
+     *
+     * @param string $external_id The size currently open.
+     * @return array<int,array>
+     */
+    public static function get_size_variants($external_id) {
+        global $wpdb;
+        $table = self::table_name();
+
+        $external_id = (string) $external_id;
+        if ($external_id === '') {
+            return array();
+        }
+
+        $current = $wpdb->get_row($wpdb->prepare(
+            "SELECT product_name, colour, feed_id FROM {$table}
+             WHERE external_id = %s LIMIT 1",
+            $external_id
+        ), ARRAY_A);
+
+        if (!$current || (string) $current['product_name'] === '') {
+            return array();
+        }
+
+        $where = 'product_name = %s AND status = %s';
+        $args  = array($current['product_name'], 'active');
+
+        if ((string) $current['colour'] !== '') {
+            $where .= ' AND colour = %s';
+            $args[] = $current['colour'];
+        }
+        if ((int) $current['feed_id'] > 0) {
+            $where .= ' AND feed_id = %d';
+            $args[] = (int) $current['feed_id'];
+        }
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders built above
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT external_id, product_name, colour, price, original_price, currency,
+                    image_url, affiliate_link, in_stock, raw_data
+             FROM {$table} WHERE {$where} LIMIT 100",
+            $args
+        ), ARRAY_A);
+
+        $out = array();
+        $seen = array();
+        foreach ((array) $rows as $row) {
+            $size = self::size_from_raw(json_decode((string) $row['raw_data'], true));
+            $size = trim($size);
+            if ($size === '' || isset($seen[$size])) {
+                continue;
+            }
+            $seen[$size] = true;
+
+            $out[] = array(
+                'size'           => $size,
+                'external_id'    => (string) $row['external_id'],
+                'in_stock'       => (int) $row['in_stock'] === 1,
+                'price'          => $row['price'],
+                'original_price' => $row['original_price'],
+                'currency'       => $row['currency'],
+                'image_url'      => $row['image_url'],
+                'affiliate_link' => $row['affiliate_link'],
+                'product_name'   => $row['product_name'],
+                'colour'         => $row['colour'],
+            );
+        }
+
+        return $out;
+    }
+
     public static function get_available_sizes($product_name, $colour = '') {
         global $wpdb;
         $table = self::table_name();
