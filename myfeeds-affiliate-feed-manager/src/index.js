@@ -273,6 +273,9 @@
       const [isLoadingMore, setIsLoadingMore] = useState(false);
       const [currentVariant, setCurrentVariant] = useState({ color: '', size: '' });
       const [detailSizes, setDetailSizes] = useState([]);
+      // The rows behind those sizes. A size label is enough to look at;
+      // to link to a size we need its own id, price and affiliate link.
+      const [sizeVariants, setSizeVariants] = useState([]);
       // DB-backed colour siblings for the currently open detail product.
       // Empty array means: no DB siblings (single-colour product or
       // colour data unavailable) — fall back to the local-parse pills.
@@ -420,6 +423,14 @@
             .then(function(r) { return r.json(); })
             .then(function(sizes) { if (Array.isArray(sizes)) setDetailSizes(sizes); })
             .catch(function() { setDetailSizes([]); });
+
+            fetch(apiUrl + 'product-size-variants?id=' + encodeURIComponent(String(productId)), {
+              credentials: 'include',
+              headers: { 'X-WP-Nonce': nonce }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(rows) { setSizeVariants(Array.isArray(rows) ? rows : []); })
+            .catch(function() { setSizeVariants([]); });
           }
 
           // Colour-siblings: backend returns an array only when there
@@ -442,9 +453,18 @@
           }
         } else {
           setDetailSizes([]);
+          setSizeVariants([]);
           setColorSiblings([]);
         }
-      }, [showProductDetail]);
+        // Keyed on the product's identity, not the object. Picking a size
+        // replaces showProductDetail with that size's row, and hanging
+        // this on the object would re-fetch the same sizes and colours on
+        // every click. Name and colour are what actually decide the size
+        // run - a colour switch does need a fresh fetch.
+      }, [
+        showProductDetail && (showProductDetail.title || showProductDetail.product_name || ''),
+        showProductDetail && (showProductDetail.colour || showProductDetail.color || '')
+      ]);
 
       const openModalAndSearch = async function(){
         setShowModal(true);
@@ -1865,7 +1885,11 @@
                   // Sizes - Interactive Size Selection (uses DB sizes from dedup if available)
                   (function(){
                     var variants = getAllProductVariants(showProductDetail || {});
-                    var sizesToShow = detailSizes.length > 0 ? detailSizes : variants.sizes;
+                    // Prefer the rows: they carry the id, price and link
+                    // of each size, so clicking one can actually switch.
+                    var sizesToShow = sizeVariants.length > 0
+                      ? sizeVariants.map(function (v) { return v.size; })
+                      : (detailSizes.length > 0 ? detailSizes : variants.sizes);
                     if (sizesToShow.length === 0) return null;
                     
                     return React.createElement("div", { className: "myfeeds-attribute-section", style: { marginTop: "15px" } },
@@ -1890,7 +1914,29 @@
                               textAlign: "center"
                             },
                             onClick: function() {
-                              console.log("📏 MYFEEDS DEBUG: Size clicked:", size);
+                              // A real switch where we have the row: the
+                              // link, price and id then belong to the size
+                              // the author picked, so "Add to Selection"
+                              // stores that size and not the one the
+                              // search happened to open.
+                              var row = null;
+                              for (var vi = 0; vi < sizeVariants.length; vi++) {
+                                if (String(sizeVariants[vi].size) === String(size)) { row = sizeVariants[vi]; break; }
+                              }
+                              if (row) {
+                                setShowProductDetail(Object.assign({}, showProductDetail, {
+                                  id: row.external_id,
+                                  external_id: row.external_id,
+                                  aw_product_id: row.external_id,
+                                  price: row.price,
+                                  old_price: row.original_price,
+                                  original_price: row.original_price,
+                                  currency: row.currency,
+                                  affiliate_link: row.affiliate_link,
+                                  image_url: row.image_url || showProductDetail.image_url,
+                                  in_stock: row.in_stock ? 1 : 0
+                                }));
+                              }
                               switchColorVariant(null, size);
                             },
                             onMouseEnter: function(e) {
