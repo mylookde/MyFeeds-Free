@@ -75,6 +75,9 @@ class MyFeeds_Schema_Generator {
         $name = isset($product['title']) ? trim((string) $product['title']) : '';
         $image = isset($product['image_url']) ? trim((string) $product['image_url']) : '';
         $url = isset($product['affiliate_link']) ? trim((string) $product['affiliate_link']) : '';
+        // Google reads this URL. A block that lost its backslashes offers
+        // one that resolves to nothing.
+        $url = myfeeds_repair_saved_link($url);
 
         // Pricing: prefer sale price when it's a real discount, fall back
         // to the regular price. Mirrors the same logic used in the visual

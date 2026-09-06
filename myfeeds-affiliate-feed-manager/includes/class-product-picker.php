@@ -473,7 +473,7 @@ class MyFeeds_Product_Picker {
         $image_url      = (string) ($product['image_url']      ?? $placeholder_url);
         $brand          = (string) ($product['brand']          ?? '');
         $merchant       = (string) ($product['merchant']       ?? '');
-        $affiliate_link = (string) ($product['affiliate_link'] ?? '#');
+        $affiliate_link = myfeeds_repair_saved_link((string) ($product['affiliate_link'] ?? '#'));
 
         $price      = (float) ($product['price']      ?? 0);
         $sale_price = (float) ($product['sale_price'] ?? 0);
