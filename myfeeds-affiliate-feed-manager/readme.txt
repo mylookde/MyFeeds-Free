@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.29
+Stable tag: 1.0.30
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,10 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.30 =
+* A search that reports 245 results now shows all 245. Where a feed ships a row per size, a search matches many more rows than it has products - sixteen rows per product in one measured case - and the plugin only ever looked at the first few hundred rows. So a search could report hundreds of results and hand you twenty, with "Load more" unable to reach past them. It now looks far enough to fill the pages it promises, and it is about twice as fast at the same time.
+* Product links saved in a post could lose the ampersands out of them, leaving an address that looks fine and leads nowhere: the affiliate id and the merchant id were swallowed into one long parameter. Existing cards repair themselves as they are read, so your links point where they should again.
 
 = 1.0.29 =
 * In the product detail view, clicking one of the smaller images now shows it in the large frame. They were there to look at and did nothing.
