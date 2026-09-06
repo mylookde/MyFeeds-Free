@@ -1680,7 +1680,19 @@ class MyFeeds_Search_Engine {
             }
         }
 
-        $fetch_limit = max($limit * 10, 500);
+        // The window is measured in ROWS, the results in PRODUCTS, and
+        // the two are far apart wherever a feed ships a row per size.
+        // Measured on mylook.com.de: "jeans" matches 2,760 rows that
+        // collapse to 169 products - 16 rows each. A 500-row window is
+        // therefore about 30 products, which is why a search reporting
+        // 245 results could only ever show 20 of them, Load More
+        // included.
+        //
+        // Scales with the offset so paging can actually reach deeper,
+        // and is capped so a broad query on a large catalogue stays a
+        // bounded read.
+        $fetch_limit = max(($offset + $limit) * 40, 4000);
+        $fetch_limit = min($fetch_limit, 20000);
         $rows = array();
 
         $has_search_text = $wpdb->get_var("SHOW COLUMNS FROM {$table} LIKE 'search_text'");
@@ -1741,6 +1753,49 @@ class MyFeeds_Search_Engine {
 
         $fulltext_count = count($rows);
         myfeeds_log("SEARCH: Candidates={$fulltext_count}", 'debug');
+
+        // Collapse size rows to products BEFORE scoring, not after.
+        //
+        // Scoring costs about a millisecond a row, and where a feed
+        // ships a row per size those rows are the same product over and
+        // over: "jeans" on mylook.com.de matched 2,760 rows that are 169
+        // products, so seventeen out of every eighteen scores were
+        // computed and then thrown away. Collapsing first made the same
+        // search go from three seconds to a fraction of one, and it is
+        // also what lets the window hold enough PRODUCTS to page
+        // through - a search reporting 245 results used to be able to
+        // show 20 of them, Load More included.
+        //
+        // The row kept per product is a buyable one where there is one,
+        // so the card the author sees is one they can actually use.
+        if (!empty($rows) && count($rows) > 1) {
+            $rows_before_collapse = count($rows);
+            $collapsed = array();
+            foreach ($rows as $row) {
+                $key = mb_strtolower(self::strip_size_suffix($row['product_name'] ?? ''))
+                    . '|' . mb_strtolower((string) ($row['colour'] ?? ''))
+                    . '|' . (string) ($row['feed_id'] ?? '');
+
+                if (!isset($collapsed[$key])) {
+                    $collapsed[$key] = $row;
+                    continue;
+                }
+                if ((int) ($row['in_stock'] ?? 0) === 1 && (int) ($collapsed[$key]['in_stock'] ?? 0) !== 1) {
+                    $collapsed[$key] = $row;
+                }
+            }
+            $rows = array_values($collapsed);
+            myfeeds_log('SEARCH: Collapsed to ' . count($rows) . ' products before scoring', 'debug');
+
+            // Did the window hold every match? Then we already know the
+            // total and need not ask the database a second time. That
+            // second question is another full-text pass and costs as
+            // much as the first - about 1.4 seconds on this catalogue,
+            // measured, regardless of the LIMIT on it.
+            if ($rows_before_collapse < $fetch_limit) {
+                $known_total = count($rows);
+            }
+        }
 
         if (empty($rows)) {
             myfeeds_log("SEARCH: No results for '{$query}'", 'debug');
@@ -1870,7 +1925,14 @@ class MyFeeds_Search_Engine {
         }
 
         $total_after_dedup = $dedup_count;
-        if (isset($facets['_total_dedup'])) {
+        if (isset($known_total)) {
+            // The candidate window held every match, so the total is
+            // already in hand. Asking again is a second full-text pass
+            // over the same rows - measured at about 1.4 seconds on this
+            // catalogue, the same as the first, and the LIMIT on it
+            // makes no difference.
+            $total_after_dedup = $known_total;
+        } elseif (isset($facets['_total_dedup'])) {
             $total_after_dedup = (int) $facets['_total_dedup'];
         } elseif (!empty($args['return_meta']) && $has_search_text && ($has_ft || $has_short_constraint || $has_phrases)) {
             $count_filter   = self::build_filter_clause($args);
