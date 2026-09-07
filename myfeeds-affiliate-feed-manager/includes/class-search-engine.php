@@ -844,11 +844,11 @@ class MyFeeds_Search_Engine {
      *
      * @return array facets, plus _total_dedup for the caller's total.
      */
-    private static function merged_facets($table, $match_sql, $args, $has_ft_local, $ft_query_str, $like_values, $facets) {
+    private static function merged_facets($table, $match_sql, $args, $match_params, $facets) {
         global $wpdb;
 
         $f      = self::build_filter_clause($args);
-        $params = array_merge($f['params'], $has_ft_local ? array($ft_query_str) : array(), $like_values);
+        $params = array_merge($f['params'], (array) $match_params);
 
         $sql = "SELECT LOWER(brand) AS brand_v,
                        LOWER(colour) AS colour_v,
@@ -931,12 +931,89 @@ class MyFeeds_Search_Engine {
     /**
      * Kept next to the reader in compute_facets so the two cannot drift.
      */
+    const CANDIDATE_CACHE_TTL = 15 * MINUTE_IN_SECONDS;
+
+    /**
+     * The SQL that says "this row matches the search words": the
+     * full-text clause plus the short-token and phrase constraints,
+     * ANDed. Built once per search and used by the result query, the
+     * count and every facet, so they cannot drift apart.
+     *
+     * @return array{sql:string, params:array}
+     */
+    private static function match_predicate($ft_query_str, $short_constraint_data, $phrase_constraints) {
+        global $wpdb;
+        $parts  = array();
+        $params = array();
+        if (!empty($ft_query_str)) {
+            $parts[]  = 'MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)';
+            $params[] = $ft_query_str;
+        }
+        if (is_array($short_constraint_data) && !empty($short_constraint_data['sql'])) {
+            $parts[] = $short_constraint_data['sql'];
+            $params  = array_merge($params, (array) $short_constraint_data['params']);
+        }
+        foreach ((array) $phrase_constraints as $phrase) {
+            $parts[]  = 'search_text LIKE %s';
+            $params[] = '%' . $wpdb->esc_like($phrase) . '%';
+        }
+        if (empty($parts)) {
+            return array('sql' => '1=1', 'params' => array());
+        }
+        return array('sql' => '(' . implode(' AND ', $parts) . ')', 'params' => $params);
+    }
+
+    /**
+     * The same question answered from a remembered id list: a primary-key
+     * read instead of a full-text pass. Ids are integers and go in
+     * inline; a placeholder per id would push 20,000 arguments through
+     * prepare() for nothing.
+     *
+     * @param int[] $ids
+     * @return array{sql:string, params:array}
+     */
+    private static function id_predicate(array $ids) {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if (empty($ids)) {
+            return array('sql' => '1=0', 'params' => array());
+        }
+        return array('sql' => 'id IN (' . implode(',', $ids) . ')', 'params' => array());
+    }
+
+    /**
+     * Keyed by the search words as the engine sees them, not the raw
+     * string: "Jacket " and "jacket" ask the same question.
+     */
+    private static function candidate_cache_key($ft_query_str, $short_tokens, $phrase_constraints) {
+        return 'myfeeds_cand_' . md5(serialize(array($ft_query_str, $short_tokens, $phrase_constraints)));
+    }
+
+    /**
+     * Forget every remembered match set and facet count. Hooked to the
+     * end of every import: the rows behind a remembered id may now be
+     * gone, and new rows may match a query that was answered before.
+     * A stale set never returns wrong rows - the id read still asks
+     * for status = 'active' - it only misses new ones, and the TTL
+     * bounds that for the case where the hook does not fire.
+     */
+    public static function flush_query_caches() {
+        global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+        $wpdb->query(
+            "DELETE FROM {$wpdb->options}
+             WHERE option_name LIKE '_transient_myfeeds_cand_%'
+                OR option_name LIKE '_transient_timeout_myfeeds_cand_%'
+                OR option_name LIKE '_transient_myfeeds_facets_%'
+                OR option_name LIKE '_transient_timeout_myfeeds_facets_%'"
+        );
+    }
+
     private static function cache_facets($cache_key, $facets) {
         set_transient($cache_key, $facets, 5 * MINUTE_IN_SECONDS);
         return $facets;
     }
 
-    private static function compute_facets($table, $ft_query_str, $short_tokens, $args, $phrase_constraints = array()) {
+    private static function compute_facets($table, $ft_query_str, $short_tokens, $args, $phrase_constraints = array(), $predicate = null) {
         global $wpdb;
         $facets = array('brand' => array(), 'colour' => array());
 
@@ -947,6 +1024,9 @@ class MyFeeds_Search_Engine {
 
         if (!$has_ft_local && !$has_short_local && !$has_phr_local) {
             return $facets;
+        }
+        if (!is_array($predicate) || empty($predicate['sql'])) {
+            $predicate = self::match_predicate($ft_query_str, $sc, $phrase_constraints);
         }
 
         // Facets depend on the query and the filters, not on the page or the
@@ -970,19 +1050,11 @@ class MyFeeds_Search_Engine {
         // Short tokens + quoted phrases AND-constrain the FT match. Same
         // architecture as the main search SQL — see build_short_token_constraint
         // for why we no longer OR them in.
-        $like_values = $sc['params'];
-        $match_parts = array();
-        if ($has_ft_local) {
-            $match_parts[] = 'MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)';
-        }
-        if ($has_short_local) {
-            $match_parts[] = $sc['sql'];
-        }
-        foreach ($phrase_constraints as $phrase) {
-            $match_parts[] = 'search_text LIKE %s';
-            $like_values[] = '%' . $wpdb->esc_like($phrase) . '%';
-        }
-        $match_sql = '(' . implode(' AND ', $match_parts) . ')';
+        // One predicate for every facet query below. When the caller hands
+        // over the cached id list, none of these touches the full-text
+        // index at all.
+        $match_sql    = '(' . $predicate['sql'] . ')';
+        $match_params = $predicate['params'];
 
         // Facet counts go through the same strip_size_suffix() pipeline as
         // the result deduplicator: we fetch DISTINCT (facet, name, colour)
@@ -1002,7 +1074,7 @@ class MyFeeds_Search_Engine {
         $facet_filters_active = !empty($args['brand']) || !empty($args['colour']) || !empty($args['category']);
 
         if (!$facet_filters_active) {
-            return self::cache_facets($cache_key, self::merged_facets($table, $match_sql, $args, $has_ft_local, $ft_query_str, $like_values, $facets));
+            return self::cache_facets($cache_key, self::merged_facets($table, $match_sql, $args, $match_params, $facets));
         }
 
         // Brand facets: apply every filter except brand[]
@@ -1016,7 +1088,7 @@ class MyFeeds_Search_Engine {
                       AND {$match_sql}
                       GROUP BY LOWER(brand), product_name, colour_norm
                       LIMIT 10000";
-        $params_brand = array_merge($fb['params'], $has_ft_local ? array($ft_query_str) : array(), $like_values);
+        $params_brand = array_merge($fb['params'], $match_params);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows_brand = $wpdb->get_results($wpdb->prepare($sql_brand, ...$params_brand), ARRAY_A);
         $facets['brand'] = array_slice(self::tally_facet_with_size_strip($rows_brand), 0, 50);
@@ -1032,7 +1104,7 @@ class MyFeeds_Search_Engine {
                        AND {$match_sql}
                        GROUP BY LOWER(colour), product_name, colour_norm
                        LIMIT 10000";
-        $params_colour = array_merge($fc['params'], $has_ft_local ? array($ft_query_str) : array(), $like_values);
+        $params_colour = array_merge($fc['params'], $match_params);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows_colour = $wpdb->get_results($wpdb->prepare($sql_colour, ...$params_colour), ARRAY_A);
         $facets['colour'] = array_slice(self::tally_facet_with_size_strip($rows_colour), 0, 50);
@@ -1052,7 +1124,7 @@ class MyFeeds_Search_Engine {
                          AND {$match_sql}
                          GROUP BY LOWER(category), product_name, colour_norm
                          LIMIT 10000";
-        $params_category = array_merge($fcat['params'], $has_ft_local ? array($ft_query_str) : array(), $like_values);
+        $params_category = array_merge($fcat['params'], $match_params);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows_category = $wpdb->get_results($wpdb->prepare($sql_category, ...$params_category), ARRAY_A);
 
@@ -1084,7 +1156,7 @@ class MyFeeds_Search_Engine {
                       AND price > 0
                       {$fr['sql']}
                       AND {$match_sql}";
-        $params_range = array_merge($fr['params'], $has_ft_local ? array($ft_query_str) : array(), $like_values);
+        $params_range = array_merge($fr['params'], $match_params);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $row_range = $wpdb->get_row($wpdb->prepare($sql_range, ...$params_range), ARRAY_A);
         if (!empty($row_range) && $row_range['min_price'] !== null) {
@@ -1715,32 +1787,49 @@ class MyFeeds_Search_Engine {
         $has_ft                = !empty($ft_query_str);
         $has_phrases           = !empty($phrase_constraints);
 
+        // The match predicate - full-text plus short-token and phrase
+        // constraints - is the expensive half of every query below:
+        // about 1.4 seconds on a 90,000-row catalogue, and the same again
+        // for the count and for each facet. It is also the same predicate
+        // for every request that shares the search words: a filter, a
+        // sort, the next page. So the first request that runs it
+        // unfiltered remembers WHICH rows it matched, and the next ones
+        // ask for those rows by id - a primary-key read that takes
+        // milliseconds. Filtering inside the search result, which is what
+        // the filter chips promise, instead of searching the whole
+        // catalogue again with the filter bolted on. Measured on mylook:
+        // "jacket" with a brand filter went from 7.6 seconds to well
+        // under one.
+        $predicate = self::match_predicate($ft_query_str, $short_constraint_data, $phrase_constraints);
+        $candidate_key = ($has_ft || $has_short_constraint || $has_phrases)
+            ? self::candidate_cache_key($ft_query_str, $short_tokens, $phrase_constraints)
+            : '';
+        $cached_ids = $candidate_key !== '' ? get_transient($candidate_key) : false;
+        if (is_array($cached_ids) && !empty($cached_ids)) {
+            $predicate = self::id_predicate($cached_ids);
+        }
+
         if ($has_search_text && ($has_ft || $has_short_constraint || $has_phrases)) {
-            $sql_parts = array();
-            $params    = array();
-            $params    = array_merge($params, $filter_param);
-            if ($has_ft) {
-                $sql_parts[] = 'MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)';
-                $params[]    = $ft_query_str;
-            }
-            if ($has_short_constraint) {
-                $sql_parts[] = $short_constraint_data['sql'];
-                $params      = array_merge($params, $short_constraint_data['params']);
-            }
-            foreach ($phrase_constraints as $phrase) {
-                $sql_parts[] = 'search_text LIKE %s';
-                $params[]    = '%' . $wpdb->esc_like($phrase) . '%';
-            }
+            $params = array_merge($filter_param, $predicate['params']);
             $params[] = $fetch_limit;
 
             $sql = "SELECT " . self::CANDIDATE_COLUMNS . " FROM {$table}
                     WHERE status = 'active'
                     {$filter_sql}
-                    AND " . implode(' AND ', $sql_parts) . "
+                    AND {$predicate['sql']}
                     LIMIT %d";
 
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Dynamic FULLTEXT search query, user tokens sanitized individually via $wpdb->prepare()
             $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A);
+
+            // Remember the match set only when it is the whole match set:
+            // fetched without filters, and not cut off by the window. A
+            // filtered request would remember a subset, and a truncated
+            // one would make later filters miss rows past the cut.
+            if ($candidate_key !== '' && !is_array($cached_ids) && $filter_sql === ''
+                && !empty($rows) && count($rows) < $fetch_limit) {
+                set_transient($candidate_key, array_map('intval', array_column($rows, 'id')), self::CANDIDATE_CACHE_TTL);
+            }
 
             if (empty($rows)) {
                 myfeeds_log("SEARCH: FULLTEXT returned 0 results, falling back to LIKE", 'debug');
@@ -1921,7 +2010,7 @@ class MyFeeds_Search_Engine {
         // below becomes redundant.
         $facets = null;
         if (!empty($args['return_meta']) && !empty($args['include_facets'])) {
-            $facets = self::compute_facets($table, $ft_query_str, $short_tokens, $args, $phrase_constraints);
+            $facets = self::compute_facets($table, $ft_query_str, $short_tokens, $args, $phrase_constraints, $predicate);
         }
 
         $total_after_dedup = $dedup_count;
@@ -1936,25 +2025,12 @@ class MyFeeds_Search_Engine {
             $total_after_dedup = (int) $facets['_total_dedup'];
         } elseif (!empty($args['return_meta']) && $has_search_text && ($has_ft || $has_short_constraint || $has_phrases)) {
             $count_filter   = self::build_filter_clause($args);
-            $count_parts    = array();
-            $count_params   = $count_filter['params'];
-            if ($has_ft) {
-                $count_parts[] = 'MATCH(search_text) AGAINST(%s IN BOOLEAN MODE)';
-                $count_params[] = $ft_query_str;
-            }
-            if ($has_short_constraint) {
-                $count_parts[] = $short_constraint_data['sql'];
-                $count_params  = array_merge($count_params, $short_constraint_data['params']);
-            }
-            foreach ($phrase_constraints as $phrase) {
-                $count_parts[] = 'search_text LIKE %s';
-                $count_params[] = '%' . $wpdb->esc_like($phrase) . '%';
-            }
+            $count_params   = array_merge($count_filter['params'], $predicate['params']);
             $count_sql = "SELECT DISTINCT product_name, COALESCE(LOWER(colour), '') AS colour_norm
                           FROM {$table}
                           WHERE status = 'active'
                           {$count_filter['sql']}
-                          AND " . implode(' AND ', $count_parts) . "
+                          AND {$predicate['sql']}
                           LIMIT 5000";
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
             $count_rows = $wpdb->get_results($wpdb->prepare($count_sql, ...$count_params), ARRAY_A);
@@ -2419,3 +2495,5 @@ class MyFeeds_Search_Engine {
         return $product;
     }
 }
+
+add_action('myfeeds_feed_update_complete', array('MyFeeds_Search_Engine', 'flush_query_caches'));

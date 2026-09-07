@@ -4,7 +4,7 @@
   const React = window.React;
   const { registerBlockType } = window.wp.blocks;
   const { TextControl, Button, Modal } = window.wp.components;
-  const { useState, useEffect, Fragment } = window.wp.element;
+  const { useState, useEffect, useRef, Fragment } = window.wp.element;
 
   const data = window.myfeedsData || {};
   const apiUrl = data.apiUrl || '';
@@ -261,6 +261,29 @@
       const [selected, setSelected] = useState(attributes.selectedProducts || []);
       const [error, setError] = useState(null);
       const [showProductDetail, setShowProductDetail] = useState(null);
+      // Where the results were scrolled to when a detail view opened.
+      // The search modal is unmounted while the detail view is up and
+      // comes back at the top; without this, "Back to search" and "Add
+      // to selection" both dropped the author at the first row again,
+      // and the product they had been looking at was three screens
+      // down. Read once on the way back, then forgotten, so a freshly
+      // opened modal starts at the top like it should.
+      const resultsScrollMemory = useRef(0);
+      const rememberResultsScroll = function () {
+        var el = document.querySelector('.myfeeds-modal-content');
+        resultsScrollMemory.current = el ? el.scrollTop : 0;
+      };
+      const restoreResultsScroll = function (el) {
+        if (!el || !resultsScrollMemory.current) return;
+        var y = resultsScrollMemory.current;
+        resultsScrollMemory.current = 0;
+        el.scrollTop = y;
+        // The grid may still be laying out when the ref fires; one
+        // frame later the height is final and the position sticks.
+        if (window.requestAnimationFrame) {
+          window.requestAnimationFrame(function () { el.scrollTop = y; });
+        }
+      };
       // Which of the product's images the big frame is showing. Reset
       // whenever another product opens, so the new one starts on its
       // own main image rather than on the one clicked in the last.
@@ -818,6 +841,7 @@
                 size: variants.current_size
               });
               
+              rememberResultsScroll();
               setShowProductDetail(product); 
             }),
             discountBadge(product),
@@ -1405,7 +1429,7 @@
 
         // Product Search Modal - ONLY show if no product detail is shown
         showModal && !showProductDetail && React.createElement(Modal, { title: results.length > 0 ? ((!searchTerm || searchTerm.length < 2) ? "Your Selected Products (" + selected.length + ")" : "Product Search Results (" + results.length + " found)") : "Product Search Results", onRequestClose: function(){ setShowModal(false); }, className: "myfeeds-spacious-modal", shouldCloseOnClickOutside: false },
-          React.createElement("div", { className: "myfeeds-modal-content" },
+          React.createElement("div", { className: "myfeeds-modal-content", ref: restoreResultsScroll },
             // Search within modal - sticky at top
             React.createElement("div", { className: "myfeeds-search-controls" },
               React.createElement("div", { style: { display: "flex", gap: "10px", alignItems: "end" } },
