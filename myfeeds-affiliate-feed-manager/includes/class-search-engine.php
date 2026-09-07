@@ -1948,18 +1948,29 @@ class MyFeeds_Search_Engine {
         // Sort: relevance uses the score, the other modes re-rank by price /
         // discount / newest while keeping score as a stable tiebreaker.
         $sort_mode = $args['sort'];
+        // Score decides between equal sort keys, and the row id decides
+        // between equal scores. Without the last step the order of ties
+        // is whatever order the rows arrived in, and that differs between
+        // a full-text read and a read by remembered ids - the same search
+        // came back in two orders depending on whether it was the first
+        // one. A sort has to give one answer.
+        $tie = function ($a, $b) {
+            $by_score = $b['score'] <=> $a['score'];
+            if ($by_score !== 0) return $by_score;
+            return ((int) ($a['row']['id'] ?? 0)) <=> ((int) ($b['row']['id'] ?? 0));
+        };
         if ($sort_mode === 'price_asc') {
-            usort($scored_rows, function ($a, $b) {
+            usort($scored_rows, function ($a, $b) use ($tie) {
                 $pa = (float) ($a['row']['price'] ?? 0);
                 $pb = (float) ($b['row']['price'] ?? 0);
-                if ($pa === $pb) return $b['score'] - $a['score'];
+                if ($pa === $pb) return $tie($a, $b);
                 return $pa <=> $pb;
             });
         } elseif ($sort_mode === 'price_desc') {
-            usort($scored_rows, function ($a, $b) {
+            usort($scored_rows, function ($a, $b) use ($tie) {
                 $pa = (float) ($a['row']['price'] ?? 0);
                 $pb = (float) ($b['row']['price'] ?? 0);
-                if ($pa === $pb) return $b['score'] - $a['score'];
+                if ($pa === $pb) return $tie($a, $b);
                 return $pb <=> $pa;
             });
         } elseif ($sort_mode === 'discount_desc') {
@@ -1968,23 +1979,21 @@ class MyFeeds_Search_Engine {
                 $op = (float) ($row['original_price'] ?? 0);
                 return ($op > 0 && $op > $p) ? ($op - $p) / $op : 0.0;
             };
-            usort($scored_rows, function ($a, $b) use ($disc) {
+            usort($scored_rows, function ($a, $b) use ($disc, $tie) {
                 $da = $disc($a['row']);
                 $db = $disc($b['row']);
-                if ($da === $db) return $b['score'] - $a['score'];
+                if ($da === $db) return $tie($a, $b);
                 return $db <=> $da;
             });
         } elseif ($sort_mode === 'newest') {
-            usort($scored_rows, function ($a, $b) {
+            usort($scored_rows, function ($a, $b) use ($tie) {
                 $ta = strtotime($a['row']['last_updated'] ?? '') ?: 0;
                 $tb = strtotime($b['row']['last_updated'] ?? '') ?: 0;
-                if ($ta === $tb) return $b['score'] - $a['score'];
+                if ($ta === $tb) return $tie($a, $b);
                 return $tb <=> $ta;
             });
         } else {
-            usort($scored_rows, function ($a, $b) {
-                return $b['score'] - $a['score'];
-            });
+            usort($scored_rows, $tie);
         }
 
         // No tier cutoff — the relevance score already lifts full matches
