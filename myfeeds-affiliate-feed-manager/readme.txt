@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.30
+Stable tag: 1.0.31
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,15 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.31 =
+* Filtering, sorting and paging inside a search are near-instant. The first search still asks the index once; from then on a filter chip reads from what that search found, instead of searching the whole catalogue again with the filter attached. A brand filter on a 90,000-row catalogue took 7.6 seconds and now takes a few hundredths.
+* Every sort order gives one answer: two products that tie on price, discount or date come back in the same order every time.
+* "Back to search" and "Add to selection" return you to where you were in the results, not to the top.
+* The mapping editor reads XML and JSON feeds. It used to show an empty form for any feed that is not CSV, and no error.
+* Feeds are listed alphabetically in the mapping editor.
+* Card images are no longer routed through Jetpack's image CDN. Shopify and other merchant CDNs need the exact address the feed delivered, and the CDN dropped part of it, so some cards showed no image while the editor showed the product.
+* A feed without a currency column is priced in the currency of the market it names (a delivery-time column per country, or the country in the shop link). Partnerize feeds priced in pounds showed euros. A default currency set in the mapping editor still wins.
 
 = 1.0.30 =
 * A search that reports 245 results now shows all 245. Where a feed ships a row per size, a search matches many more rows than it has products - sixteen rows per product in one measured case - and the plugin only ever looked at the first few hundred rows. So a search could report hundreds of results and hand you twenty, with "Load more" unable to reach past them. It now looks far enough to fill the pages it promises, and it is about twice as fast at the same time.
