@@ -1847,7 +1847,7 @@ class MyFeeds_Batch_Importer {
             } else {
                 $mapped = $this->process_critical_fields_fallback($mapped, $raw);
             }
-            $mapped = $this->apply_default_currency_fallback($mapped, $feed_key);
+            $mapped = $this->apply_default_currency_fallback($mapped, $feed_key, $raw);
 
             $mapped['id'] = $row_id;
             
@@ -2713,7 +2713,7 @@ class MyFeeds_Batch_Importer {
                 } else {
                     $mapped = $this->process_critical_fields_fallback($mapped, $raw);
                 }
-                $mapped = $this->apply_default_currency_fallback($mapped, $feed_name);
+                $mapped = $this->apply_default_currency_fallback($mapped, $feed_name, $raw);
 
                 $mapped['id'] = $product_id;
 
@@ -3105,7 +3105,7 @@ class MyFeeds_Batch_Importer {
             } else {
                 $mapped = $this->process_critical_fields_fallback($mapped, $raw);
             }
-            $mapped = $this->apply_default_currency_fallback($mapped, isset($feed) && is_array($feed) ? $feed : (isset($feed_name) ? $feed_name : ''));
+            $mapped = $this->apply_default_currency_fallback($mapped, isset($feed) && is_array($feed) ? $feed : (isset($feed_name) ? $feed_name : ''), $raw);
 
             $mapped['id'] = $product_id;
             $batch_items[$product_id] = $mapped;
@@ -3506,7 +3506,7 @@ class MyFeeds_Batch_Importer {
             } else {
                 $mapped = $this->process_critical_fields_fallback($mapped, $raw);
             }
-            $mapped = $this->apply_default_currency_fallback($mapped, $url);
+            $mapped = $this->apply_default_currency_fallback($mapped, $url, $raw);
 
             if (!empty($mapped['id'])) {
                 $product_id = (string) $mapped['id'];
@@ -3706,13 +3706,33 @@ class MyFeeds_Batch_Importer {
      * Apply the per-feed default currency to a mapped product if the
      * feed itself was silent on currency. No-op otherwise.
      */
-    private function apply_default_currency_fallback(array $mapped, $feed_or_key) {
+    /**
+     * The currency, in order of who knows best: a currency column in
+     * the feed, then the per-feed default from the mapping editor, then
+     * the market the feed names in passing (deliverytime_gb, /en-gb/ in
+     * the destination URL). Partnerize feeds have no currency column
+     * and are priced per market; without the last step 25,000 products
+     * in pounds carried a euro sign.
+     *
+     * @param array  $mapped
+     * @param mixed  $feed_or_key
+     * @param array  $raw  The row as the feed delivered it.
+     * @return array
+     */
+    private function apply_default_currency_fallback(array $mapped, $feed_or_key, array $raw = array()) {
         if (!empty($mapped['currency'])) {
             return $mapped;
         }
         $code = $this->resolve_feed_default_currency($feed_or_key);
         if ($code !== '') {
             $mapped['currency'] = $code;
+            return $mapped;
+        }
+        if (function_exists('myfeeds_currency_from_market')) {
+            $code = myfeeds_currency_from_market($raw, isset($mapped['affiliate_link']) ? (string) $mapped['affiliate_link'] : '');
+            if ($code !== '') {
+                $mapped['currency'] = $code;
+            }
         }
         return $mapped;
     }

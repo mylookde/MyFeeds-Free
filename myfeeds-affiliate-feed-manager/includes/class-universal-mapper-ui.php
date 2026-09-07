@@ -206,6 +206,12 @@ class MyFeeds_Universal_Mapper_UI {
                 <div class="myfeeds-panel">
                     <h2><?php esc_html_e('1. Select Feed', 'myfeeds-affiliate-feed-manager'); ?></h2>
                     
+                    <?php
+                    // A-Z by name; the option's storage key is not an order anyone recognises.
+                    uasort($feeds, function ($a, $b) {
+                        return strcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
+                    });
+                    ?>
                     <select id="myfeeds-feed-selector" class="myfeeds-select-large">
                         <option value=""><?php esc_html_e('-- Select a feed --', 'myfeeds-affiliate-feed-manager'); ?></option>
                         <?php foreach ($feeds as $key => $feed): ?>
@@ -605,19 +611,44 @@ class MyFeeds_Universal_Mapper_UI {
             $body = @gzdecode($body);
         }
         
-        // Parse first few lines to get columns and sample
-        $lines = preg_split('/\r\n|\n|\r/', trim($body));
-        $header = str_getcsv(array_shift($lines));
-        
-        // Get sample data (first row)
-        $sample_data = array();
-        if (!empty($lines)) {
-            $first_row = str_getcsv($lines[0]);
-            if (count($first_row) === count($header)) {
-                $sample_data = array_combine($header, $first_row);
+        // Hand the body to the feed reader, which is what the importer
+        // itself uses. The old code split the body into lines and read the
+        // first one as a CSV header. For an XML feed that header was
+        // "<?xml version=...": one nameless column, an empty mapping form,
+        // and nothing on screen that said why. Every Partnerize feed is
+        // XML, and so are most Shopify exports.
+        $tmp_path = wp_tempnam('myfeeds_mapsample_');
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- temp file for the feed reader
+        file_put_contents($tmp_path, $body);
+
+        $reader = new MyFeeds_Feed_Reader();
+        if (!$reader->open($tmp_path)) {
+            $reason = (string) $reader->get_unsupported_reason();
+            wp_delete_file($tmp_path);
+            wp_send_json_error(array('message' => sprintf(
+                /* translators: %s: reason the feed reader gave */
+                __('Could not read this feed: %s', 'myfeeds-affiliate-feed-manager'),
+                $reason !== '' ? $reason : __('unknown format', 'myfeeds-affiliate-feed-manager')
+            )));
+        }
+
+        $first  = $reader->read_next();
+        $header = $reader->get_headers();
+        $reader->close();
+        wp_delete_file($tmp_path);
+
+        $sample_data = is_array($first) ? $first : array();
+        if (empty($header) && !empty($sample_data)) {
+            $header = array_keys($sample_data);
+        }
+        $header = array_values(array_map('strval', (array) $header));
+        // Nested XML nodes come back as arrays; the preview wants text.
+        foreach ($sample_data as $k => $v) {
+            if (is_array($v)) {
+                $sample_data[$k] = wp_json_encode($v);
             }
         }
-        
+
         wp_send_json_success(array(
             'columns' => $header,
             'current_mapping' => $feed['mapping'] ?? array(),

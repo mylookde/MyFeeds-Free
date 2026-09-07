@@ -409,6 +409,7 @@ function myfeeds_load_includes() {
     $includes_dir = MYFEEDS_PLUGIN_DIR . 'includes/';
     $include_files = array(
         'myfeeds-http.php' => 'Feed fetch guard (the one door every feed download goes through)',
+        'myfeeds-market-currency.php' => 'Market currency (the currency a feed does not say: read from deliverytime_gb and /en-gb/ when no column names it)',
         'myfeeds-saved-link.php' => 'Saved-link repair (a picker block whose JSON lost its backslashes stores links that name no merchant)',
         'class-maintenance.php' => 'Housekeeping (removes options and transients older versions left behind)',
         'class-variants.php' => 'Size variants (one garment, many rows - so a card does not link to a sold-out size)',

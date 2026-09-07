@@ -14,6 +14,30 @@ class MyFeeds_Product_Picker {
         add_action('init', [$this, 'register_block']);
         add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_assets'], 99);
         add_action('enqueue_block_editor_assets', [$this, 'enqueue_editor_assets']);
+        // Jetpack's image CDN rewrites every <img> in post content to
+        // i0.wp.com and drops the query string on the way. Merchant CDNs
+        // need it: Shopify serves .../file.jpg?v=1788598473 and answers
+        // 404 to the same path without it. The card showed a broken image
+        // while the editor, which loads the original URL, showed the
+        // product (mylook.com.de, 2026-09-06). Feed images are hosted by
+        // the merchant and are not ours to re-encode.
+        add_filter('jetpack_photon_skip_image', [$this, 'skip_image_cdn_for_cards'], 10, 3);
+    }
+
+    /**
+     * Tell Jetpack's image CDN to leave a card image alone.
+     *
+     * @param bool        $skip      What earlier filters decided.
+     * @param string      $image_url The image URL.
+     * @param string|null $tag       The full <img> tag when the CDN is
+     *                               rewriting content; null elsewhere.
+     * @return bool
+     */
+    public function skip_image_cdn_for_cards($skip, $image_url, $tag = null) {
+        if ($skip) {
+            return true;
+        }
+        return is_string($tag) && strpos($tag, 'myfeeds') !== false;
     }
     
     /**
