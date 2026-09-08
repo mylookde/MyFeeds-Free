@@ -5096,6 +5096,14 @@ class MyFeeds_Batch_Importer {
         } catch (\Throwable $e) {
             myfeeds_log('[INLINE-TAKEOVER] ' . $e->getMessage(), 'error');
         }
+
+        // The takeover IS the worker now. Without this line the next poll
+        // saw a fresh started_at (the central update restarts the import),
+        // no worker, and took over again - every twelve seconds, four
+        // times in a row on 2026-09-08. Each restart moved started_at, and
+        // complete_full_import() then marked everything the earlier starts
+        // had already written as missing: 11,108 real products unavailable.
+        update_option(self::OPTION_WORKER_SEEN, current_time('mysql'), false);
     }
 
     /**
