@@ -5045,6 +5045,17 @@ class MyFeeds_Batch_Importer {
         if (!is_array($status) || (isset($status['status']) ? $status['status'] : '') !== 'running') {
             return false;
         }
+        // Only an import started through a loopback worker has a worker to
+        // wait for, and only those carry a mode. A single-feed import (Add
+        // Feed, Reimport, an API source's first snapshot) runs as scheduled
+        // batches that the poll drives inline - it never writes the marker,
+        // so it always looked dead after ten seconds, and the takeover then
+        // ran a Full Update of every feed in its place. Seen 2026-09-08 on
+        // mylook.com.de: eleven seconds after a Rakuten feed's own import
+        // began, all eight feeds were being re-imported.
+        if (empty($status['mode'])) {
+            return false;
+        }
         $started = isset($status['started_at']) ? strtotime((string) $status['started_at']) : false;
         $now_ts  = strtotime((string) $now);
         if (!$started || !$now_ts) {
@@ -5081,7 +5092,10 @@ class MyFeeds_Batch_Importer {
         }
         set_transient($lock_key, 1, 120);
 
-        $mode = isset($status['mode']) && $status['mode'] ? $status['mode'] : self::MODE_FULL;
+        // No guessing: the predicate already refuses a status without a
+        // mode, and a takeover must rerun what was started, never something
+        // bigger.
+        $mode = (string) $status['mode'];
         MyFeeds_Logger::info("Loopback never delivered the worker; running mode={$mode} from the status poll instead");
 
         // The work now runs inside the browser's polling request. Without
