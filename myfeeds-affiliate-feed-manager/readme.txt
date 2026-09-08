@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.31
+Stable tag: 1.0.32
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.32 =
+* Fixed: on password-protected sites the import restarted itself from the status poll and marked real products unavailable. The fix applies to any site whose own server cannot reach it without a password, and to every feed on it.
 
 = 1.0.31 =
 * Filtering, sorting and paging inside a search are near-instant. The first search still asks the index once; from then on a filter chip reads from what that search found, instead of searching the whole catalogue again with the filter attached. A brand filter on a 90,000-row catalogue took 7.6 seconds and now takes a few hundredths.
