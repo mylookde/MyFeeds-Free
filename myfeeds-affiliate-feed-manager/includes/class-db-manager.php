@@ -2332,8 +2332,17 @@ class MyFeeds_DB_Manager {
         // Remove null bytes
         $value = str_replace("\0", '', $value);
 
-        // Force valid UTF-8: encode then decode strips invalid sequences
-        if (function_exists('mb_convert_encoding')) {
+        // Force valid UTF-8 - by REPAIRING it, not by punching holes in
+        // it. mb_convert_encoding(UTF-8, UTF-8) substitutes every byte
+        // it cannot read with a question mark, so a single upstream
+        // mistake turned "Herno Raincoat - White" into
+        // "Herno Raincoat ?? White" on 192,972 rows and looked like
+        // real content. myfeeds_repair_utf8() leaves valid text alone,
+        // recovers a mis-declared encoding, and drops what it cannot
+        // read rather than inventing a character.
+        if (function_exists('myfeeds_repair_utf8')) {
+            $value = myfeeds_repair_utf8($value);
+        } elseif (function_exists('mb_convert_encoding')) {
             $value = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
         }
 

@@ -3222,7 +3222,8 @@ class MyFeeds_Feed_Manager {
         if (!is_string($value) || trim($value) === '') {
             return 0;
         }
-        $value = preg_replace('/[€$£¥₹]/', '', $value);
+        // Character class, not byte class - see myfeeds-text.php.
+        $value = myfeeds_preg_replace_text('/[€$£¥₹]/u', '', $value);
         $value = preg_replace('/\b(EUR|USD|GBP|CHF|AED|SAR|EGP|JPY|CNY|INR|AUD|CAD|SEK|NOK|DKK|PLN|CZK|HUF|RON|BGN|HRK|TRY|BRL|MXN|KRW)\b/i', '', $value);
         $value = trim($value);
         // Handle comma as decimal separator (European format: 2,00)

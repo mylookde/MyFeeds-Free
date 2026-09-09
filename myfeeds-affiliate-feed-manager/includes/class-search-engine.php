@@ -1512,7 +1512,17 @@ class MyFeeds_Search_Engine {
      */
     private static function strip_size_suffix($name) {
         // Strip " - SIZE" patterns (XS, S, M, L, XL, XXL, XXXL, EU/US/UK numbers, bare numbers)
-        $cleaned = preg_replace('/\s*[-–]\s*(XXXL|XXL|XL|XS|S|M|L|EU\s*\d+|US\s*\d+|UK\s*\d+|\d{2,3})\s*$/i', '', $name);
+        //
+        // `u` is required because the class holds an en dash. As a byte
+        // class it could only ever match one third of that character, so
+        // a feed writing "Shirt - XL" with an en dash kept its size and
+        // every size came through as its own product - the dedup this
+        // function exists for quietly stopped working for those feeds.
+        $name = myfeeds_repair_utf8((string) $name);
+        $cleaned = preg_replace('/\s*[-–]\s*(XXXL|XXL|XL|XS|S|M|L|EU\s*\d+|US\s*\d+|UK\s*\d+|\d{2,3})\s*$/iu', '', $name);
+        if (!is_string($cleaned)) {
+            $cleaned = $name;
+        }
 
         // Strip product/color codes at end like "C100", "C201", "F302"
         $cleaned = preg_replace('/\s+[A-Z]\d{2,4}\s*$/i', '', $cleaned);

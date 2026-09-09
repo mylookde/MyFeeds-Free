@@ -1329,17 +1329,31 @@ class MyFeeds_Smart_Mapper {
      * Clean and optimize product title
      */
     private function clean_product_title($title) {
+        // Repair before matching. A `u` pattern on invalid UTF-8 makes
+        // preg_replace return null, which would blank the name outright.
+        $title = myfeeds_repair_utf8((string) $title);
+
         // Remove excessive whitespace
-        $title = preg_replace('/\s+/', ' ', trim($title));
-        
-        // Remove common unwanted characters
-        $title = preg_replace('/[™®©]/', '', $title);
-        
-        // Limit length for better display
-        if (strlen($title) > 200) {
-            $title = substr($title, 0, 197) . '...';
+        $title = myfeeds_preg_replace_text('/\s+/u', ' ', trim($title));
+
+        // Remove trademark and copyright marks.
+        //
+        // The `u` matters more than it looks. Without it this class is a
+        // set of BYTES - E2, 84, A2, C2, AE, A9 - and it deleted the
+        // first byte of every em dash, en dash, curly quote and
+        // ellipsis. The orphan bytes left behind were no longer valid
+        // UTF-8, and the sanitiser downstream turned each one into a
+        // question mark. Measured on mylook 2026-09-10: 192,972 of
+        // 194,507 italist names read "Herno Raincoat ?? White", and
+        // "Cafe" spelled with an accent came out as "Caf?".
+        $title = myfeeds_preg_replace_text('/[™®©]/u', '', $title);
+
+        // Limit length for better display - counted in characters, not
+        // bytes, so the cut never lands inside one.
+        if (mb_strlen($title, 'UTF-8') > 200) {
+            $title = mb_substr($title, 0, 197, 'UTF-8') . '...';
         }
-        
+
         return $title;
     }
     
@@ -1395,7 +1409,10 @@ class MyFeeds_Smart_Mapper {
         }
         
         // Remove common currency symbols AND currency codes
-        $price = preg_replace('/[€$£¥₹,\s]/', '', $price);
+        // `u` again: without it this is a byte set, and stripping single
+        // bytes out of a price string is how a currency symbol takes a
+        // digit with it.
+        $price = myfeeds_preg_replace_text('/[€$£¥₹,\s]/u', '', $price);
         $price = preg_replace('/\b(EUR|USD|GBP|CHF|AED|SAR|JPY|CNY|AUD|CAD|SEK|NOK|DKK|PLN|CZK|HUF|RON|TRY|BRL|MXN|KRW|INR)\b/i', '', $price);
         $price = trim($price);
         
