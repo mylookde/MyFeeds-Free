@@ -194,6 +194,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 = 1.0.34 =
 * Fixed: product titles lost every dash, curly quote and ellipsis, and some accented letters, showing question marks instead. A pattern that strips trademark marks was matching single bytes rather than characters, so it deleted the first byte of those characters and left something that was no longer readable text. Titles now keep them, and a mis-declared encoding is repaired instead of being filled with question marks.
 * Fixed: products from feeds that write a size as "Shirt - XL" with a long dash appeared once per size in the block picker. The rule that recognises a size suffix could not match that dash, so the sizes never collapsed into one product.
+* Fixed: the mapping editor could sit on "Loading..." forever for a large feed. It pulled the whole file into memory to read a single row; it now streams from disk like the importer does, and unpacks gzip and zip on the way.
 
 = 1.0.33 =
 * Fixed: adding or re-importing one feed could turn into an update of every feed. The import of a single feed has no background worker to wait for, so ten seconds in it looked stuck, and the recovery step started a full update in its place. It now leaves single-feed imports alone.
