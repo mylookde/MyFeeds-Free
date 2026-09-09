@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.32
+Stable tag: 1.0.33
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -191,9 +191,11 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.33 =
+* Fixed: adding or re-importing one feed could turn into an update of every feed. The import of a single feed has no background worker to wait for, so ten seconds in it looked stuck, and the recovery step started a full update in its place. It now leaves single-feed imports alone.
+
 = 1.0.32 =
 * Fixed: on password-protected sites the import restarted itself from the status poll and marked real products unavailable. The fix applies to any site whose own server cannot reach it without a password, and to every feed on it.
-* Fixed: adding or re-importing one feed could turn into an update of every feed. The import of a single feed has no background worker to wait for, so ten seconds in it looked stuck, and the recovery step started a full update in its place. It now leaves single-feed imports alone.
 
 = 1.0.31 =
 * Filtering, sorting and paging inside a search are near-instant. The first search still asks the index once; from then on a filter chip reads from what that search found, instead of searching the whole catalogue again with the filter attached. A brand filter on a 90,000-row catalogue took 7.6 seconds and now takes a few hundredths.
