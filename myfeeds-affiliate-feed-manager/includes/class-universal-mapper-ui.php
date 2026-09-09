@@ -594,37 +594,32 @@ class MyFeeds_Universal_Mapper_UI {
         
         $feed = $feeds[$feed_key];
         
-        // Download a small portion of the feed to get columns
-        $response = myfeeds_remote_get($feed['url'], array(
-            'timeout' => 30,
-            'headers' => array('Accept-Encoding' => 'gzip, deflate'),
-        ));
-        
-        if (is_wp_error($response)) {
-            wp_send_json_error(array('message' => $response->get_error_message()));
+        // The reader streams from a file and only ever needs the first
+        // row, so the feed must not travel through PHP's memory to get
+        // here. It used to: the whole body was pulled into a string and
+        // written back out to a temp file. Measured on a 190 MB feed
+        // 2026-09-09, that cost 569 MB of a 768 MB limit for one row, and
+        // the form sat on "Loading..." with nothing on screen saying why.
+        //
+        // Uploaded feeds are read where they lie. Everything else goes
+        // through the importer's own cache, which streams to disk and
+        // unpacks gzip and zip on the way.
+        $own_path = class_exists('MyFeeds_Feed_Upload')
+            ? MyFeeds_Feed_Upload::path_for_url($feed['url'])
+            : '';
+
+        if ($own_path !== '') {
+            $sample_path = $own_path;
+        } else {
+            $sample_path = myfeeds_ensure_feed_cached($feed['url'], $feed_key, 'mapping');
+            if (is_wp_error($sample_path)) {
+                wp_send_json_error(array('message' => $sample_path->get_error_message()));
+            }
         }
-        
-        $body = wp_remote_retrieve_body($response);
-        
-        // Handle gzip
-        if (substr($body, 0, 2) === "\x1f\x8b") {
-            $body = @gzdecode($body);
-        }
-        
-        // Hand the body to the feed reader, which is what the importer
-        // itself uses. The old code split the body into lines and read the
-        // first one as a CSV header. For an XML feed that header was
-        // "<?xml version=...": one nameless column, an empty mapping form,
-        // and nothing on screen that said why. Every Partnerize feed is
-        // XML, and so are most Shopify exports.
-        $tmp_path = wp_tempnam('myfeeds_mapsample_');
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- temp file for the feed reader
-        file_put_contents($tmp_path, $body);
 
         $reader = new MyFeeds_Feed_Reader();
-        if (!$reader->open($tmp_path)) {
+        if (!$reader->open($sample_path, isset($feed['detected_format']) ? (string) $feed['detected_format'] : '')) {
             $reason = (string) $reader->get_unsupported_reason();
-            wp_delete_file($tmp_path);
             wp_send_json_error(array('message' => sprintf(
                 /* translators: %s: reason the feed reader gave */
                 __('Could not read this feed: %s', 'myfeeds-affiliate-feed-manager'),
@@ -635,7 +630,6 @@ class MyFeeds_Universal_Mapper_UI {
         $first  = $reader->read_next();
         $header = $reader->get_headers();
         $reader->close();
-        wp_delete_file($tmp_path);
 
         $sample_data = is_array($first) ? $first : array();
         if (empty($header) && !empty($sample_data)) {
