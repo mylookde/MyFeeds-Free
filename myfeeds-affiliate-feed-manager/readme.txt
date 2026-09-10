@@ -196,6 +196,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * Added: a line under the search toolbar says whether you are seeing whole-word matches, and offers the partial ones with one click. Nothing is dropped, so a Sweatshirt is still one click away from "shirt".
 * Fixed: when a search found nothing and the plugin fell back to a looser match, it did not say so. It does now.
 * Fixed: a number in a search was silently ignored on MySQL 8 in that fallback, because it used a word-boundary syntax that only the older MySQL understands.
+* Fixed: a search word of three letters or fewer also demanded every one of its synonyms. Searching "men" quietly meant "men and man" and found a fraction of what it should. A synonym is an alternative now, the way it always was for longer words.
 
 = 1.0.34 =
 * Fixed: product titles lost every dash, curly quote and ellipsis, and some accented letters, showing question marks instead. A pattern that strips trademark marks was matching single bytes rather than characters, so it deleted the first byte of those characters and left something that was no longer readable text. Titles now keep them, and a mis-declared encoding is repaired instead of being filled with question marks.
