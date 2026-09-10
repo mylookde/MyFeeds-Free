@@ -2098,6 +2098,106 @@ class MyFeeds_DB_Manager {
     }
 
     /**
+     * Mark the products of ONE feed that this run did not touch.
+     *
+     * A full import discovers every feed it refreshed and, for each of
+     * them, flags the rows it did not see. A single-feed import skipped
+     * that step entirely - deliberately, because the cleanup next to it
+     * compares against ALL configured feeds and could take another
+     * feed's products with it. The consequence was measured on
+     * mylook.com.de on 2026-09-10: after re-importing italist, 4,474
+     * rows stayed 'active' although their external_id appears in the
+     * feed exactly zero times. The feed's row count read 200,634 where
+     * the file has 194,508 lines, and 28 shop tiles still pointed at
+     * products the merchant had withdrawn.
+     *
+     * This does the per-feed half and nothing else. It never looks at
+     * another feed, never deletes, and refuses to run when it would
+     * affect more than half of the feed - a feed that suddenly halves
+     * is a broken download, not a merchant clearing their catalogue.
+     *
+     * @param int    $feed_id            The feed's stable id.
+     * @param string $import_started_at  MySQL datetime the run began.
+     * @return int   How many rows were marked.
+     */
+    public static function mark_missing_products_for_feed($feed_id, $import_started_at) {
+        global $wpdb;
+        $table   = self::table_name();
+        $feed_id = (int) $feed_id;
+
+        if ($feed_id <= 0 || empty($import_started_at)) {
+            self::log('db_single_feed_skip_unavailable', array(
+                'reason'  => 'missing_feed_id_or_timestamp',
+                'feed_id' => $feed_id,
+            ));
+            return 0;
+        }
+
+        $total_active = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE status = 'active' AND feed_id = %d",
+            $feed_id
+        ));
+        if ($total_active === 0) {
+            return 0;
+        }
+
+        $stale = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table}
+             WHERE status = 'active' AND feed_id = %d AND last_updated < %s",
+            $feed_id,
+            $import_started_at
+        ));
+        if ($stale === 0) {
+            myfeeds_log("Single-feed orphan check: feed {$feed_id} has no untouched rows.", 'debug');
+            return 0;
+        }
+
+        if ($stale > ($total_active * 0.5)) {
+            $pct = round(($stale / $total_active) * 100, 1);
+            myfeeds_log(
+                "MYFEEDS [ERROR]: SAFETY ABORT - single-feed orphan check would mark {$stale} of {$total_active} "
+                . "products of feed {$feed_id} unavailable ({$pct}% > 50%). That reads like a truncated download, "
+                . "not a shrinking catalogue. Skipping.",
+                'error'
+            );
+            self::log('db_single_feed_safety_abort', array(
+                'feed_id'      => $feed_id,
+                'stale'        => $stale,
+                'total_active' => $total_active,
+                'percent'      => $pct,
+            ));
+            return 0;
+        }
+
+        // unavailable_since stamps the moment of the soft-delete, and the
+        // WHERE guard keeps it to the active -> unavailable transition so
+        // a row already waiting keeps its original aging clock. The M7
+        // purger reads it to decide when the grace window is over.
+        $now    = current_time('mysql');
+        $marked = (int) $wpdb->query($wpdb->prepare(
+            "UPDATE {$table}
+             SET status = 'unavailable', last_updated = %s, unavailable_since = %s
+             WHERE status = 'active' AND feed_id = %d AND last_updated < %s",
+            $now,
+            $now,
+            $feed_id,
+            $import_started_at
+        ));
+
+        myfeeds_log(
+            "Single-feed orphan check: marked {$marked} of {$total_active} products of feed {$feed_id} unavailable.",
+            'info'
+        );
+        self::log('db_single_feed_marked_unavailable', array(
+            'feed_id'      => $feed_id,
+            'marked'       => $marked,
+            'total_active' => $total_active,
+        ));
+
+        return $marked;
+    }
+
+    /**
      * Helper: Write final import status to DB option.
      * 
      * @param array $import_status Previous import status

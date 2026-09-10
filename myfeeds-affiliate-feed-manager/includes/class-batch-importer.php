@@ -4053,6 +4053,29 @@ class MyFeeds_Batch_Importer {
                 }
             }
 
+            // The rows THIS feed no longer carries. Scoped to the one
+            // feed and to this run's start time, so no other feed can be
+            // touched. Without it a re-imported feed kept every product
+            // the merchant had withdrawn: measured on mylook.com.de,
+            // italist reported 200,634 rows against a 194,508-line file,
+            // and 4,474 withdrawn products stayed on sale.
+            if (MyFeeds_DB_Manager::is_db_mode() && $single_feed_key !== null) {
+                $feeds_now = get_option('myfeeds_feeds', array());
+                $single_stable = isset($feeds_now[$single_feed_key]['stable_id'])
+                    ? (int) $feeds_now[$single_feed_key]['stable_id']
+                    : 0;
+                $started_at = isset($status['started_at']) ? (string) $status['started_at'] : '';
+                $gone = MyFeeds_DB_Manager::mark_missing_products_for_feed($single_stable, $started_at);
+                if ($gone > 0) {
+                    MyFeeds_Logger::info("Complete: Single-feed '{$single_feed_name}' - {$gone} withdrawn products marked unavailable");
+                    // The count on the feed row was read before this ran.
+                    if (isset($feeds_now[$single_feed_key])) {
+                        $feeds_now[$single_feed_key]['product_count'] = MyFeeds_DB_Manager::get_feed_product_count($single_stable);
+                        update_option('myfeeds_feeds', $feeds_now);
+                    }
+                }
+            }
+
             // Mark complete
             $status['status'] = 'completed';
             $status['completed_at'] = current_time('mysql');
@@ -4060,8 +4083,9 @@ class MyFeeds_Batch_Importer {
             
             // NOTE: Do NOT run cleanup_orphaned_products() after single-feed imports!
             // It compares ALL products against configured feeds and can incorrectly
-            // delete products from other feeds. Orphan cleanup only runs after
-            // Full Imports where ALL feeds have been processed.
+            // delete products from other feeds. That is a different question from
+            // the per-feed one handled just above: this one would look at every
+            // feed, the one above never leaves the feed that just ran.
             
             // Cleanup
             delete_option(self::OPTION_IMPORT_QUEUE);
