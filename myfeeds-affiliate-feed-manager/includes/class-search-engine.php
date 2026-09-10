@@ -624,15 +624,24 @@ class MyFeeds_Search_Engine {
             // "air force 1 → 0 results" bug. Route them to the LIKE constraint
             // instead, where they get AND'd onto the FT match.
             if (mb_strlen($clean_token) < 4) {
-                $short_tokens[] = $clean_token;
+                // A word and its synonyms are ALTERNATIVES, so they go
+                // into one group that is OR-ed. They used to be appended
+                // to one flat list that was AND-ed, which quietly turned
+                // every synonym into a second requirement: "men" also
+                // demanded "man", and on mylook that took a search from
+                // 28,548 rows down to 1,187. The long-token path has
+                // always grouped them correctly as "+(token* syn*)";
+                // this is the same idea for words the index cannot hold.
+                $group = array($clean_token);
                 if (isset($synonym_map[$token])) {
                     foreach ($synonym_map[$token] as $syn) {
                         $clean_syn = self::sanitize_fulltext_token($syn);
-                        if ($clean_syn !== '' && mb_strlen($clean_syn) < 4) {
-                            $short_tokens[] = $clean_syn;
+                        if ($clean_syn !== '' && mb_strlen($clean_syn) < 4 && !in_array($clean_syn, $group, true)) {
+                            $group[] = $clean_syn;
                         }
                     }
                 }
+                $short_tokens[] = $group;
                 continue;
             }
 
@@ -661,7 +670,13 @@ class MyFeeds_Search_Engine {
                     $clean_syn = self::sanitize_fulltext_token($syn);
                     if (empty($clean_syn)) continue;
                     if (mb_strlen($clean_syn) < 4) {
-                        $short_tokens[] = $syn;
+                        // A short synonym of a LONG word cannot join its
+                        // full-text group - the index will not hold it -
+                        // and it must not become its own AND-ed group
+                        // either, because that is what made a search for
+                        // "shirt" also demand "tee". An alternative that
+                        // cannot be expressed as an alternative is
+                        // dropped rather than turned into a requirement.
                         continue;
                     }
                     $syn_ft = $clean_syn . '*';
@@ -686,7 +701,8 @@ class MyFeeds_Search_Engine {
 
         return array(
             'fulltext_query' => implode(' ', $groups),
-            'short_tokens' => array_values(array_unique($short_tokens)),
+            // A list of GROUPS: OR inside a group, AND between them.
+            'short_tokens' => self::unique_groups($short_tokens),
             // The words this query actually asked for. "Show partial
             // matches" reuses exactly these, so the wide search can only
             // ever be wider than the narrow one.
@@ -714,37 +730,76 @@ class MyFeeds_Search_Engine {
         global $wpdb;
         $conditions = array();
         $values     = array();
-        foreach ($short_tokens as $st) {
-            if (!is_string($st) || $st === '') {
-                continue;
-            }
-            if (is_numeric($st)) {
-                $conditions[] = "CONCAT(' ', search_text, ' ') LIKE %s";
-                $values[]     = '% ' . $wpdb->esc_like($st) . ' %';
-                continue;
+        foreach ($short_tokens as $group) {
+            // Accepts a bare word as well as a group, so a caller that
+            // still passes a flat list keeps working.
+            $group = is_array($group) ? $group : array($group);
+            $alternatives = array();
+
+            foreach ($group as $st) {
+                if (!is_string($st) || $st === '') {
+                    continue;
+                }
+                if (is_numeric($st)) {
+                    $alternatives[] = "CONCAT(' ', search_text, ' ') LIKE %s";
+                    $values[]       = '% ' . $wpdb->esc_like($st) . ' %';
+                    continue;
+                }
+
+                // A short word has to start a word, the same way a long
+                // one does. Long tokens go through FULLTEXT as
+                // "+token*", which matches at a word start and nowhere
+                // else; short tokens cannot use the index at all and
+                // used to fall back to a plain substring. That
+                // difference had a price: measured on mylook.com.de,
+                // "men" matched 58,176 product names, of which only
+                // 27,358 were menswear. The rest were women's products,
+                // plus "Cement" and "Pigment". Now both lengths answer
+                // the same question.
+                //
+                // The LIKE stays in front as a cheap prefilter - it can
+                // only ever be wider than the regex, so it never removes
+                // a hit, and it keeps the expensive pattern away from
+                // most rows.
+                $alternatives[] = '(search_text LIKE %s AND search_text REGEXP %s)';
+                $values[]       = '%' . $wpdb->esc_like($st) . '%';
+                $values[]       = self::word_start_pattern($st);
             }
 
-            // A short word has to start a word, the same way a long one
-            // does. Long tokens go through FULLTEXT as "+token*", which
-            // matches at a word start and nowhere else; short tokens
-            // cannot use the index at all and used to fall back to a
-            // plain substring. That difference had a price: measured on
-            // mylook.com.de, "men" matched 58,176 product names, of
-            // which only 27,358 were menswear. The rest were women's
-            // products, plus "Cement" and "Pigment". Now both lengths
-            // answer the same question.
-            //
-            // The LIKE stays in front as a cheap prefilter - it can only
-            // ever be wider than the regex, so it never removes a hit,
-            // and it keeps the expensive pattern away from most rows.
-            $conditions[] = 'search_text LIKE %s AND search_text REGEXP %s';
-            $values[]     = '%' . $wpdb->esc_like($st) . '%';
-            $values[]     = self::word_start_pattern($st);
+            if (!empty($alternatives)) {
+                $conditions[] = '(' . implode(' OR ', $alternatives) . ')';
+            }
         }
         if (empty($conditions)) {
             return array('sql' => '', 'params' => array());
         }
         return array('sql' => '(' . implode(' AND ', $conditions) . ')', 'params' => $values);
+    }
+
+    /**
+     * Deduplicate a list of token groups without flattening them.
+     * array_unique() compares as strings and would collapse every group
+     * to "Array".
+     *
+     * @param array $groups
+     * @return array
+     */
+    private static function unique_groups($groups) {
+        $seen = array();
+        $out  = array();
+        foreach ((array) $groups as $g) {
+            $g = array_values(array_unique(is_array($g) ? $g : array($g)));
+            if (empty($g)) {
+                continue;
+            }
+            $key = implode("\0", $g);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $out[] = $g;
+        }
+        return $out;
     }
 
     /**
