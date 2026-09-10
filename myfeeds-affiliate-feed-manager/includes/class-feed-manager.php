@@ -2409,6 +2409,10 @@ class MyFeeds_Feed_Manager {
                     'in_stock'       => (bool) $req->get_param('in_stock'),
                     'sort'           => sanitize_key((string) $req->get_param('sort')) ?: 'relevance',
                     'include_facets' => (bool) $req->get_param('include_facets'),
+                    // "Show partial matches" - the picker sends it only
+                    // when the reader asked for it. Anything other than
+                    // the literal 1 means word starts only.
+                    'loose'          => $req->get_param('loose') === '1',
                 );
                 $wrapper = MyFeeds_Search_Engine::search($query, $args);
                 return rest_ensure_response($wrapper);

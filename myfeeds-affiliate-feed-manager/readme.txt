@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.34
+Stable tag: 1.0.35
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,12 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.35 =
+* Improved: a search word of three letters or fewer now has to start a word, the way longer words always did. Searching "men" used to return every women's product because the word sits inside "women"; on a real catalogue that was 58,176 matches where 27,358 were meant.
+* Added: a line under the search toolbar says whether you are seeing whole-word matches, and offers the partial ones with one click. Nothing is dropped, so a Sweatshirt is still one click away from "shirt".
+* Fixed: when a search found nothing and the plugin fell back to a looser match, it did not say so. It does now.
+* Fixed: a number in a search was silently ignored on MySQL 8 in that fallback, because it used a word-boundary syntax that only the older MySQL understands.
 
 = 1.0.34 =
 * Fixed: product titles lost every dash, curly quote and ellipsis, and some accented letters, showing question marks instead. A pattern that strips trademark marks was matching single bytes rather than characters, so it deleted the first byte of those characters and left something that was no longer readable text. Titles now keep them, and a mis-declared encoding is repaired instead of being filled with question marks.

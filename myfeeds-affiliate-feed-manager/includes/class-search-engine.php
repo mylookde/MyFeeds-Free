@@ -687,16 +687,28 @@ class MyFeeds_Search_Engine {
         return array(
             'fulltext_query' => implode(' ', $groups),
             'short_tokens' => array_values(array_unique($short_tokens)),
+            // The words this query actually asked for. "Show partial
+            // matches" reuses exactly these, so the wide search can only
+            // ever be wider than the narrow one.
+            'tokens_used' => array_values(array_unique($tokens_for_ft)),
         );
     }
 
     /**
      * SQL fragment that requires the search_text to contain every short
-     * token as a word, AND-joined. Numeric shorts use space-padded LIKE
-     * (CONCAT-padded text + "% N %") so "1" matches " 1 " but not "19149";
-     * MySQL 5.x POSIX word-boundary regex [[:<:]] is broken on 8.0.4+.
-     * Alphabetic shorts use plain substring LIKE since 2-3 char alpha
-     * tokens are usually valid word prefixes.
+     * token as a word, AND-joined.
+     *
+     * Numeric shorts use a space-padded LIKE (CONCAT-padded text plus
+     * "% N %") so "1" matches " 1 " but not "19149". The POSIX
+     * word-boundary escapes would be the obvious tool and are the wrong
+     * one: they belong to the MySQL 5.x regex engine and match nothing
+     * at all on 8.0.4+, which fails silently.
+     *
+     * Alphabetic shorts used to be a plain substring on the assumption
+     * that a two- or three-letter word is a valid prefix. It is not:
+     * "men" sat inside "women", "Cement" and "Pigment", and matched
+     * 58,176 names where 27,358 were meant. They now require a word
+     * start, which is what the full-text index gives long tokens.
      */
     private static function build_short_token_constraint($short_tokens) {
         global $wpdb;
@@ -709,10 +721,88 @@ class MyFeeds_Search_Engine {
             if (is_numeric($st)) {
                 $conditions[] = "CONCAT(' ', search_text, ' ') LIKE %s";
                 $values[]     = '% ' . $wpdb->esc_like($st) . ' %';
-            } else {
-                $conditions[] = 'search_text LIKE %s';
-                $values[]     = '%' . $wpdb->esc_like($st) . '%';
+                continue;
             }
+
+            // A short word has to start a word, the same way a long one
+            // does. Long tokens go through FULLTEXT as "+token*", which
+            // matches at a word start and nowhere else; short tokens
+            // cannot use the index at all and used to fall back to a
+            // plain substring. That difference had a price: measured on
+            // mylook.com.de, "men" matched 58,176 product names, of
+            // which only 27,358 were menswear. The rest were women's
+            // products, plus "Cement" and "Pigment". Now both lengths
+            // answer the same question.
+            //
+            // The LIKE stays in front as a cheap prefilter - it can only
+            // ever be wider than the regex, so it never removes a hit,
+            // and it keeps the expensive pattern away from most rows.
+            $conditions[] = 'search_text LIKE %s AND search_text REGEXP %s';
+            $values[]     = '%' . $wpdb->esc_like($st) . '%';
+            $values[]     = self::word_start_pattern($st);
+        }
+        if (empty($conditions)) {
+            return array('sql' => '', 'params' => array());
+        }
+        return array('sql' => '(' . implode(' AND ', $conditions) . ')', 'params' => $values);
+    }
+
+    /**
+     * "This word starts a word here" as a portable REGEXP.
+     *
+     * The one definition of a word start in the plugin: the collection
+     * rules, the products list and the picker search all ask this
+     * function, so they cannot drift apart. MySQL 5.7 uses the
+     * Henry-Spencer engine and 8.0.4+ uses ICU: the POSIX word-boundary
+     * escapes are silently dead on the newer one and the backslash-b
+     * form on the older, so the boundary is spelled out as "start of
+     * string, or a character that is not a letter".
+     *
+     * @param string $token
+     * @return string  Empty when there is nothing to match.
+     */
+    public static function word_start_pattern($token) {
+        $token = trim((string) $token);
+        if ($token === '') {
+            return '';
+        }
+
+        return '(^|[^[:alpha:]])' . self::regex_quote(strtolower($token)) . '[[:alpha:]]*';
+    }
+
+    private static function regex_quote($s) {
+        return addcslashes((string) $s, '\\^$.|?*+(){}[]');
+    }
+
+    /**
+     * The widened half of the search: every search word as a plain
+     * substring, AND-joined.
+     *
+     * This is never the whole predicate. It is OR-ed onto the normal
+     * one, so "show partial matches" can only ever ADD rows - a synonym
+     * or a stemmed form that full-text found still counts as a hit.
+     *
+     * It exists because a word start cannot tell "Women" from
+     * "Sweatshirt": in both the search word sits at the end of a longer
+     * one. Narrowing alone would lose every Sweatshirt for "shirt",
+     * every Trenchcoat for "coat", and in German almost every compound
+     * noun. So nothing is dropped, it is only held back, and the picker
+     * offers it.
+     *
+     * @param string[] $tokens
+     * @return array{sql:string, params:array}
+     */
+    private static function build_loose_constraint($tokens) {
+        global $wpdb;
+        $conditions = array();
+        $values     = array();
+        foreach ((array) $tokens as $t) {
+            $t = trim((string) $t);
+            if ($t === '') {
+                continue;
+            }
+            $conditions[] = 'search_text LIKE %s';
+            $values[]     = '%' . $wpdb->esc_like($t) . '%';
         }
         if (empty($conditions)) {
             return array('sql' => '', 'params' => array());
@@ -941,7 +1031,7 @@ class MyFeeds_Search_Engine {
      *
      * @return array{sql:string, params:array}
      */
-    private static function match_predicate($ft_query_str, $short_constraint_data, $phrase_constraints) {
+    private static function match_predicate($ft_query_str, $short_constraint_data, $phrase_constraints, $loose_constraint_data = null) {
         global $wpdb;
         $parts  = array();
         $params = array();
@@ -953,14 +1043,34 @@ class MyFeeds_Search_Engine {
             $parts[] = $short_constraint_data['sql'];
             $params  = array_merge($params, (array) $short_constraint_data['params']);
         }
+
+        // "Show partial matches" widens the match, it never replaces it.
+        // OR-ing keeps every row the normal predicate found - including
+        // the ones full-text reached through a synonym or a stem, which
+        // a substring pass would not find on its own - and adds the
+        // words that sit inside a longer word.
+        $core = empty($parts) ? '' : '(' . implode(' AND ', $parts) . ')';
+        if (is_array($loose_constraint_data) && !empty($loose_constraint_data['sql'])) {
+            $core = $core === ''
+                ? $loose_constraint_data['sql']
+                : '(' . $core . ' OR ' . $loose_constraint_data['sql'] . ')';
+            $params = array_merge($params, (array) $loose_constraint_data['params']);
+        }
+
+        // A quoted phrase stays a hard requirement in both modes: the
+        // user typed the quotes on purpose.
+        $outer = array();
+        if ($core !== '') {
+            $outer[] = $core;
+        }
         foreach ((array) $phrase_constraints as $phrase) {
-            $parts[]  = 'search_text LIKE %s';
+            $outer[]  = 'search_text LIKE %s';
             $params[] = '%' . $wpdb->esc_like($phrase) . '%';
         }
-        if (empty($parts)) {
+        if (empty($outer)) {
             return array('sql' => '1=1', 'params' => array());
         }
-        return array('sql' => '(' . implode(' AND ', $parts) . ')', 'params' => $params);
+        return array('sql' => '(' . implode(' AND ', $outer) . ')', 'params' => $params);
     }
 
     /**
@@ -984,8 +1094,12 @@ class MyFeeds_Search_Engine {
      * Keyed by the search words as the engine sees them, not the raw
      * string: "Jacket " and "jacket" ask the same question.
      */
-    private static function candidate_cache_key($ft_query_str, $short_tokens, $phrase_constraints) {
-        return 'myfeeds_cand_' . md5(serialize(array($ft_query_str, $short_tokens, $phrase_constraints)));
+    private static function candidate_cache_key($ft_query_str, $short_tokens, $phrase_constraints, $loose_tokens = array()) {
+        // The loose tokens belong in the key. Without them a search for
+        // "men" with partial matches on and one with it off ask the same
+        // question here - same full-text string, same short tokens - and
+        // the first answer would be served to the second.
+        return 'myfeeds_cand_' . md5(serialize(array($ft_query_str, $short_tokens, $phrase_constraints, $loose_tokens)));
     }
 
     /**
@@ -1022,10 +1136,16 @@ class MyFeeds_Search_Engine {
         $has_short_local = $sc['sql'] !== '';
         $has_phr_local   = !empty($phrase_constraints);
 
-        if (!$has_ft_local && !$has_short_local && !$has_phr_local) {
+        $has_predicate = is_array($predicate) && !empty($predicate['sql']);
+        if (!$has_ft_local && !$has_short_local && !$has_phr_local && !$has_predicate) {
             return $facets;
         }
-        if (!is_array($predicate) || empty($predicate['sql'])) {
+        if (!$has_predicate) {
+            // Only reachable when the caller did not hand its predicate
+            // down. Rebuilding one here cannot know whether partial
+            // matches were switched on, so the counts on the chips would
+            // describe a different set than the grid - the exact
+            // promise-versus-delivery split rule 5 exists to prevent.
             $predicate = self::match_predicate($ft_query_str, $sc, $phrase_constraints);
         }
 
@@ -1041,6 +1161,9 @@ class MyFeeds_Search_Engine {
             $args['brand'], $args['colour'], $args['category'],
             $args['min_price'], $args['max_price'],
             $args['on_sale'], $args['in_stock'],
+            // Partial matches change WHICH rows are counted, so a wide
+            // search must not be served the narrow search's chip counts.
+            !empty($args['loose']),
         )));
         $cached = get_transient($cache_key);
         if (is_array($cached)) {
@@ -1641,6 +1764,9 @@ class MyFeeds_Search_Engine {
             'sort'           => 'relevance',
             // Facets: include brand + colour aggregates in wrapper return
             'include_facets' => false,
+            // Show words that sit inside a longer word too. Off by
+            // default: the search asks for word starts, and says so.
+            'loose'          => false,
         );
         if (is_array($limit)) {
             $args = array_merge($args, $limit);
@@ -1777,6 +1903,11 @@ class MyFeeds_Search_Engine {
         $fetch_limit = min($fetch_limit, 20000);
         $rows = array();
 
+        // True when the rows on screen came from a substring match:
+        // either the reader asked for partial matches, or the full-text
+        // pass found nothing and the LIKE rescue answered instead.
+        $answered_loosely = (bool) $args['loose'];
+
         $has_search_text = $wpdb->get_var("SHOW COLUMNS FROM {$table} LIKE 'search_text'");
 
         // Filters are applied at the SQL level so the FULLTEXT match works on
@@ -1797,6 +1928,16 @@ class MyFeeds_Search_Engine {
         $has_ft                = !empty($ft_query_str);
         $has_phrases           = !empty($phrase_constraints);
 
+        // "Show partial matches" - off unless the caller asks. It uses
+        // the SAME word list full-text uses, so a gender word that is
+        // deliberately kept out of the match (and applied as a bonus and
+        // a filter instead) does not sneak back in as a hard substring
+        // requirement and make the wide search narrower than the narrow
+        // one.
+        $loose_tokens          = ((bool) $args['loose']) ? $ft_data['tokens_used'] : array();
+        $loose_constraint_data = self::build_loose_constraint($loose_tokens);
+        $has_loose             = $loose_constraint_data['sql'] !== '';
+
         // The match predicate - full-text plus short-token and phrase
         // constraints - is the expensive half of every query below:
         // about 1.4 seconds on a 90,000-row catalogue, and the same again
@@ -1810,16 +1951,16 @@ class MyFeeds_Search_Engine {
         // catalogue again with the filter bolted on. Measured on mylook:
         // "jacket" with a brand filter went from 7.6 seconds to well
         // under one.
-        $predicate = self::match_predicate($ft_query_str, $short_constraint_data, $phrase_constraints);
-        $candidate_key = ($has_ft || $has_short_constraint || $has_phrases)
-            ? self::candidate_cache_key($ft_query_str, $short_tokens, $phrase_constraints)
+        $predicate = self::match_predicate($ft_query_str, $short_constraint_data, $phrase_constraints, $loose_constraint_data);
+        $candidate_key = ($has_ft || $has_short_constraint || $has_phrases || $has_loose)
+            ? self::candidate_cache_key($ft_query_str, $short_tokens, $phrase_constraints, $loose_tokens)
             : '';
         $cached_ids = $candidate_key !== '' ? get_transient($candidate_key) : false;
         if (is_array($cached_ids) && !empty($cached_ids)) {
             $predicate = self::id_predicate($cached_ids);
         }
 
-        if ($has_search_text && ($has_ft || $has_short_constraint || $has_phrases)) {
+        if ($has_search_text && ($has_ft || $has_short_constraint || $has_phrases || $has_loose)) {
             $params = array_merge($filter_param, $predicate['params']);
             $params[] = $fetch_limit;
 
@@ -1851,10 +1992,17 @@ class MyFeeds_Search_Engine {
             if (empty($rows)) {
                 myfeeds_log("SEARCH: FULLTEXT returned 0 results, falling back to LIKE", 'debug');
                 $rows = self::like_fallback_search($table, $original_tokens, $synonym_map, $gender_tokens, $fetch_limit);
+                // This rescue matches substrings, so it answers the WIDE
+                // question even when the reader asked the narrow one. It
+                // has to be reported, or the line above the results
+                // claims "whole-word matches only" over a list full of
+                // partial ones.
+                $answered_loosely = !empty($rows);
             }
         } else {
             myfeeds_log("SEARCH: No search_text column/FULLTEXT index, using LIKE fallback", 'debug');
             $rows = self::like_fallback_search($table, $original_tokens, $synonym_map, $gender_tokens, $fetch_limit);
+            $answered_loosely = !empty($rows);
         }
 
         $fulltext_count = count($rows);
@@ -1912,6 +2060,7 @@ class MyFeeds_Search_Engine {
                     'total'      => 0,
                     'suggestion' => $suggestion,
                     'parsed'     => $parsed,
+                    'loose'      => $answered_loosely,
                 );
             }
             return array();
@@ -2049,7 +2198,7 @@ class MyFeeds_Search_Engine {
             $total_after_dedup = $known_total;
         } elseif (isset($facets['_total_dedup'])) {
             $total_after_dedup = (int) $facets['_total_dedup'];
-        } elseif (!empty($args['return_meta']) && $has_search_text && ($has_ft || $has_short_constraint || $has_phrases)) {
+        } elseif (!empty($args['return_meta']) && $has_search_text && ($has_ft || $has_short_constraint || $has_phrases || $has_loose)) {
             $count_filter   = self::build_filter_clause($args);
             $count_params   = array_merge($count_filter['params'], $predicate['params']);
             $count_sql = "SELECT DISTINCT product_name, COALESCE(LOWER(colour), '') AS colour_norm
@@ -2111,6 +2260,10 @@ class MyFeeds_Search_Engine {
                 'total'      => $total_after_dedup,
                 'suggestion' => $suggestion,
                 'parsed'     => $parsed,
+                // Whether these rows answer the wide question. The
+                // picker's one-line note reads this, not its own switch,
+                // so it can never describe a list it is not showing.
+                'loose'      => $answered_loosely,
                 'facets'     => $facets,
                 'applied'    => array(
                     'brand'     => $args['brand'],
@@ -2194,9 +2347,15 @@ class MyFeeds_Search_Engine {
 
             foreach ($forms as $form) {
                 if (is_numeric($form)) {
-                    // Numeric tokens: REGEXP word boundary to avoid partial number matches
-                    $or_parts[] = '(search_text REGEXP %s)';
-                    $all_values[] = '[[:<:]]' . $form . '[[:>:]]';
+                    // A number has to stand on its own: "1" must not
+                    // match "19149". The POSIX word-boundary escapes
+                    // used to do this, but they belong to the MySQL 5.x
+                    // regex engine and match NOTHING on 8.0.4+, which
+                    // silently dropped every numeric token here. The
+                    // space-padded LIKE is the portable form the rest of
+                    // the engine already uses.
+                    $or_parts[] = "(CONCAT(' ', search_text, ' ') LIKE %s)";
+                    $all_values[] = '% ' . $wpdb->esc_like($form) . ' %';
                 } else {
                     $like = '%' . $wpdb->esc_like($form) . '%';
                     $or_parts[] = 'search_text LIKE %s';

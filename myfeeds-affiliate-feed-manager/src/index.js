@@ -319,6 +319,13 @@
       const [parsedHint, setParsedHint] = useState(null);
       const [totalResults, setTotalResults] = useState(0);
       const [showFilters, setShowFilters] = useState(false);
+      // Whole-word matching is the default. A search word has to START a
+      // word, the way the full-text index has always treated long words.
+      // Switching this on also accepts the word inside a longer one, for
+      // the compounds a word start cannot reach: Sweatshirt for "shirt",
+      // Trenchcoat for "coat", and most German nouns.
+      const [looseMatch, setLooseMatch] = useState(false);
+      const [answeredLoosely, setAnsweredLoosely] = useState(false);
       const [recents, setRecents] = useState([]);
 
       // On block mount: refresh selected products with current data from DB
@@ -516,6 +523,7 @@
         if (filterMaxPrice !== '' && filterMaxPrice !== null) u += '&max_price=' + encodeURIComponent(filterMaxPrice);
         if (filterOnSale) u += '&on_sale=1';
         if (filterInStock) u += '&in_stock=1';
+        if (looseMatch) u += '&loose=1';
         return u;
       };
 
@@ -579,6 +587,12 @@
               setSuggestion((payload && payload.suggestion) ? payload.suggestion : null);
               setFacets((payload && payload.facets) ? payload.facets : null);
               setParsedHint((payload && payload.parsed) ? payload.parsed : null);
+              // What the server actually answered. It can be wider than
+              // what was asked: when the whole-word pass finds nothing,
+              // a substring rescue runs instead. The note below the
+              // toolbar reads this, so it never describes a list it is
+              // not showing.
+              setAnsweredLoosely(!!(payload && payload.loose));
               setTotalResults((payload && typeof payload.total === 'number') ? payload.total : newProducts.length);
               if (newProducts.length === 0 && !(payload && payload.suggestion)) {
                 // Distinguish "typo / no products" from "filters too narrow"
@@ -611,6 +625,13 @@
         }
       };
 
+      // "Show partial matches" was turned on for one particular word.
+      // Type a different one and it closes again, otherwise the next
+      // search silently starts wide.
+      useEffect(function () {
+        setLooseMatch(false);
+      }, [searchTerm]);
+
       // Search-as-you-type: when the modal is open and the user is typing or
       // changing filters/sort, refetch after a short debounce so the result
       // list updates without making them hit Enter every time.
@@ -619,7 +640,7 @@
         if (!searchTerm || searchTerm.length < 2) return undefined;
         var t = setTimeout(function () { fetchProducts(false); }, 280);
         return function () { clearTimeout(t); };
-      }, [searchTerm, sortMode, filterBrand, filterColour, filterCategory, filterMinPrice, filterMaxPrice, filterOnSale, filterInStock, showModal]);
+      }, [searchTerm, sortMode, filterBrand, filterColour, filterCategory, filterMinPrice, filterMaxPrice, filterOnSale, filterInStock, looseMatch, showModal]);
 
       const clearAllFilters = function () {
         setFilterBrand([]);
@@ -1480,6 +1501,22 @@
                   onClick: function () { setShowFilters(!showFilters); },
                   style: { padding: "6px 12px", fontSize: "13px", background: showFilters ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "#fff", color: showFilters ? "#fff" : "#667eea", border: "1px solid #667eea", borderRadius: "6px" }
                 }, showFilters ? "Hide filters" : ("Filters" + (activeFilterCount > 0 ? " (" + activeFilterCount + ")" : "")))
+              ),
+              // Whole words versus partial matches. Always offered while a
+              // search is running, because the reader cannot otherwise tell
+              // why "men" stopped returning women's products - or that a
+              // Sweatshirt is waiting one click away from "shirt".
+              searchTerm && searchTerm.length >= 2 && !isLoading && React.createElement("div", {
+                style: { marginTop: "6px", fontSize: "12px", color: "#6b7280", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }
+              },
+                React.createElement("span", null, answeredLoosely
+                  ? "Showing words inside longer words too, like Sweatshirt for shirt."
+                  : "Showing whole-word matches only."),
+                React.createElement(Button, {
+                  isLink: true,
+                  onClick: function () { setLooseMatch(!looseMatch); },
+                  style: { padding: 0, fontSize: "12px", color: "#667eea", textDecoration: "underline" }
+                }, looseMatch ? "Whole words only" : "Show partial matches too")
               ),
               // Active filter chips
               activeFilterCount > 0 && React.createElement("div", { style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" } },
