@@ -1481,6 +1481,21 @@
                 React.createElement("div", { style: { color: "#374151", fontSize: "13px" } },
                   isLoading ? "Searching…" : (totalResults > 0 ? (totalResults + " result" + (totalResults === 1 ? "" : "s")) : "")
                 ),
+                // Beside the count, not under it. On its own line it cost a
+                // row of whitespace inside a modal whose whole job is to
+                // show products.
+                !isLoading && React.createElement("div", {
+                  style: { display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#6b7280", flexWrap: "wrap" }
+                },
+                  React.createElement("span", null, answeredLoosely
+                    ? "Showing words inside longer words too, like Sweatshirt for shirt."
+                    : "Showing whole-word matches only."),
+                  React.createElement(Button, {
+                    isLink: true,
+                    onClick: function () { setLooseMatch(!looseMatch); },
+                    style: { padding: 0, fontSize: "12px", color: "#667eea", textDecoration: "underline" }
+                  }, looseMatch ? "Whole words only" : "Show partial matches too")
+                ),
                 React.createElement("div", { style: { flex: 1 } }),
                 React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#374151" } },
                   "Sort:",
@@ -1501,22 +1516,6 @@
                   onClick: function () { setShowFilters(!showFilters); },
                   style: { padding: "6px 12px", fontSize: "13px", background: showFilters ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "#fff", color: showFilters ? "#fff" : "#667eea", border: "1px solid #667eea", borderRadius: "6px" }
                 }, showFilters ? "Hide filters" : ("Filters" + (activeFilterCount > 0 ? " (" + activeFilterCount + ")" : "")))
-              ),
-              // Whole words versus partial matches. Always offered while a
-              // search is running, because the reader cannot otherwise tell
-              // why "men" stopped returning women's products - or that a
-              // Sweatshirt is waiting one click away from "shirt".
-              searchTerm && searchTerm.length >= 2 && !isLoading && React.createElement("div", {
-                style: { marginTop: "6px", fontSize: "12px", color: "#6b7280", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }
-              },
-                React.createElement("span", null, answeredLoosely
-                  ? "Showing words inside longer words too, like Sweatshirt for shirt."
-                  : "Showing whole-word matches only."),
-                React.createElement(Button, {
-                  isLink: true,
-                  onClick: function () { setLooseMatch(!looseMatch); },
-                  style: { padding: 0, fontSize: "12px", color: "#667eea", textDecoration: "underline" }
-                }, looseMatch ? "Whole words only" : "Show partial matches too")
               ),
               // Active filter chips
               activeFilterCount > 0 && React.createElement("div", { style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" } },
