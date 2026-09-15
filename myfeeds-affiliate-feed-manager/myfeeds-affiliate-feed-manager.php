@@ -387,6 +387,15 @@ add_action('admin_init', function() {
             MyFeeds_DB_Manager::create_table(); // dbDelta adds the new compound keys
             update_option('myfeeds_db_schema_version', '2.3');
         }
+
+        // Two indexes the table never needed: idx_external_id repeats the
+        // leading column of the unique key, idx_status has three values.
+        // Not a schema-version step on purpose - Pro shares that option
+        // and has steps of its own above 2.3 that Free must not skip past.
+        if (!get_option('myfeeds_products_index_prune_v1')) {
+            MyFeeds_DB_Manager::prune_redundant_indexes();
+            update_option('myfeeds_products_index_prune_v1', 1, false);
+        }
         
         // Stable feed_id migration: Run once to assign stable_ids and clean orphans
         if (!get_option('myfeeds_stable_id_migrated')) {

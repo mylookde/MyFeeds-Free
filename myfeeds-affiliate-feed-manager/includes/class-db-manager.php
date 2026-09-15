@@ -87,8 +87,6 @@ class MyFeeds_DB_Manager {
             search_text TEXT DEFAULT NULL,
             PRIMARY KEY  (id),
             UNIQUE KEY external_feed (external_id, feed_id),
-            KEY idx_external_id (external_id),
-            KEY idx_status (status),
             KEY idx_brand (brand),
             KEY idx_last_updated (last_updated),
             KEY idx_colour (colour),
@@ -108,6 +106,48 @@ class MyFeeds_DB_Manager {
         }
 
         self::log('table_created', array('table' => $table));
+    }
+
+    /**
+     * Drop the two indexes the products table carried for nothing.
+     *
+     * idx_external_id repeats the leading column of the unique key
+     * external_feed (external_id, feed_id), so every lookup by
+     * external_id already has an index. idx_status indexes a column
+     * with three values, one of them on 95 % of the rows; the optimizer
+     * never picks it, and idx_purge_lookup (status, unavailable_since)
+     * begins with the same column anyway. Together about 20 MB on a
+     * 330,000-row table, and two index writes fewer per imported row.
+     *
+     * DROP INDEX on InnoDB is an in-place metadata change - instant,
+     * safe inside a request. Guarded by SHOW INDEX so it can run twice.
+     *
+     * @return string[] indexes dropped
+     */
+    public static function prune_redundant_indexes() {
+        global $wpdb;
+        $table = self::table_name();
+        if (!self::table_exists()) {
+            return array();
+        }
+        $dropped = array();
+        foreach (array('idx_external_id', 'idx_status') as $index) {
+            $exists = $wpdb->get_var($wpdb->prepare("SHOW INDEX FROM {$table} WHERE Key_name = %s", $index));
+            if (!$exists) {
+                continue;
+            }
+            $wpdb->last_error = '';
+            $r = $wpdb->query("ALTER TABLE {$table} DROP INDEX {$index}");
+            if ($r === false || $wpdb->last_error !== '') {
+                myfeeds_log("Index prune: could not drop {$index}: " . $wpdb->last_error, 'error');
+                continue;
+            }
+            $dropped[] = $index;
+        }
+        if (!empty($dropped)) {
+            myfeeds_log('Index prune: dropped ' . implode(', ', $dropped) . " on {$table}", 'info');
+        }
+        return $dropped;
     }
 
     /**
