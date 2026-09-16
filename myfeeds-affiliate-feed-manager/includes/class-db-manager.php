@@ -85,7 +85,7 @@ class MyFeeds_DB_Manager {
             last_updated DATETIME,
             raw_data LONGTEXT,
             search_text TEXT DEFAULT NULL,
-            variant_key CHAR(32) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+            variant_key CHAR(32) DEFAULT NULL,
             PRIMARY KEY  (id),
             UNIQUE KEY external_feed (external_id, feed_id),
             KEY idx_brand (brand),
@@ -167,14 +167,29 @@ class MyFeeds_DB_Manager {
             return false;
         }
 
+        // The column MUST use the table's own charset. An earlier build
+        // created it as ascii, and wpdb refuses every query that carries a
+        // non-ASCII character against a table whose columns mix charsets
+        // ("Could not perform query because it contains invalid data") -
+        // every umlaut search and every import of an accented name died.
+        // On a live table the charset cannot be changed in place (the
+        // FULLTEXT index forbids an in-place rebuild), so the storage
+        // job's rebuild normalises it on the empty copy.
         $has_col = $wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM {$table} LIKE %s", 'variant_key'));
+        if ($has_col && self::variant_key_charset_is_wrong()) {
+            myfeeds_log('variant_key: column carries a foreign charset; a table rebuild will normalise it', 'error');
+            if (class_exists('MyFeeds_Storage_Job') && !MyFeeds_Storage_Job::is_active()) {
+                MyFeeds_Storage_Job::start('rebuild');
+            }
+            return false;
+        }
         if (!$has_col) {
             $suppress = $wpdb->suppress_errors(true);
             $wpdb->last_error = '';
-            $r = $wpdb->query("ALTER TABLE {$table} ADD COLUMN variant_key CHAR(32) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL, ALGORITHM=INSTANT");
+            $r = $wpdb->query("ALTER TABLE {$table} ADD COLUMN variant_key CHAR(32) DEFAULT NULL, ALGORITHM=INSTANT");
             if ($r === false || $wpdb->last_error !== '') {
                 $wpdb->last_error = '';
-                $r = $wpdb->query("ALTER TABLE {$table} ADD COLUMN variant_key CHAR(32) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL");
+                $r = $wpdb->query("ALTER TABLE {$table} ADD COLUMN variant_key CHAR(32) DEFAULT NULL");
             }
             $wpdb->suppress_errors($suppress);
             if ($r === false || $wpdb->last_error !== '') {
@@ -205,6 +220,30 @@ class MyFeeds_DB_Manager {
         update_option(self::VARIANT_KEY_FLAG, 1, false);
         self::$variant_key_ready = true;
         return true;
+    }
+
+    /**
+     * Does variant_key use a charset other than the table's? True is the
+     * bug described in ensure_variant_key_column().
+     *
+     * @param string|null $table Defaults to the products table.
+     * @return bool
+     */
+    public static function variant_key_charset_is_wrong($table = null) {
+        global $wpdb;
+        $table = $table ?: self::table_name();
+        $row = $wpdb->get_row($wpdb->prepare(
+            'SELECT c.CHARACTER_SET_NAME AS col_cs, t.TABLE_COLLATION AS tbl_co
+             FROM information_schema.COLUMNS c
+             JOIN information_schema.TABLES t ON t.TABLE_SCHEMA = c.TABLE_SCHEMA AND t.TABLE_NAME = c.TABLE_NAME
+             WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = %s AND c.COLUMN_NAME = %s',
+            $table, 'variant_key'
+        ), ARRAY_A);
+        if (!is_array($row) || empty($row['col_cs'])) {
+            return false;
+        }
+        $table_cs = strtolower(strtok((string) $row['tbl_co'], '_'));
+        return strtolower((string) $row['col_cs']) !== $table_cs;
     }
 
     /**
@@ -1282,9 +1321,12 @@ class MyFeeds_DB_Manager {
         }
 
         $vk_select = self::has_variant_key_column() ? ', variant_key' : '';
+        // The same external_id can sit in two feeds (an archived copy
+        // from a deleted feed next to the live one); the live row is the
+        // one whose sizes are wanted.
         $current = $wpdb->get_row($wpdb->prepare(
             "SELECT product_name, colour, feed_id{$vk_select} FROM {$table}
-             WHERE external_id = %s LIMIT 1",
+             WHERE external_id = %s ORDER BY (status = 'active') DESC LIMIT 1",
             $external_id
         ), ARRAY_A);
 
@@ -1646,6 +1688,27 @@ class MyFeeds_DB_Manager {
 
         // Multi-word phrases first (longest-match wins), then singletons.
         // Conservative list — anything broader risks false positives.
+        // Rakuten-shaped names carry the colour in brackets at the end
+        // ("… Sneakers (Warm Taupe Tan Faux Leather)") or behind "in"
+        // ("… Casual Shoes in White/Podium Red"). Neither is a colour
+        // word the list below knows, and "Podium Red" would leave
+        // "/podium" behind. Read those two shapes first; the word list
+        // stays for everyone else.
+        if (preg_match('/^(.{4,}?)\s*\(([^()]{2,60})\)\s*$/u', $cleaned, $m)) {
+            return array(
+                'base'           => mb_strtolower(trim($m[1], " \t\n\r\0\x0B-,.")),
+                'derived_colour' => trim($m[2]),
+                'prefix'         => trim($m[1]),
+            );
+        }
+        if (preg_match('/^(.{4,}?)\s+in\s+([A-Z][^()]{1,60})$/u', $cleaned, $m)) {
+            return array(
+                'base'           => mb_strtolower(trim($m[1], " \t\n\r\0\x0B-,.")),
+                'derived_colour' => trim($m[2]),
+                'prefix'         => trim($m[1]),
+            );
+        }
+
         $colour_phrases = array(
             // denim washes
             'light wash','dark wash','medium wash','stone wash','acid wash','black wash','blue wash',
@@ -1675,10 +1738,13 @@ class MyFeeds_DB_Manager {
             $derived = trim(preg_replace('/\s+/u', ' ', $m[0][0]));
             $prefix  = trim(substr($cleaned, 0, $m[0][1]), " \t\n\r\0\x0B-,.(");
             // "… Jacket in Salsa Red": the word before the colour belongs
-            // to the colour, not to the product.
+            // to the colour, not to the product. So does a dash: Italist
+            // writes "Herno Raincoat — White".
             $prefix  = preg_replace('/\s+(?:in|colou?r|farbe)$/iu', '', $prefix);
+            $prefix  = preg_replace('/[\s\-\x{2013}\x{2014}|\x{b7},.]+$/u', '', $prefix);
         }
         $cleaned = preg_replace($pattern, '', $cleaned);
+        $cleaned = preg_replace('/[\s\-\x{2013}\x{2014}|\x{b7},.]+$/u', '', $cleaned);
         $cleaned = preg_replace('/\s+/u', ' ', $cleaned);
         $cleaned = trim($cleaned, " \t\n\r\0\x0B-,.");
 
