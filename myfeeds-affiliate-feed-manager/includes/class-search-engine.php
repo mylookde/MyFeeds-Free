@@ -1804,7 +1804,17 @@ class MyFeeds_Search_Engine {
      * do read it. So the candidate window used to drag a megabyte of JSON
      * through MySQL and PHP to throw nine tenths of it away.
      */
-    const CANDIDATE_COLUMNS = 'id, external_id, feed_id, feed_name, product_name, price, original_price, currency, image_url, affiliate_link, brand, category, colour, in_stock, status, last_updated, search_text, variant_key';
+    const CANDIDATE_COLUMNS = 'id, external_id, feed_id, feed_name, product_name, price, original_price, currency, image_url, affiliate_link, brand, category, colour, in_stock, status, last_updated, search_text';
+
+    /**
+     * The candidate columns plus variant_key once the column exists.
+     * Naming it before the backfill job has added it would break every
+     * search on a site whose nightly import ran before the first admin
+     * visit.
+     */
+    private static function candidate_columns() {
+        return self::CANDIDATE_COLUMNS . (self::has_variant_key() ? ', variant_key' : '');
+    }
 
     /**
      * Fetch raw_data for the rows that survived scoring, dedup and the slice
@@ -2075,7 +2085,7 @@ class MyFeeds_Search_Engine {
             $params = array_merge($filter_param, $predicate['params']);
             $params[] = $fetch_limit;
 
-            $sql = "SELECT " . self::CANDIDATE_COLUMNS . " FROM {$table}
+            $sql = "SELECT " . self::candidate_columns() . " FROM {$table}
                     WHERE status = 'active'
                     {$filter_sql}
                     AND {$predicate['sql']}
@@ -2525,7 +2535,7 @@ class MyFeeds_Search_Engine {
         // every dynamic value is bound through $all_values via prepare().
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT " . self::CANDIDATE_COLUMNS . " FROM {$table} WHERE status = 'active' AND {$where} LIMIT %d",
+            "SELECT " . self::candidate_columns() . " FROM {$table} WHERE status = 'active' AND {$where} LIMIT %d",
             ...$all_values
         ), ARRAY_A);
 
