@@ -85,6 +85,7 @@ class MyFeeds_DB_Manager {
             last_updated DATETIME,
             raw_data LONGTEXT,
             search_text TEXT DEFAULT NULL,
+            variant_key CHAR(32) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
             PRIMARY KEY  (id),
             UNIQUE KEY external_feed (external_id, feed_id),
             KEY idx_brand (brand),
@@ -92,7 +93,8 @@ class MyFeeds_DB_Manager {
             KEY idx_colour (colour),
             KEY idx_name_colour (product_name(100), colour(100)),
             KEY idx_feed_status (feed_id, status),
-            KEY idx_feed_name_status (feed_name, status)
+            KEY idx_feed_name_status (feed_name, status),
+            KEY idx_variant_key (variant_key)
         ) {$charset_collate};";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -105,8 +107,219 @@ class MyFeeds_DB_Manager {
             myfeeds_log("FULLTEXT index ft_search created on {$table}", 'info');
         }
 
+        // A fresh install has the column from the start; the importer may
+        // use it right away. An upgraded install gets it from the backfill
+        // job, which sets the same flag once the ALTER went through.
+        if (!get_option('myfeeds_products_variant_key_v1')
+            && $wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM {$table} LIKE %s", 'variant_key'))) {
+            update_option('myfeeds_products_variant_key_v1', 1, false);
+            self::$variant_key_ready = true;
+        }
+
         self::log('table_created', array('table' => $table));
     }
+
+    // =========================================================================
+    // VARIANT KEY (one product, many sizes)
+    // =========================================================================
+
+    const VARIANT_KEY_FLAG      = 'myfeeds_products_variant_key_v1';
+    const VARIANT_KEY_DONE_FLAG = 'myfeeds_variant_key_backfilled';
+    const VARIANT_KEY_HOOK      = 'myfeeds_variant_key_backfill';
+
+    private static $variant_key_ready = null;
+
+    /**
+     * May the importer write variant_key? Only once the column exists.
+     *
+     * A nightly import can run before anyone opens the admin, so the
+     * schema step that adds the column cannot be assumed to have
+     * happened. The flag is set by the backfill job after its ALTER
+     * (or by create_table() on a fresh install), never guessed.
+     *
+     * @return bool
+     */
+    public static function has_variant_key_column() {
+        if (self::$variant_key_ready === null) {
+            self::$variant_key_ready = (bool) get_option(self::VARIANT_KEY_FLAG);
+        }
+        return self::$variant_key_ready;
+    }
+
+    /**
+     * Add the column and its index to an existing table. Idempotent.
+     *
+     * ADD COLUMN is instant on MySQL 8 / MariaDB 10.3+; ADD INDEX is an
+     * in-place build that lets reads and writes through. Both fall back
+     * to the plain statement on servers that reject the ALGORITHM clause.
+     *
+     * @return bool true when the column is there afterwards.
+     */
+    public static function ensure_variant_key_column() {
+        global $wpdb;
+        $table = self::table_name();
+        if (!self::table_exists()) {
+            return false;
+        }
+        // A column added while the storage job copies the table would
+        // break its INSERT ... SELECT *. Wait for it.
+        if (class_exists('MyFeeds_Storage_Job') && MyFeeds_Storage_Job::is_active()) {
+            return false;
+        }
+
+        $has_col = $wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM {$table} LIKE %s", 'variant_key'));
+        if (!$has_col) {
+            $suppress = $wpdb->suppress_errors(true);
+            $wpdb->last_error = '';
+            $r = $wpdb->query("ALTER TABLE {$table} ADD COLUMN variant_key CHAR(32) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL, ALGORITHM=INSTANT");
+            if ($r === false || $wpdb->last_error !== '') {
+                $wpdb->last_error = '';
+                $r = $wpdb->query("ALTER TABLE {$table} ADD COLUMN variant_key CHAR(32) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL");
+            }
+            $wpdb->suppress_errors($suppress);
+            if ($r === false || $wpdb->last_error !== '') {
+                myfeeds_log('variant_key: could not add the column: ' . $wpdb->last_error, 'error');
+                return false;
+            }
+            myfeeds_log("variant_key: column added on {$table}", 'info');
+        }
+
+        $has_idx = $wpdb->get_var("SHOW INDEX FROM {$table} WHERE Key_name = 'idx_variant_key'");
+        if (!$has_idx) {
+            $suppress = $wpdb->suppress_errors(true);
+            $wpdb->last_error = '';
+            $r = $wpdb->query("ALTER TABLE {$table} ADD INDEX idx_variant_key (variant_key), ALGORITHM=INPLACE, LOCK=NONE");
+            if ($r === false || $wpdb->last_error !== '') {
+                $wpdb->last_error = '';
+                $r = $wpdb->query("ALTER TABLE {$table} ADD INDEX idx_variant_key (variant_key)");
+            }
+            $wpdb->suppress_errors($suppress);
+            if ($r === false || $wpdb->last_error !== '') {
+                myfeeds_log('variant_key: could not add the index: ' . $wpdb->last_error, 'error');
+                // The column is usable without it; the next run tries again.
+            } else {
+                myfeeds_log("variant_key: index added on {$table}", 'info');
+            }
+        }
+
+        update_option(self::VARIANT_KEY_FLAG, 1, false);
+        self::$variant_key_ready = true;
+        return true;
+    }
+
+    /**
+     * Queue the backfill unless it is already queued or finished.
+     */
+    public static function schedule_variant_key_backfill($delay = 5) {
+        if (get_option(self::VARIANT_KEY_DONE_FLAG)) {
+            return;
+        }
+        if (function_exists('as_schedule_single_action')) {
+            if (function_exists('as_has_scheduled_action') && as_has_scheduled_action(self::VARIANT_KEY_HOOK, array(), 'myfeeds')) {
+                return;
+            }
+            as_schedule_single_action(time() + max(1, (int) $delay), self::VARIANT_KEY_HOOK, array(), 'myfeeds', false);
+            return;
+        }
+        if (function_exists('wp_next_scheduled') && !wp_next_scheduled(self::VARIANT_KEY_HOOK)) {
+            wp_schedule_single_event(time() + max(1, (int) $delay), self::VARIANT_KEY_HOOK);
+        }
+    }
+
+    /**
+     * The backfill: give every row without a key one, a thousand rows
+     * per statement, about fifteen seconds per run, then come back.
+     * last_updated stays untouched - the orphan check compares it with
+     * the start of an import.
+     */
+    public static function backfill_variant_keys() {
+        global $wpdb;
+        if (get_option(self::VARIANT_KEY_DONE_FLAG)) {
+            return;
+        }
+        if (class_exists('MyFeeds_Storage_Job') && !MyFeeds_Storage_Job::writers_may_proceed()) {
+            self::schedule_variant_key_backfill(120);
+            return;
+        }
+        if (!self::ensure_variant_key_column()) {
+            self::schedule_variant_key_backfill(120);
+            return;
+        }
+        if (!class_exists('MyFeeds_Variants')) {
+            return;
+        }
+
+        $got = $wpdb->get_var("SELECT GET_LOCK('myfeeds_variant_key_backfill', 0)");
+        if ($got !== null && (int) $got !== 1) {
+            self::schedule_variant_key_backfill(30);
+            return;
+        }
+
+        if (!ini_get('safe_mode')) {
+            @set_time_limit(0);
+        }
+        ignore_user_abort(true);
+
+        $table    = self::table_name();
+        $deadline = microtime(true) + 15;
+        $last_id  = 0;
+        $done     = 0;
+        $finished = false;
+
+        try {
+            while (microtime(true) < $deadline) {
+                $rows = $wpdb->get_results($wpdb->prepare(
+                    "SELECT id, feed_id, product_name, image_url, brand, colour
+                     FROM {$table} WHERE variant_key IS NULL AND id > %d ORDER BY id LIMIT 1000",
+                    $last_id
+                ), ARRAY_A);
+                if (empty($rows)) {
+                    $finished = true;
+                    break;
+                }
+                $case = '';
+                $args = array();
+                $ids  = array();
+                foreach ($rows as $r) {
+                    $last_id = (int) $r['id'];
+                    $key = MyFeeds_Variants::variant_key(
+                        (int) $r['feed_id'], (string) $r['product_name'], (string) $r['image_url'],
+                        (string) $r['brand'], (string) $r['colour']
+                    );
+                    $case  .= ' WHEN %d THEN %s';
+                    $args[] = (int) $r['id'];
+                    $args[] = $key;
+                    $ids[]  = (int) $r['id'];
+                }
+                $ph = implode(',', array_fill(0, count($ids), '%d'));
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders built above
+                $r = $wpdb->query($wpdb->prepare(
+                    "UPDATE {$table} SET variant_key = CASE id{$case} END WHERE id IN ({$ph})",
+                    array_merge($args, $ids)
+                ));
+                if ($r === false) {
+                    myfeeds_log('variant_key backfill: ' . $wpdb->last_error, 'error');
+                    break;
+                }
+                $done += count($rows);
+            }
+        } finally {
+            $wpdb->query("SELECT RELEASE_LOCK('myfeeds_variant_key_backfill')");
+        }
+
+        if ($finished) {
+            update_option(self::VARIANT_KEY_DONE_FLAG, 1, false);
+            myfeeds_log("variant_key backfill: finished ({$done} rows in this run)", 'info');
+            if (class_exists('MyFeeds_Search_Engine') && method_exists('MyFeeds_Search_Engine', 'flush_query_caches')) {
+                MyFeeds_Search_Engine::flush_query_caches();
+            }
+            return;
+        }
+        myfeeds_log("variant_key backfill: {$done} rows, more to do", 'debug');
+        self::schedule_variant_key_backfill(3);
+    }
+
+
 
     /**
      * Drop the two indexes the products table carried for nothing.
@@ -1068,8 +1281,9 @@ class MyFeeds_DB_Manager {
             return array();
         }
 
+        $vk_select = self::has_variant_key_column() ? ', variant_key' : '';
         $current = $wpdb->get_row($wpdb->prepare(
-            "SELECT product_name, colour, feed_id FROM {$table}
+            "SELECT product_name, colour, feed_id{$vk_select} FROM {$table}
              WHERE external_id = %s LIMIT 1",
             $external_id
         ), ARRAY_A);
@@ -1078,16 +1292,27 @@ class MyFeeds_DB_Manager {
             return array();
         }
 
-        $where = 'product_name = %s AND status = %s';
-        $args  = array($current['product_name'], 'active');
+        if (!empty($current['variant_key'])) {
+            // The one key every surface shares: feed, image, name without
+            // its size, colour. An index seek, whatever the feed did with
+            // the size.
+            $where = 'variant_key = %s AND status = %s';
+            $args  = array((string) $current['variant_key'], 'active');
+        } else {
+            // A row the backfill has not reached yet: the old rule. Same
+            // name and same colour - a different colour is a different
+            // garment and has its own size run.
+            $where = 'product_name = %s AND status = %s';
+            $args  = array($current['product_name'], 'active');
 
-        if ((string) $current['colour'] !== '') {
-            $where .= ' AND colour = %s';
-            $args[] = $current['colour'];
-        }
-        if ((int) $current['feed_id'] > 0) {
-            $where .= ' AND feed_id = %d';
-            $args[] = (int) $current['feed_id'];
+            if ((string) $current['colour'] !== '') {
+                $where .= ' AND colour = %s';
+                $args[] = $current['colour'];
+            }
+            if ((int) $current['feed_id'] > 0) {
+                $where .= ' AND feed_id = %d';
+                $args[] = (int) $current['feed_id'];
+            }
         }
 
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders built above
@@ -1101,8 +1326,7 @@ class MyFeeds_DB_Manager {
         $out = array();
         $seen = array();
         foreach ((array) $rows as $row) {
-            $size = self::size_from_raw(json_decode((string) $row['raw_data'], true));
-            $size = trim($size);
+            $size = self::size_of_row($row);
             if ($size === '' || isset($seen[$size])) {
                 continue;
             }
@@ -1122,65 +1346,78 @@ class MyFeeds_DB_Manager {
             );
         }
 
+        usort($out, function ($a, $b) {
+            return self::compare_sizes($a['size'], $b['size']);
+        });
+
         return $out;
+    }
+
+    /**
+     * The size of one row: what the feed put in raw_data, else what the
+     * name ends in ("… - Size 11.0 W" -> "11.0 W"). Rakuten-shaped rows
+     * carry it in attributes.size, Afewvibe-shaped rows only in the name.
+     *
+     * @param array $row With raw_data and product_name.
+     * @return string
+     */
+    public static function size_of_row(array $row) {
+        $size = '';
+        if (!empty($row['raw_data'])) {
+            $size = trim(self::size_from_raw(json_decode((string) $row['raw_data'], true)));
+        }
+        if ($size === '' && class_exists('MyFeeds_Variants')) {
+            $size = trim(MyFeeds_Variants::size_from_name((string) ($row['product_name'] ?? '')));
+        }
+        return $size;
+    }
+
+    /**
+     * Numbers first, in order; then XXS…XXXL; then the rest alphabetically.
+     */
+    public static function compare_sizes($a, $b) {
+        $a = (string) $a;
+        $b = (string) $b;
+        $a_num = is_numeric($a) ? floatval($a) : (preg_match('/^(\d+(?:[.,]\d+)?)/', $a, $m) ? floatval(str_replace(',', '.', $m[1])) : null);
+        $b_num = is_numeric($b) ? floatval($b) : (preg_match('/^(\d+(?:[.,]\d+)?)/', $b, $m) ? floatval(str_replace(',', '.', $m[1])) : null);
+        if ($a_num !== null && $b_num !== null) {
+            return $a_num == $b_num ? strcmp($a, $b) : ($a_num < $b_num ? -1 : 1);
+        }
+        if ($a_num !== null) return -1;
+        if ($b_num !== null) return 1;
+        $order = array('XXXS' => 0, 'XXS' => 1, 'XS' => 2, 'S' => 3, 'SMALL' => 3, 'M' => 4, 'MEDIUM' => 4, 'L' => 5, 'LARGE' => 5, 'XL' => 6, 'X-LARGE' => 6, 'XXL' => 7, '2XL' => 7, 'XXXL' => 8, '3XL' => 8, '4XL' => 9, '5XL' => 10);
+        $a_idx = $order[strtoupper($a)] ?? 99;
+        $b_idx = $order[strtoupper($b)] ?? 99;
+        if ($a_idx !== 99 || $b_idx !== 99) return $a_idx - $b_idx;
+        return strcmp($a, $b);
     }
 
     public static function get_available_sizes($product_name, $colour = '') {
         global $wpdb;
         $table = self::table_name();
 
+        // Labels only, for callers that still ask by name. Resolve one row
+        // of that name and colour, then read the group it belongs to -
+        // the same group the size-variants endpoint returns.
         if (!empty($colour)) {
-            $rows = $wpdb->get_results($wpdb->prepare(
-                "SELECT raw_data FROM {$table} WHERE product_name = %s AND colour = %s AND status = 'active'",
+            $external_id = $wpdb->get_var($wpdb->prepare(
+                "SELECT external_id FROM {$table} WHERE product_name = %s AND colour = %s AND status = 'active' LIMIT 1",
                 $product_name, $colour
-            ), ARRAY_A);
+            ));
         } else {
-            $rows = $wpdb->get_results($wpdb->prepare(
-                "SELECT raw_data FROM {$table} WHERE product_name = %s AND status = 'active' AND (colour IS NULL OR colour = '')",
+            $external_id = $wpdb->get_var($wpdb->prepare(
+                "SELECT external_id FROM {$table} WHERE product_name = %s AND status = 'active' AND (colour IS NULL OR colour = '') LIMIT 1",
                 $product_name
-            ), ARRAY_A);
+            ));
+        }
+        if (empty($external_id)) {
+            return array();
         }
 
         $sizes = array();
-        foreach ($rows as $row) {
-            if (empty($row['raw_data'])) continue;
-            $raw = json_decode($row['raw_data'], true);
-            if (!is_array($raw)) continue;
-
-            $size = '';
-            // Check direct size field
-            if (!empty($raw['size'])) {
-                $size = is_array($raw['size']) ? ($raw['size'][0] ?? '') : (string) $raw['size'];
-            }
-            // Check attributes.size
-            if (empty($size) && isset($raw['attributes']['size'])) {
-                $s = $raw['attributes']['size'];
-                $size = is_array($s) ? ($s[0] ?? '') : (string) $s;
-            }
-            // Check Fashion:size (AWIN)
-            if (empty($size) && !empty($raw['Fashion:size'])) {
-                $size = (string) $raw['Fashion:size'];
-            }
-
-            if (!empty($size) && !in_array($size, $sizes, true)) {
-                $sizes[] = $size;
-            }
+        foreach (self::get_size_variants((string) $external_id) as $variant) {
+            $sizes[] = (string) $variant['size'];
         }
-
-        // Sort sizes logically (numbers first, then clothing sizes)
-        usort($sizes, function($a, $b) {
-            $a_num = is_numeric($a) ? floatval($a) : null;
-            $b_num = is_numeric($b) ? floatval($b) : null;
-            if ($a_num !== null && $b_num !== null) return $a_num - $b_num;
-            if ($a_num !== null) return -1;
-            if ($b_num !== null) return 1;
-            $order = array('XXS' => 0, 'XS' => 1, 'S' => 2, 'M' => 3, 'L' => 4, 'XL' => 5, 'XXL' => 6, 'XXXL' => 7);
-            $a_idx = $order[strtoupper($a)] ?? 99;
-            $b_idx = $order[strtoupper($b)] ?? 99;
-            if ($a_idx !== 99 || $b_idx !== 99) return $a_idx - $b_idx;
-            return strcmp($a, $b);
-        });
-
         return $sizes;
     }
 
@@ -1243,52 +1480,11 @@ class MyFeeds_DB_Manager {
         $current_colour = (string) ($current['colour'] ?? '');
         $feed_id        = (int) ($current['feed_id'] ?? 0);
 
-        // ---------------------------------------------------------------
-        // Strategy A: group-id field in raw_data
-        // ---------------------------------------------------------------
-        $group_keys = array(
-            'item_group_id',    // Google Shopping standard
-            'group_id',
-            'product_group_id',
-            'parent_sku',       // CJ / Impact
-            'master_product_id',
-            'base_product_id',
-            'aw_group_id',
-            'parent_id',
-        );
-
-        $current_raw = json_decode((string) ($current['raw_data'] ?? ''), true);
-        $group_value = null;
-        $group_key   = null;
-        if (is_array($current_raw)) {
-            foreach ($group_keys as $k) {
-                if (isset($current_raw[$k]) && is_scalar($current_raw[$k]) && (string) $current_raw[$k] !== '') {
-                    $group_value = (string) $current_raw[$k];
-                    $group_key   = $k;
-                    break;
-                }
-            }
-        }
-
+        // Strategy A used to look for a merchant group id in raw_data.
+        // The importer never wrote one (map_product() keeps only mapped
+        // destinations), so the branch was a full-table LIKE scan that
+        // found nothing. Gone.
         $candidates = array();
-
-        if ($group_value !== null) {
-            // JSON_EXTRACT works on MySQL 5.7+ and MariaDB 10.2+. The
-            // wp.org floor is MySQL 5.6 (effectively), so we feature-
-            // detect first by trying the query and silently falling
-            // through if it errors.
-            $like_match = '%"' . $wpdb->esc_like($group_key) . '":"' . $wpdb->esc_like($group_value) . '"%';
-            $rows = $wpdb->get_results($wpdb->prepare(
-                "SELECT external_id, product_name, colour, image_url, affiliate_link, in_stock, price, original_price, currency
-                 FROM {$table}
-                 WHERE feed_id = %d AND status = 'active' AND raw_data LIKE %s
-                 LIMIT 200",
-                $feed_id, $like_match
-            ), ARRAY_A);
-            if (!empty($rows)) {
-                $candidates = $rows;
-            }
-        }
 
         // ---------------------------------------------------------------
         // Strategy B: exact product_name match
@@ -1321,13 +1517,20 @@ class MyFeeds_DB_Manager {
             $base = $parsed['base'];
             $current_derived_colour = $parsed['derived_colour'];
             if ($base !== '' && mb_strlen($base) >= 4) {
+                // The part of the name before the colour is shared by
+                // every colourway, so a prefix match reaches them all
+                // through idx_name_colour instead of scanning the feed.
+                $prefix = $parsed['prefix'];
+                $like   = mb_strlen($prefix) >= 4
+                    ? $wpdb->esc_like($prefix) . '%'
+                    : '%' . $wpdb->esc_like($base) . '%';
                 $rows = $wpdb->get_results($wpdb->prepare(
                     "SELECT external_id, product_name, colour, image_url, affiliate_link, in_stock, price, original_price, currency
                      FROM {$table}
                      WHERE feed_id = %d AND status = 'active' AND product_name LIKE %s
                      LIMIT 500",
                     $feed_id,
-                    '%' . $wpdb->esc_like($base) . '%'
+                    $like
                 ), ARRAY_A);
                 $filtered = array();
                 $colours_lower = array();
@@ -1433,13 +1636,13 @@ class MyFeeds_DB_Manager {
      * to keep false-positives low.
      */
     private static function strip_name_for_sibling_match($name) {
-        $cleaned = (string) $name;
-        if (class_exists('MyFeeds_Search_Engine') && method_exists('MyFeeds_Search_Engine', 'strip_size_suffix_public')) {
-            $cleaned = MyFeeds_Search_Engine::strip_size_suffix_public($cleaned);
-        } else {
-            $cleaned = preg_replace('/\s*[-\x{2013}\x{2014}]\s*(XXXL|XXL|XL|XS|S|M|L|EU\s*\d+|US\s*\d+|UK\s*\d+|\d{2,3})\s*$/iu', '', $cleaned);
-            $cleaned = preg_replace('/\s+[A-Z]\d{2,4}\s*$/i', '', $cleaned);
-        }
+        // One size grammar for the whole plugin. This used to guard a
+        // call to MyFeeds_Search_Engine::strip_size_suffix_public(), a
+        // method that never existed, and fell through to a fourth copy
+        // of the regex.
+        $cleaned = class_exists('MyFeeds_Variants')
+            ? MyFeeds_Variants::base_name((string) $name)
+            : (string) $name;
 
         // Multi-word phrases first (longest-match wins), then singletons.
         // Conservative list — anything broader risks false positives.
@@ -1467,8 +1670,13 @@ class MyFeeds_DB_Manager {
         $pattern = '/\b(' . implode('|', $alt) . ')\b/iu';
 
         $derived = '';
-        if (preg_match($pattern, $cleaned, $m)) {
-            $derived = trim(preg_replace('/\s+/u', ' ', $m[0]));
+        $prefix  = $cleaned;
+        if (preg_match($pattern, $cleaned, $m, PREG_OFFSET_CAPTURE)) {
+            $derived = trim(preg_replace('/\s+/u', ' ', $m[0][0]));
+            $prefix  = trim(substr($cleaned, 0, $m[0][1]), " \t\n\r\0\x0B-,.(");
+            // "… Jacket in Salsa Red": the word before the colour belongs
+            // to the colour, not to the product.
+            $prefix  = preg_replace('/\s+(?:in|colou?r|farbe)$/iu', '', $prefix);
         }
         $cleaned = preg_replace($pattern, '', $cleaned);
         $cleaned = preg_replace('/\s+/u', ' ', $cleaned);
@@ -1477,6 +1685,7 @@ class MyFeeds_DB_Manager {
         return array(
             'base'           => mb_strtolower($cleaned),
             'derived_colour' => $derived,
+            'prefix'         => (string) $prefix,
         );
     }
 
@@ -1503,28 +1712,13 @@ class MyFeeds_DB_Manager {
 
         $db_row = self::product_to_row($product, $feed_id, $feed_name);
 
-        $result = $wpdb->query($wpdb->prepare(
-            "INSERT INTO {$table} 
-                (external_id, feed_id, feed_name, product_name, price, original_price, 
-                 currency, image_url, affiliate_link, brand, category, colour, in_stock, status, 
-                 last_updated, raw_data, search_text)
-             VALUES (%s, %d, %s, %s, %f, %f, %s, %s, %s, %s, %s, %s, %d, %s, %s, %s, %s)
-             ON DUPLICATE KEY UPDATE
-                feed_name = VALUES(feed_name),
-                product_name = VALUES(product_name),
-                price = VALUES(price),
-                original_price = VALUES(original_price),
-                currency = VALUES(currency),
-                image_url = VALUES(image_url),
-                affiliate_link = VALUES(affiliate_link),
-                brand = VALUES(brand),
-                category = VALUES(category),
-                colour = VALUES(colour),
-                in_stock = VALUES(in_stock),
-                status = VALUES(status),
-                last_updated = VALUES(last_updated),
-                raw_data = VALUES(raw_data),
-                search_text = VALUES(search_text)",
+        // variant_key only once the column exists (see has_variant_key_column).
+        $vk = self::has_variant_key_column() && isset($db_row['variant_key']);
+        $vk_col = $vk ? ', variant_key' : '';
+        $vk_ph  = $vk ? ', %s' : '';
+        $vk_upd = $vk ? ',
+                variant_key = VALUES(variant_key)' : '';
+        $values = array(
             $db_row['external_id'],
             $db_row['feed_id'],
             $db_row['feed_name'],
@@ -1541,7 +1735,36 @@ class MyFeeds_DB_Manager {
             $db_row['status'],
             $db_row['last_updated'],
             $db_row['raw_data'],
-            $db_row['search_text']
+            $db_row['search_text'],
+        );
+        if ($vk) {
+            $values[] = $db_row['variant_key'];
+        }
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- column list is a constant, values are placeholders
+        $result = $wpdb->query($wpdb->prepare(
+            "INSERT INTO {$table} 
+                (external_id, feed_id, feed_name, product_name, price, original_price, 
+                 currency, image_url, affiliate_link, brand, category, colour, in_stock, status, 
+                 last_updated, raw_data, search_text{$vk_col})
+             VALUES (%s, %d, %s, %s, %f, %f, %s, %s, %s, %s, %s, %s, %d, %s, %s, %s, %s{$vk_ph})
+             ON DUPLICATE KEY UPDATE
+                feed_name = VALUES(feed_name),
+                product_name = VALUES(product_name),
+                price = VALUES(price),
+                original_price = VALUES(original_price),
+                currency = VALUES(currency),
+                image_url = VALUES(image_url),
+                affiliate_link = VALUES(affiliate_link),
+                brand = VALUES(brand),
+                category = VALUES(category),
+                colour = VALUES(colour),
+                in_stock = VALUES(in_stock),
+                status = VALUES(status),
+                last_updated = VALUES(last_updated),
+                raw_data = VALUES(raw_data),
+                search_text = VALUES(search_text){$vk_upd}",
+            $values
         ));
 
         return $result !== false;
@@ -1657,12 +1880,15 @@ class MyFeeds_DB_Manager {
 
         $values = array();
         $placeholders = array();
+        $vk = self::has_variant_key_column();
 
         foreach ($products as $pid => $product) {
             $product['id'] = (string) $pid;
             $db_row = self::product_to_row($product, $feed_id, $feed_name);
 
-            $placeholders[] = '(%s, %d, %s, %s, %f, %f, %s, %s, %s, %s, %s, %s, %d, %s, %s, %s, %s)';
+            $placeholders[] = $vk
+                ? '(%s, %d, %s, %s, %f, %f, %s, %s, %s, %s, %s, %s, %d, %s, %s, %s, %s, %s)'
+                : '(%s, %d, %s, %s, %f, %f, %s, %s, %s, %s, %s, %s, %d, %s, %s, %s, %s)';
             $values[] = $db_row['external_id'];
             $values[] = $db_row['feed_id'];
             $values[] = $db_row['feed_name'];
@@ -1680,6 +1906,9 @@ class MyFeeds_DB_Manager {
             $values[] = $db_row['last_updated'];
             $values[] = $db_row['raw_data'];
             $values[] = $db_row['search_text'];
+            if ($vk) {
+                $values[] = isset($db_row['variant_key']) ? $db_row['variant_key'] : null;
+            }
         }
 
         // Fix 1: Log sanitize phase done
@@ -1687,10 +1916,13 @@ class MyFeeds_DB_Manager {
 
         $placeholders_str = implode(', ', $placeholders);
 
+        $vk_col = $vk ? ', variant_key' : '';
+        $vk_upd = $vk ? ',
+                    variant_key = VALUES(variant_key)' : '';
         $sql = "INSERT INTO {$table} 
                 (external_id, feed_id, feed_name, product_name, price, original_price,
                  currency, image_url, affiliate_link, brand, category, colour, in_stock, status,
-                 last_updated, raw_data, search_text)
+                 last_updated, raw_data, search_text{$vk_col})
                 VALUES {$placeholders_str}
                 ON DUPLICATE KEY UPDATE
                     feed_name = VALUES(feed_name),
@@ -1707,7 +1939,7 @@ class MyFeeds_DB_Manager {
                     status = VALUES(status),
                     last_updated = VALUES(last_updated),
                     raw_data = VALUES(raw_data),
-                    search_text = VALUES(search_text)";
+                    search_text = VALUES(search_text){$vk_upd}";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Bulk upsert query built with individual prepare() calls per row
         $prepared = $wpdb->prepare($sql, ...$values);
@@ -1890,12 +2122,50 @@ class MyFeeds_DB_Manager {
             'image_url'      => '%s',
             'affiliate_link' => '%s',
         );
+
+        // The key is built from the image; a quick sync that moves the
+        // image must move the key, or the row falls out of its group.
+        // The feed product carries no feed_id, so the stored row says
+        // which feed, name, brand and colour the key is made of.
+        $vk = self::has_variant_key_column() && class_exists('MyFeeds_Variants');
+        if ($vk) {
+            $columns['variant_key'] = '%s';
+        }
         $now = current_time('mysql');
         $changed = 0;
 
         foreach (array_chunk($rows, 100, true) as $chunk) {
             $args = array();
             $assignments = array();
+
+            if ($vk) {
+                $ids_ph = implode(',', array_fill(0, count($chunk), '%s'));
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders built above
+                $stored = $wpdb->get_results($wpdb->prepare(
+                    "SELECT external_id, feed_id, product_name, brand, colour, image_url, variant_key
+                     FROM {$table} WHERE external_id IN ({$ids_ph})",
+                    array_keys($chunk)
+                ), ARRAY_A);
+                foreach ((array) $stored as $st) {
+                    $eid = (string) $st['external_id'];
+                    if (!isset($chunk[$eid])) {
+                        continue;
+                    }
+                    $same_image = (string) $st['image_url'] === $chunk[$eid]['image_url'];
+                    $chunk[$eid]['variant_key'] = ($same_image && !empty($st['variant_key']))
+                        ? (string) $st['variant_key']
+                        : MyFeeds_Variants::variant_key(
+                            (int) $st['feed_id'], (string) $st['product_name'], $chunk[$eid]['image_url'],
+                            (string) $st['brand'], (string) $st['colour']
+                        );
+                }
+                foreach ($chunk as $eid => $values) {
+                    if (!isset($values['variant_key'])) {
+                        // A row not in the table yet: nothing to update anyway.
+                        $chunk[$eid]['variant_key'] = null;
+                    }
+                }
+            }
 
             foreach ($columns as $column => $format) {
                 $case = "{$column} = CASE external_id";
@@ -2717,6 +2987,16 @@ class MyFeeds_DB_Manager {
             'last_updated'   => current_time('mysql'),
             'raw_data'       => $raw_json,
         );
+
+        // One product, many sizes: the key the search, the shop and the
+        // detail view group by. Computed here so every import path -
+        // feed file, API source, backfill - applies the same rule.
+        if (class_exists('MyFeeds_Variants')) {
+            $db_row['variant_key'] = MyFeeds_Variants::variant_key(
+                (int) $feed_id, (string) $db_row['product_name'], (string) $db_row['image_url'],
+                (string) $db_row['brand'], (string) $db_row['colour']
+            );
+        }
 
         // PERF: During full imports, skip search_text to avoid expensive
         // per-row FULLTEXT index updates. Bulk-populated after import.

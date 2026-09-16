@@ -396,6 +396,13 @@ add_action('admin_init', function() {
             MyFeeds_DB_Manager::prune_redundant_indexes();
             update_option('myfeeds_products_index_prune_v1', 1, false);
         }
+
+        // One product, many sizes: the variant_key column and its
+        // backfill. Only scheduled here - the ALTER and the row pass run
+        // in the background, never inside an admin page load.
+        if (!get_option(MyFeeds_DB_Manager::VARIANT_KEY_DONE_FLAG)) {
+            MyFeeds_DB_Manager::schedule_variant_key_backfill();
+        }
         
         // Stable feed_id migration: Run once to assign stable_ids and clean orphans
         if (!get_option('myfeeds_stable_id_migrated')) {
@@ -562,6 +569,9 @@ class MyFeeds_Affiliate_Product_Picker {
             // would never get the housekeeping job scheduled.
             if (class_exists('MyFeeds_Maintenance')) {
                 MyFeeds_Maintenance::init();
+                if (method_exists('MyFeeds_DB_Manager', 'backfill_variant_keys')) {
+                    add_action(MyFeeds_DB_Manager::VARIANT_KEY_HOOK, array('MyFeeds_DB_Manager', 'backfill_variant_keys'));
+                }
             }
 
             // Initialize the one-time review request

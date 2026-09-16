@@ -951,8 +951,7 @@ class MyFeeds_Search_Engine {
         foreach ((array) $rows as $r) {
             $value = $r['facet_value'] ?? '';
             if ($value === '') continue;
-            $key  = mb_strtolower(self::strip_size_suffix($r['product_name'] ?? ''));
-            $key .= '|' . ($r['colour_norm'] ?? '');
+            $key = self::group_key($r);
             if (!isset($buckets[$value])) {
                 $buckets[$value] = array();
             }
@@ -989,16 +988,42 @@ class MyFeeds_Search_Engine {
      *
      * @return array facets, plus _total_dedup for the caller's total.
      */
+    /**
+     * What a facet offers, and in which order it reads.
+     *
+     * Two questions, deliberately answered apart: WHICH entries make the
+     * list is relevance, so the fifty biggest win; what order they are
+     * SHOWN in is how the list is used, and a list of brands is one you
+     * look a name up in. The slice therefore always comes first - sort
+     * alphabetically before slicing and "Zara" could never be on it.
+     *
+     * Both readers call this. They had drifted once already: the single
+     * pass and the merged pass each did their own array_slice().
+     */
+    private static function facet_for_display($rows, $facet) {
+        $out = array_slice(self::tally_facet_with_size_strip($rows), 0, 50);
+        if ($facet === 'brand') {
+            usort($out, function ($a, $b) {
+                $cmp = strcasecmp((string) $a['value'], (string) $b['value']);
+                return $cmp !== 0 ? $cmp : strcmp((string) $a['value'], (string) $b['value']);
+            });
+        }
+        return $out;
+    }
+
     private static function merged_facets($table, $match_sql, $args, $match_params, $facets) {
         global $wpdb;
 
         $f      = self::build_filter_clause($args);
         $params = array_merge($f['params'], (array) $match_params);
 
+        $vk_col = self::has_variant_key() ? 'variant_key,' : "'' AS variant_key,";
+        $vk_grp = self::has_variant_key() ? ', variant_key' : '';
         $sql = "SELECT LOWER(brand) AS brand_v,
                        LOWER(colour) AS colour_v,
                        LOWER(category) AS category_v,
                        product_name,
+                       {$vk_col}
                        COALESCE(LOWER(colour), '') AS colour_norm,
                        MIN(price) AS price_min,
                        MAX(price) AS price_max
@@ -1006,7 +1031,7 @@ class MyFeeds_Search_Engine {
                 WHERE status = 'active'
                 {$f['sql']}
                 AND {$match_sql}
-                GROUP BY brand_v, colour_v, category_v, product_name, colour_norm
+                GROUP BY brand_v, colour_v, category_v, product_name, colour_norm{$vk_grp}
                 LIMIT 10000";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
@@ -1030,8 +1055,9 @@ class MyFeeds_Search_Engine {
             $shared = array(
                 'product_name' => $r['product_name'] ?? '',
                 'colour_norm'  => $r['colour_norm'] ?? '',
+                'variant_key'  => $r['variant_key'] ?? '',
             );
-            $distinct[mb_strtolower(self::strip_size_suffix($shared['product_name'])) . '|' . $shared['colour_norm']] = true;
+            $distinct[self::group_key($shared)] = true;
 
             foreach (array('brand', 'colour') as $facet) {
                 $value = $r[$facet . '_v'] ?? '';
@@ -1056,7 +1082,7 @@ class MyFeeds_Search_Engine {
         }
 
         foreach ($per_facet as $facet => $facet_rows) {
-            $facets[$facet] = array_slice(self::tally_facet_with_size_strip($facet_rows), 0, 50);
+            $facets[$facet] = self::facet_for_display($facet_rows, $facet);
         }
 
         if ($min !== null) {
@@ -1258,34 +1284,36 @@ class MyFeeds_Search_Engine {
         // Brand facets: apply every filter except brand[]
         $args_no_brand = array_merge($args, array('brand' => array()));
         $fb = self::build_filter_clause($args_no_brand);
-        $sql_brand = "SELECT LOWER(brand) AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm
+        $vk_col = self::has_variant_key() ? ', variant_key' : ", '' AS variant_key";
+        $vk_grp = self::has_variant_key() ? ', variant_key' : '';
+        $sql_brand = "SELECT LOWER(brand) AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm{$vk_col}
                       FROM {$table}
                       WHERE status = 'active'
                       AND brand IS NOT NULL AND brand <> ''
                       {$fb['sql']}
                       AND {$match_sql}
-                      GROUP BY LOWER(brand), product_name, colour_norm
+                      GROUP BY LOWER(brand), product_name, colour_norm{$vk_grp}
                       LIMIT 10000";
         $params_brand = array_merge($fb['params'], $match_params);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows_brand = $wpdb->get_results($wpdb->prepare($sql_brand, ...$params_brand), ARRAY_A);
-        $facets['brand'] = array_slice(self::tally_facet_with_size_strip($rows_brand), 0, 50);
+        $facets['brand'] = self::facet_for_display($rows_brand, 'brand');
 
         // Colour facets: apply every filter except colour[]
         $args_no_colour = array_merge($args, array('colour' => array()));
         $fc = self::build_filter_clause($args_no_colour);
-        $sql_colour = "SELECT LOWER(colour) AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm
+        $sql_colour = "SELECT LOWER(colour) AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm{$vk_col}
                        FROM {$table}
                        WHERE status = 'active'
                        AND colour IS NOT NULL AND colour <> ''
                        {$fc['sql']}
                        AND {$match_sql}
-                       GROUP BY LOWER(colour), product_name, colour_norm
+                       GROUP BY LOWER(colour), product_name, colour_norm{$vk_grp}
                        LIMIT 10000";
         $params_colour = array_merge($fc['params'], $match_params);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows_colour = $wpdb->get_results($wpdb->prepare($sql_colour, ...$params_colour), ARRAY_A);
-        $facets['colour'] = array_slice(self::tally_facet_with_size_strip($rows_colour), 0, 50);
+        $facets['colour'] = self::facet_for_display($rows_colour, 'colour');
 
         // Category facets: apply every filter except category[]. Categories
         // are raw merchant labels (no taxonomy mapping yet). normalize_category_path
@@ -1294,13 +1322,13 @@ class MyFeeds_Search_Engine {
         // bucket by the normalized path while still deduplicating products.
         $args_no_category = array_merge($args, array('category' => array()));
         $fcat = self::build_filter_clause($args_no_category);
-        $sql_category = "SELECT LOWER(category) AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm
+        $sql_category = "SELECT LOWER(category) AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm{$vk_col}
                          FROM {$table}
                          WHERE status = 'active'
                          AND category IS NOT NULL AND category <> ''
                          {$fcat['sql']}
                          AND {$match_sql}
-                         GROUP BY LOWER(category), product_name, colour_norm
+                         GROUP BY LOWER(category), product_name, colour_norm{$vk_grp}
                          LIMIT 10000";
         $params_category = array_merge($fcat['params'], $match_params);
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
@@ -1323,7 +1351,7 @@ class MyFeeds_Search_Engine {
                 'colour_norm'  => $r['colour_norm'] ?? '',
             );
         }
-        $facets['category'] = array_slice(self::tally_facet_with_size_strip($cat_rows), 0, 50);
+        $facets['category'] = self::facet_for_display($cat_rows, 'category');
 
         // Price range hint (min/max in the keyword-matched set, respecting brand+colour filters)
         $args_for_range = $args;
@@ -1689,23 +1717,58 @@ class MyFeeds_Search_Engine {
      * "Denim Tears University Shorts Grey - S" → "Denim Tears University Shorts Grey"
      */
     private static function strip_size_suffix($name) {
-        // Strip " - SIZE" patterns (XS, S, M, L, XL, XXL, XXXL, EU/US/UK numbers, bare numbers)
-        //
-        // `u` is required because the class holds an en dash. As a byte
-        // class it could only ever match one third of that character, so
-        // a feed writing "Shirt - XL" with an en dash kept its size and
-        // every size came through as its own product - the dedup this
-        // function exists for quietly stopped working for those feeds.
+        // One size grammar for the whole plugin (MyFeeds_Variants). This
+        // used to be its own regex, which knew " - S" but not "Size:
+        // Large", "(M)" or "Size 7.0 2W" - and every size it did not know
+        // came through as its own product.
         $name = myfeeds_repair_utf8((string) $name);
-        $cleaned = preg_replace('/\s*[-–]\s*(XXXL|XXL|XL|XS|S|M|L|EU\s*\d+|US\s*\d+|UK\s*\d+|\d{2,3})\s*$/iu', '', $name);
-        if (!is_string($cleaned)) {
-            $cleaned = $name;
+        if (self::variants_loaded()) {
+            return MyFeeds_Variants::base_name($name);
         }
+        return trim($name);
+    }
 
-        // Strip product/color codes at end like "C100", "C201", "F302"
-        $cleaned = preg_replace('/\s+[A-Z]\d{2,4}\s*$/i', '', $cleaned);
+    /**
+     * The grammar lives in class-variants.php, which the plugin loads
+     * before this file; a test harness may not. A hard dependency,
+     * loaded on demand.
+     */
+    private static function variants_loaded() {
+        if (class_exists('MyFeeds_Variants')) {
+            return true;
+        }
+        $file = defined('MYFEEDS_PLUGIN_DIR') ? MYFEEDS_PLUGIN_DIR . 'includes/class-variants.php' : '';
+        if ($file !== '' && file_exists($file)) {
+            require_once $file;
+        }
+        return class_exists('MyFeeds_Variants');
+    }
 
-        return trim($cleaned);
+    /**
+     * What makes two rows one product.
+     *
+     * The stored variant_key when the row has one (feed, image, name
+     * without size, colour - written at import, backfilled once). While
+     * the backfill is still running, or on a tally row that carries no
+     * image, the old derived key: name without size plus colour.
+     *
+     * @param array $row
+     * @return string
+     */
+    private static function group_key(array $row) {
+        if (!empty($row['variant_key'])) {
+            return 'vk:' . $row['variant_key'];
+        }
+        if (isset($row['image_url']) && isset($row['feed_id']) && self::variants_loaded()) {
+            return 'vk:' . MyFeeds_Variants::variant_key(
+                (int) $row['feed_id'], (string) ($row['product_name'] ?? ''), (string) $row['image_url'],
+                (string) ($row['brand'] ?? ''), (string) ($row['colour'] ?? '')
+            );
+        }
+        $colour = isset($row['colour_norm'])
+            ? (string) $row['colour_norm']
+            : mb_strtolower(trim((string) ($row['colour'] ?? '')));
+        return 'nm:' . mb_strtolower(self::strip_size_suffix($row['product_name'] ?? '')) . '|' . $colour;
     }
 
     private static function deduplicate($scored_rows) {
@@ -1714,14 +1777,7 @@ class MyFeeds_Search_Engine {
 
         foreach ($scored_rows as $item) {
             $row = $item['row'];
-            $name = mb_strtolower(self::strip_size_suffix($row['product_name'] ?? ''));
-            $colour = mb_strtolower(trim($row['colour'] ?? ''));
-
-            if (!empty($colour)) {
-                $dedup_key = $name . '|' . $colour;
-            } else {
-                $dedup_key = $name . '|__no_colour__';
-            }
+            $dedup_key = self::group_key($row);
 
             if (isset($seen[$dedup_key])) {
                 continue;
@@ -1748,7 +1804,7 @@ class MyFeeds_Search_Engine {
      * do read it. So the candidate window used to drag a megabyte of JSON
      * through MySQL and PHP to throw nine tenths of it away.
      */
-    const CANDIDATE_COLUMNS = 'id, external_id, feed_id, feed_name, product_name, price, original_price, currency, image_url, affiliate_link, brand, category, colour, in_stock, status, last_updated, search_text';
+    const CANDIDATE_COLUMNS = 'id, external_id, feed_id, feed_name, product_name, price, original_price, currency, image_url, affiliate_link, brand, category, colour, in_stock, status, last_updated, search_text, variant_key';
 
     /**
      * Fetch raw_data for the rows that survived scoring, dedup and the slice
@@ -2081,17 +2137,38 @@ class MyFeeds_Search_Engine {
             $rows_before_collapse = count($rows);
             $collapsed = array();
             foreach ($rows as $row) {
-                $key = mb_strtolower(self::strip_size_suffix($row['product_name'] ?? ''))
-                    . '|' . mb_strtolower((string) ($row['colour'] ?? ''))
-                    . '|' . (string) ($row['feed_id'] ?? '');
+                $key = self::group_key($row);
+                $price = (float) ($row['price'] ?? 0);
 
                 if (!isset($collapsed[$key])) {
+                    $row['_variant_count'] = 1;
+                    $row['_price_min']     = $price;
+                    $row['_price_max']     = $price;
+                    $row['_in_stock_any']  = (int) ($row['in_stock'] ?? 0) === 1;
                     $collapsed[$key] = $row;
                     continue;
                 }
+                // What the group as a whole offers, carried on the row kept.
+                $agg = array(
+                    '_variant_count' => $collapsed[$key]['_variant_count'] + 1,
+                    '_price_min'     => $price > 0 ? min($collapsed[$key]['_price_min'] > 0 ? $collapsed[$key]['_price_min'] : $price, $price) : $collapsed[$key]['_price_min'],
+                    '_price_max'     => max($collapsed[$key]['_price_max'], $price),
+                    '_in_stock_any'  => $collapsed[$key]['_in_stock_any'] || (int) ($row['in_stock'] ?? 0) === 1,
+                );
+                // The row shown for the group: buyable before sold out,
+                // then the cheapest of those.
+                $kept_stock = (int) ($collapsed[$key]['in_stock'] ?? 0) === 1;
+                $take = false;
                 if ((int) ($row['in_stock'] ?? 0) === 1 && (int) ($collapsed[$key]['in_stock'] ?? 0) !== 1) {
+                    $take = true;
+                } elseif (((int) ($row['in_stock'] ?? 0) === 1) === $kept_stock && $price > 0
+                    && ($price < (float) ($collapsed[$key]['price'] ?? 0) || (float) ($collapsed[$key]['price'] ?? 0) <= 0)) {
+                    $take = true;
+                }
+                if ($take) {
                     $collapsed[$key] = $row;
                 }
+                $collapsed[$key] = array_merge($collapsed[$key], $agg);
             }
             $rows = array_values($collapsed);
             myfeeds_log('SEARCH: Collapsed to ' . count($rows) . ' products before scoring', 'debug');
@@ -2243,8 +2320,22 @@ class MyFeeds_Search_Engine {
             $facets = self::compute_facets($table, $ft_query_str, $short_tokens, $args, $phrase_constraints, $predicate);
         }
 
+        // A gender word is deliberately kept out of the match and used
+        // as a filter afterwards, in PHP, over product names. Neither
+        // shortcut below knows that happened: $known_total is counted
+        // BEFORE the filter runs, and the SQL count asks the predicate,
+        // which never carried the gender token in the first place. So a
+        // search for "quarter zip men" promised 160 and could deliver 45
+        // - page two was empty, and the other 115 were women's.
+        //
+        // When the filter actually took rows away, the only number that
+        // is true is the one that survived it.
+        $gender_narrowed = $gender_count < count($rows_before_gender);
+
         $total_after_dedup = $dedup_count;
-        if (isset($known_total)) {
+        if ($gender_narrowed) {
+            // keep $dedup_count: what came through is what there is
+        } elseif (isset($known_total)) {
             // The candidate window held every match, so the total is
             // already in hand. Asking again is a second full-text pass
             // over the same rows - measured at about 1.4 seconds on this
@@ -2256,7 +2347,8 @@ class MyFeeds_Search_Engine {
         } elseif (!empty($args['return_meta']) && $has_search_text && ($has_ft || $has_short_constraint || $has_phrases || $has_loose)) {
             $count_filter   = self::build_filter_clause($args);
             $count_params   = array_merge($count_filter['params'], $predicate['params']);
-            $count_sql = "SELECT DISTINCT product_name, COALESCE(LOWER(colour), '') AS colour_norm
+            $vk_col = self::has_variant_key() ? ', variant_key' : ", '' AS variant_key";
+            $count_sql = "SELECT DISTINCT product_name, COALESCE(LOWER(colour), '') AS colour_norm{$vk_col}
                           FROM {$table}
                           WHERE status = 'active'
                           {$count_filter['sql']}
@@ -2267,9 +2359,7 @@ class MyFeeds_Search_Engine {
             if (is_array($count_rows) && count($count_rows) > 0) {
                 $seen_distinct = array();
                 foreach ($count_rows as $cr) {
-                    $key  = mb_strtolower(self::strip_size_suffix($cr['product_name'] ?? ''));
-                    $key .= '|' . ($cr['colour_norm'] ?? '');
-                    $seen_distinct[$key] = true;
+                    $seen_distinct[self::group_key($cr)] = true;
                 }
                 $total_after_dedup = count($seen_distinct);
             }
@@ -2723,6 +2813,13 @@ class MyFeeds_Search_Engine {
             'status'              => $row['status'] ?? 'active',
             'merchant'            => $row['feed_name'] ?? '',
             'last_updated'        => $row['last_updated'] ?? '',
+            // The group behind this row: how many sizes, what they cost,
+            // whether any of them can be bought. From the collapse, no
+            // extra query.
+            'variant_count'       => (int) ($row['_variant_count'] ?? 1),
+            'price_min'           => isset($row['_price_min']) ? (float) $row['_price_min'] : floatval($row['price'] ?? 0),
+            'price_max'           => isset($row['_price_max']) ? (float) $row['_price_max'] : floatval($row['price'] ?? 0),
+            'in_stock_any'        => isset($row['_in_stock_any']) ? (bool) $row['_in_stock_any'] : ((int) ($row['in_stock'] ?? 1) === 1),
         );
 
         if (!empty($row['raw_data'])) {
@@ -2733,6 +2830,16 @@ class MyFeeds_Search_Engine {
         }
 
         return $product;
+    }
+
+    /**
+     * Does the products table carry variant_key yet? Asked of the flag,
+     * not the server: the column arrives with the backfill job, which
+     * sets the flag the moment the ALTER went through.
+     */
+    private static function has_variant_key() {
+        return class_exists('MyFeeds_DB_Manager') && method_exists('MyFeeds_DB_Manager', 'has_variant_key_column')
+            && MyFeeds_DB_Manager::has_variant_key_column();
     }
 }
 

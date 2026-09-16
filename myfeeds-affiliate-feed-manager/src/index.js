@@ -445,7 +445,28 @@
             var attrC = showProductDetail.attributes.colour || showProductDetail.attributes.color;
             colourVal = Array.isArray(attrC) ? (attrC[0] || '') : (typeof attrC === 'string' ? attrC : '');
           }
-          if (productName && apiUrl) {
+          // The id has to be known BEFORE the size-variants request. It
+          // used to be declared below with var, which hoists the name
+          // but not the value: the request went out as id=undefined and
+          // the size click never had a row to switch to.
+          var productId = showProductDetail.id || showProductDetail.aw_product_id || showProductDetail.external_id || '';
+          if (productId && apiUrl) {
+            // The rows behind each size - id, price, link - grouped by
+            // the same key the search and the shop use. The label-only
+            // product-sizes request is no longer needed: labels come
+            // with the rows.
+            fetch(apiUrl + 'product-size-variants?id=' + encodeURIComponent(String(productId)), {
+              credentials: 'include',
+              headers: { 'X-WP-Nonce': nonce }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(rows) {
+              rows = Array.isArray(rows) ? rows : [];
+              setSizeVariants(rows);
+              setDetailSizes(rows.map(function (v) { return v.size; }));
+            })
+            .catch(function() { setSizeVariants([]); setDetailSizes([]); });
+          } else if (productName && apiUrl) {
             fetch(apiUrl + 'product-sizes?name=' + encodeURIComponent(productName) + '&colour=' + encodeURIComponent(colourVal), {
               credentials: 'include',
               headers: { 'X-WP-Nonce': nonce }
@@ -453,21 +474,12 @@
             .then(function(r) { return r.json(); })
             .then(function(sizes) { if (Array.isArray(sizes)) setDetailSizes(sizes); })
             .catch(function() { setDetailSizes([]); });
-
-            fetch(apiUrl + 'product-size-variants?id=' + encodeURIComponent(String(productId)), {
-              credentials: 'include',
-              headers: { 'X-WP-Nonce': nonce }
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(rows) { setSizeVariants(Array.isArray(rows) ? rows : []); })
-            .catch(function() { setSizeVariants([]); });
           }
 
           // Colour-siblings: backend returns an array only when there
           // are at least two distinct colours for this product family;
           // otherwise it returns []. Either way we set state without
           // breaking the local-parse fallback.
-          var productId = showProductDetail.id || showProductDetail.aw_product_id || showProductDetail.external_id || '';
           if (productId && apiUrl) {
             fetch(apiUrl + 'product-color-siblings?id=' + encodeURIComponent(String(productId)), {
               credentials: 'include',
@@ -872,6 +884,7 @@
             brandName && React.createElement("div", { style: { fontSize: "11px", color: "#666", textTransform: "uppercase", letterSpacing: "0.3px", marginBottom: "4px", fontWeight: 600 } }, brandName),
             React.createElement("div", { style: { fontSize: "13px", color: "#222", fontWeight: 600, lineHeight: 1.35, marginBottom: "4px", minHeight: "36px", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } }, product.title || product.product_name || product.name || ''),
             priceBlock(product),
+            (function(){ var n = parseInt(product.variant_count, 10); return n > 1 ? React.createElement("div", { style: { fontSize: "11px", color: "#667eea", marginBottom: "4px", fontWeight: 600 } }, n + " sizes") : null; })(),
             (function(){ const s=formatShipping(product); return s ? React.createElement("div", { style: { fontSize: "12px", color: "#555", marginBottom: "4px" } }, s) : null; })(),
             (shopName && !looksLikeSku(shopName)) && React.createElement("div", { style: { fontSize: "12px", color: "#666" } }, shopName)
           )
@@ -1953,7 +1966,7 @@
                     if (sizesToShow.length === 0) return null;
                     
                     return React.createElement("div", { className: "myfeeds-attribute-section", style: { marginTop: "15px" } },
-                      React.createElement("div", { className: "myfeeds-attribute-title" }, "Available Sizes" + (detailSizes.length > 0 ? " (" + detailSizes.length + " variants)" : "") + ":"),
+                      React.createElement("div", { className: "myfeeds-attribute-title" }, "Available Sizes" + (sizesToShow.length > 1 ? " (" + sizesToShow.length + ")" : "") + ":"),
                       React.createElement("div", { className: "myfeeds-size-selection", style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" } }, 
                         sizesToShow.map(function(size, idx){
                           const isCurrentSize = currentVariant.size === size || (!currentVariant.size && idx === 0);
