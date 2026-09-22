@@ -822,7 +822,17 @@ class MyFeeds_Search_Engine {
             return '';
         }
 
-        return '(^|[^[:alpha:]])' . self::regex_quote(strtolower($token)) . '[[:alpha:]]*';
+        // A multi-word term: the words must follow each other, joined by
+        // at most one non-letter ("quarter-zip", "quarter zip",
+        // "quarterzip"). For a single word this is the pattern it
+        // always was.
+        $words = preg_split('/[\s\-_\/]+/u', strtolower($token), -1, PREG_SPLIT_NO_EMPTY);
+        if (empty($words)) {
+            return '';
+        }
+        $quoted = array_map(array(__CLASS__, 'regex_quote'), $words);
+
+        return '(^|[^[:alpha:]])' . implode('[^[:alnum:]]?', $quoted) . '[[:alpha:]]*';
     }
 
     private static function regex_quote($s) {
