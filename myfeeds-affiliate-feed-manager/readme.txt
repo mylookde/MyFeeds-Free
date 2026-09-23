@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.36
+Stable tag: 1.0.37
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,10 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.37 =
+* Fixed: a digit no longer starts a word in search. Looking for "tee" could match a sunglasses model number like 214050TEESPIBOR, and "slim" three eyeglass part numbers — the same kind of false match the whole-word rule exists to prevent. It also made search contradict itself: a long word was matched one way and a short one another.
+* Improved: the size a merchant's image CDN is asked for is now checked against that merchant instead of assumed. One widely documented parameter turned out to be ignored by a large retailer's image server, and a wrong assumption could never correct itself before.
 
 = 1.0.36 =
 * Improved: product images are asked for at the size they are shown. Some merchants ship the print master — one feed averaged 2 MB per product image, with individual files past 25 MB — which makes a post crawl and can leave an image stuck on its alt text while the browser waits. MyFeeds now asks the merchant's image CDN for a copy that fits the card. On a shop page with 72 product images that was 61.4 MB before and 5.8 MB after.
