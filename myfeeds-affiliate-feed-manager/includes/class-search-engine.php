@@ -832,7 +832,26 @@ class MyFeeds_Search_Engine {
         }
         $quoted = array_map(array(__CLASS__, 'regex_quote'), $words);
 
-        return '(^|[^[:alpha:]])' . implode('[^[:alnum:]]?', $quoted) . '[[:alpha:]]*';
+        // A digit does NOT open a word. It used to: the boundary asked
+        // for a non-LETTER, so "tee" matched the sunglasses SKU
+        // 214050TEESPIBOR and "slim" matched three Saint Laurent
+        // eyeglass model numbers (SL434SLIM001). That is the same class
+        // of false positive the word start exists to kill - "men" inside
+        // "women", "low" inside "Yellow" - and it leaked in through the
+        // one boundary nobody had looked at.
+        //
+        // Measured on mylook over 14 common terms and 397k rows, the
+        // digit boundary contributed FOUR rows in total, all four SKU
+        // noise. Nothing anybody searched for.
+        //
+        // It also made the search disagree with itself: a long token
+        // goes through the FULLTEXT index as "+token*", which matches at
+        // a token start and never after a digit, while a short token
+        // fell back to this pattern and did. Same question, two answers,
+        // decided by word length. They answer the same now - which is
+        // also what lets the suggestions put that index in front of this
+        // pattern without losing a row.
+        return '(^|[^[:alnum:]])' . implode('[^[:alnum:]]?', $quoted) . '[[:alnum:]]*';
     }
 
     private static function regex_quote($s) {
