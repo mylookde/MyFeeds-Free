@@ -620,17 +620,34 @@ if (!function_exists('myfeeds_image_render_attrs')) {
      *                       for the ~400 px a product tile occupies on a
      *                       desktop grid. 0 turns the cap off.
      *
+     * Returns `sized` so the caller can tell a site-wide image CDN to
+     * keep its hands off this one. Jetpack's Photon rewrites the src to
+     * i0.wp.com and DROPS the query string on the way, which throws away
+     * the width we just asked for and sends it back to its own fallback
+     * (content_width, 1200px on most themes). Worse, it then has to pull
+     * the merchant's full-size original itself - and a cold fetch of a
+     * 16.7 MB PNG is exactly the request the browser gave up on, which
+     * is how this whole thing started. Measured on one Jack & Jones
+     * product: Photon at its fallback width 169 KB, our own cap 87 KB,
+     * and no 3 MB fetch behind it.
+     *
+     * Only true when the cap actually did something. For a host we
+     * cannot size, an image CDN in front is a real win and must stay.
+     *
      * @param string $url  Source image URL.
      * @param array  $opts Optional flags.
-     * @return array { src: string, attrs: string }
+     * @return array { src: string, attrs: string, sized: bool }
      */
     function myfeeds_image_render_attrs($url, $opts = array()) {
         $src    = myfeeds_upgrade_image_url($url);
         $is_lcp = !empty($opts['lcp']);
         $cap    = array_key_exists('max_width', $opts) ? (int) $opts['max_width'] : 800;
+        $sized  = false;
 
         if ($cap > 0 && function_exists('myfeeds_thumb_image_url')) {
-            $src = myfeeds_thumb_image_url($src, $cap);
+            $capped = myfeeds_thumb_image_url($src, $cap);
+            $sized  = ($capped !== $src);
+            $src    = $capped;
         }
 
         $attrs = $is_lcp
@@ -640,6 +657,7 @@ if (!function_exists('myfeeds_image_render_attrs')) {
         return array(
             'src'   => $src,
             'attrs' => implode(' ', $attrs),
+            'sized' => $sized,
         );
     }
 }
