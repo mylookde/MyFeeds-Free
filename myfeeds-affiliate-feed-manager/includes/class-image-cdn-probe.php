@@ -228,11 +228,10 @@ class MyFeeds_Image_CDN_Probe {
                 if ($host === '') {
                     continue;
                 }
-                // A seeded grammar is already better than anything a
-                // measurement could tell us, and it never expires.
-                if (myfeeds_image_seeded_recipe($url, $host) !== null) {
-                    continue;
-                }
+                // Seeded hosts are sampled too. The seed is a guess -
+                // an educated one, from the platform the URL names -
+                // and a guess that is never checked is how `wid` sat in
+                // here for Scene7 while media.jdsports.com ignored it.
                 if (myfeeds_image_url_is_signed($url)) {
                     continue;
                 }
@@ -278,15 +277,42 @@ class MyFeeds_Image_CDN_Probe {
             return null;
         }
 
+        $seed = myfeeds_image_seeded_recipe($sample, myfeeds_image_url_host($sample));
+
         if ($baseline < self::MIN_INTERESTING) {
-            // Already small. Nothing to win, and a resizer could not
-            // prove itself against an image this size anyway.
+            // Already small. Nothing to win, and no grammar could prove
+            // itself against an image this size. A seed survives that
+            // verdict: it is a platform fact, not a guess about this
+            // one file, and applying it to a small image costs nothing.
             return array(
-                'grammar' => 'none',
+                'grammar' => $seed === null ? 'none' : $seed,
                 'reason'  => 'small',
+                'source'  => $seed === null ? 'probe' : 'seed',
                 'at'      => time(),
                 'before'  => $baseline,
             );
+        }
+
+        // The seed gets asked first, and gets an easier question: does
+        // it hand back a smaller image at the width we would actually
+        // use? Monotonicity is the test for DISCOVERING an unknown
+        // query parameter - proof that it is read at all. A seed is a
+        // known grammar, and some of them are not parametric: AWIN's is
+        // a swap between two fixed buckets, and asking it for 400 and
+        // 800 says nothing about whether it is honoured.
+        if ($seed !== null) {
+            $sized = self::remote_size(myfeeds_image_apply_recipe($sample, $seed, 400));
+            if ($sized !== null && $sized >= 500 && $sized <= (int) round($baseline * self::MAX_SHARE)) {
+                return array(
+                    'grammar' => $seed,
+                    'source'  => 'seed',
+                    'at'      => time(),
+                    'before'  => $baseline,
+                    'after'   => $sized,
+                );
+            }
+            // The seed did not deliver. Fall through and find out what
+            // this host actually wants - that is the whole point.
         }
 
         foreach (array_keys(myfeeds_image_query_grammars()) as $grammar) {
@@ -308,6 +334,7 @@ class MyFeeds_Image_CDN_Probe {
             }
             return array(
                 'grammar' => $grammar,
+                'source'  => $seed === null ? 'probe' : 'probe-overrode-seed',
                 'at'      => time(),
                 'before'  => $baseline,
                 'after'   => $large,
@@ -316,7 +343,8 @@ class MyFeeds_Image_CDN_Probe {
 
         return array(
             'grammar' => 'none',
-            'reason'  => 'no-resizer',
+            'reason'  => $seed === null ? 'no-resizer' : 'seed-failed-and-no-other',
+            'source'  => 'probe',
             'at'      => time(),
             'before'  => $baseline,
         );

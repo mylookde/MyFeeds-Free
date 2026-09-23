@@ -281,6 +281,15 @@ if (!function_exists('myfeeds_image_seeded_recipe')) {
         }
         // Adobe Scene7 / Dynamic Media. Preset URLs look like
         // …/s/shop/SKU?$Main$ — the preset stays, wid narrows it.
+        //
+        // UNVERIFIED against a live Scene7 host: no feed here sits on
+        // one, so this is Adobe's documentation and nothing else. And
+        // documentation is not a measurement: media.jdsports.com speaks
+        // Scene7's dialect (it honours fmt=webp) and ignores wid
+        // outright - 14,966 bytes for wid=300 and for wid=900, the same
+        // file - while w= works. It does not match this branch, but it
+        // is the reason this seed is now a first guess the probe checks
+        // rather than a verdict it cannot reach.
         if (strpos($url, 'scene7.com') !== false || strpos($url, '/is/image/') !== false) {
             return 'wid';
         }
@@ -341,16 +350,23 @@ if (!function_exists('myfeeds_image_recipe_for_url')) {
         if ($host === '') {
             return null;
         }
-        $seeded = myfeeds_image_seeded_recipe($url, $host);
-        if ($seeded !== null) {
-            return $seeded;
-        }
+
+        // A measurement beats a guess. The seed used to win outright,
+        // which meant a wrong seed could never be corrected - and one
+        // was wrong: `wid` is Adobe's documented Scene7 parameter and
+        // media.jdsports.com ignores it completely (14,966 bytes for
+        // wid=300 AND wid=900; the same file). `w` works there. Found
+        // on 2026-09-23, from outside this workspace, because nothing
+        // in here ever asked the host whether the seed was true.
         $learned = myfeeds_image_learned_recipes();
         if (isset($learned[$host]['grammar']) && is_string($learned[$host]['grammar'])) {
             $grammar = $learned[$host]['grammar'];
             return ($grammar === '' || $grammar === 'none') ? null : $grammar;
         }
-        return null;
+
+        // Nothing measured yet: the seed carries the first render, and
+        // the probe checks it in the background.
+        return myfeeds_image_seeded_recipe($url, $host);
     }
 }
 
@@ -595,6 +611,82 @@ if (!function_exists('myfeeds_thumb_product_image_urls')) {
     }
 }
 
+if (!function_exists('myfeeds_image_srcset')) {
+    /**
+     * A srcset the browser can actually choose from.
+     *
+     * Only for a host we can resize. Four identical URLs would be worse
+     * than none: the browser reads the width descriptors, believes
+     * them, and picks the largest.
+     *
+     * @param string $url    Source URL (already upgraded).
+     * @param array  $widths Pixel widths, ascending.
+     * @return string srcset value, or '' when the host cannot resize.
+     */
+    function myfeeds_image_srcset($url, $widths = array(300, 450, 600, 900)) {
+        if (!function_exists('myfeeds_thumb_image_url')) {
+            return '';
+        }
+        $parts = array();
+        $seen  = array();
+        foreach ($widths as $w) {
+            $w      = (int) $w;
+            $sized  = myfeeds_thumb_image_url($url, $w);
+            // Unchanged means no recipe - or a grammar that ignores the
+            // width, which comes to the same thing here.
+            if ($sized === $url || isset($seen[$sized])) {
+                continue;
+            }
+            $seen[$sized] = true;
+            $parts[] = $sized . ' ' . $w . 'w';
+        }
+        // One candidate is a src, not a set.
+        return count($parts) > 1 ? implode(', ', $parts) : '';
+    }
+}
+
+if (!function_exists('myfeeds_shop_tile_sizes')) {
+    /**
+     * The `sizes` attribute for a storefront tile, computed from the
+     * shop's own grid rather than guessed.
+     *
+     * This is the reason the plugin may ship srcset where a theme has
+     * to be careful: a theme writes "(max-width:767px) 56vw, 240px"
+     * because it knows its own layout and nothing else. The shop knows
+     * how many columns it draws at each width, because that is a
+     * setting it owns - and it knows the sidebar is 240px and the
+     * breakpoints are 900 and 1280, because it writes that CSS itself
+     * (class-shop-design.php).
+     *
+     * 100vw overestimates on a theme with a max-width container, and
+     * that is the safe direction: too large picks a sharper file, too
+     * small picks a blurry one.
+     *
+     * @return string
+     */
+    function myfeeds_shop_tile_sizes() {
+        $cols_desktop = 4;
+        $cols_tablet  = 3;
+        $cols_mobile  = 2;
+
+        if (class_exists('MyFeeds_Shop_Design') && method_exists('MyFeeds_Shop_Design', 'get_settings')) {
+            $s = MyFeeds_Shop_Design::get_settings();
+            if (is_array($s)) {
+                $cols_desktop = max(1, (int) ($s['cols_desktop'] ?? $cols_desktop));
+                $cols_tablet  = max(1, (int) ($s['cols_tablet']  ?? $cols_tablet));
+                $cols_mobile  = max(1, (int) ($s['cols_mobile']  ?? $cols_mobile));
+            }
+        }
+
+        return sprintf(
+            '(max-width: 900px) calc(100vw / %d), (max-width: 1280px) calc((100vw - 240px) / %d), calc((100vw - 240px) / %d)',
+            $cols_mobile,
+            $cols_tablet,
+            $cols_desktop
+        );
+    }
+}
+
 if (!function_exists('myfeeds_image_render_attrs')) {
     /**
      * Build the attribute set for a product <img> tag, with the URL
@@ -619,6 +711,8 @@ if (!function_exists('myfeeds_image_render_attrs')) {
      *   - 'max_width' int.  Cap in CSS pixels. Default 800, which is 2x
      *                       for the ~400 px a product tile occupies on a
      *                       desktop grid. 0 turns the cap off.
+     *   - 'sizes'     string. The caller's own `sizes` attribute. Without
+     *                       it no srcset is emitted - see below.
      *
      * Returns `sized` so the caller can tell a site-wide image CDN to
      * keep its hands off this one. Jetpack's Photon rewrites the src to
@@ -639,15 +733,40 @@ if (!function_exists('myfeeds_image_render_attrs')) {
      * @return array { src: string, attrs: string, sized: bool }
      */
     function myfeeds_image_render_attrs($url, $opts = array()) {
-        $src    = myfeeds_upgrade_image_url($url);
+        $base   = myfeeds_upgrade_image_url($url);
+        $src    = $base;
         $is_lcp = !empty($opts['lcp']);
         $cap    = array_key_exists('max_width', $opts) ? (int) $opts['max_width'] : 800;
         $sized  = false;
 
         if ($cap > 0 && function_exists('myfeeds_thumb_image_url')) {
-            $capped = myfeeds_thumb_image_url($src, $cap);
-            $sized  = ($capped !== $src);
+            $capped = myfeeds_thumb_image_url($base, $cap);
+            $sized  = ($capped !== $base);
             $src    = $capped;
+        }
+
+        // The cap alone still sends one size to every screen. A tile is
+        // about 180px wide on a phone and about 280px in a four-column
+        // desktop grid; 800 is 2x for the widest of those and four times
+        // too much for the narrowest.
+        //
+        // A srcset without `sizes` makes the browser assume 100vw and
+        // take the largest candidate - worse than no srcset at all. And
+        // `sizes` can only be right if the CALLER knows how wide its
+        // own grid draws the image. The storefront does, from its own
+        // column setting. A picker card in somebody's blog post sits in
+        // a layout this file has never seen, and guessing it would only
+        // trade a too-big image for a blurry one.
+        //
+        // So: no `sizes` from the caller, no srcset. The cap still
+        // applies, which is the bulk of the win either way.
+        $srcset = '';
+        $sizes  = isset($opts['sizes']) && is_string($opts['sizes']) ? trim($opts['sizes']) : '';
+        if ($sized && $sizes !== '' && function_exists('myfeeds_image_srcset')) {
+            $srcset = myfeeds_image_srcset($base);
+        }
+        if ($srcset === '') {
+            $sizes = '';
         }
 
         $attrs = $is_lcp
@@ -655,9 +774,11 @@ if (!function_exists('myfeeds_image_render_attrs')) {
             : array('loading="lazy"', 'decoding="async"');
 
         return array(
-            'src'   => $src,
-            'attrs' => implode(' ', $attrs),
-            'sized' => $sized,
+            'src'    => $src,
+            'attrs'  => implode(' ', $attrs),
+            'sized'  => $sized,
+            'srcset' => $srcset,
+            'sizes'  => $sizes,
         );
     }
 }
