@@ -433,6 +433,7 @@ function myfeeds_load_includes() {
         'class-feed-reader.php' => 'Universal Feed Reader (CSV/TSV/XML/JSON)',
         'class-settings-manager.php' => 'Settings Manager Class',
         'class-db-manager.php' => 'Database Manager Class',
+        'class-image-cdn-probe.php' => 'Image CDN probe (learns how an unknown image host asks for a smaller copy)',
         'class-search-engine.php' => 'Search Engine (FULLTEXT + Synonyms)',
         'class-batch-importer.php' => 'Batch Importer Class',
         'class-universal-mapper-ui.php' => 'Universal Mapper UI Class',
@@ -572,6 +573,12 @@ class MyFeeds_Affiliate_Product_Picker {
                 if (method_exists('MyFeeds_DB_Manager', 'backfill_variant_keys')) {
                     add_action(MyFeeds_DB_Manager::VARIANT_KEY_HOOK, array('MyFeeds_DB_Manager', 'backfill_variant_keys'));
                 }
+            }
+
+            // Same reason: the image cap is worth nothing until a host
+            // has been asked how it hands out a smaller copy.
+            if (class_exists('MyFeeds_Image_CDN_Probe')) {
+                MyFeeds_Image_CDN_Probe::init();
             }
 
             // Initialize the one-time review request
