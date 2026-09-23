@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.35
+Stable tag: 1.0.36
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,15 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.36 =
+* Improved: product images are asked for at the size they are shown. Some merchants ship the print master — one feed averaged 2 MB per product image, with individual files past 25 MB — which makes a post crawl and can leave an image stuck on its alt text while the browser waits. MyFeeds now asks the merchant's image CDN for a copy that fits the card. On a shop page with 72 product images that was 61.4 MB before and 5.8 MB after.
+* Improved: for an image host MyFeeds has not seen before, it works out how to ask, once, in the background, and remembers the answer. Nothing is re-imported, no image is copied to your server, and a host that cannot make a smaller copy is left exactly as it was.
+* Improved: one product, one card. Sizes of the same product are now grouped in the block picker and in the picker's detail view, whichever way the feed writes the size — "Size 11.0 W", "Size: Large", "- S" or a separate size field. The card says how many sizes a product comes in, and the detail view lists each size and colour with its own link.
+* Fixed: the detail view asked for a product's sizes with an empty id and came back with nothing. The list of sizes stayed empty however the feed was written.
+* Fixed: re-importing your feed now marks the products your merchant has withdrawn, instead of leaving them on sale with a link that goes nowhere. They are never deleted — a product already placed in a post turns into the "no longer available" card, so nothing disappears from your posts without warning. If more than half the feed would be marked at once, the import treats that as a truncated download and leaves everything alone.
+* Fixed: "Showing whole-word matches only" no longer costs a row of empty space right above the products in the search window. It sits next to the result count.
+* Improved: two redundant indexes have left the products table, making imports a little faster and the table a little smaller. Existing installations are cleaned up once, automatically.
 
 = 1.0.35 =
 * Improved: a search word of three letters or fewer now has to start a word, the way longer words always did. Searching "men" used to return every women's product because the word sits inside "women"; on a real catalogue that was 58,176 matches where 27,358 were meant.
@@ -394,6 +403,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * AWIN Publisher API integration for credential and feed-URL resolution.
 
 == Upgrade Notice ==
+
+= 1.0.36 =
+Product images are now requested at the size they are shown. On pages where a merchant ships very large images this is the difference between tens of megabytes and a few. Sizes of the same product are grouped into one card, and re-importing your feed marks the products your merchant has withdrawn.
 
 = 1.0.21 =
 Six more affiliate networks are recognised automatically: Tradedoubler, Commission Junction, Impact, Rakuten, Pepperjam and FlexOffers. Feeds from those no longer need their columns mapped by hand.
