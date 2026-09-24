@@ -193,6 +193,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 = 1.0.38 =
 * Improved: the storefront picture on the E-commerce page shows the shop as it looks now.
+* Improved: the changelog on WordPress.org was being cut off part way through. The recent releases are listed there in full again, and the complete history now ships with the plugin in changelog.txt.
 
 = 1.0.37 =
 * Fixed: a digit no longer starts a word in search. Looking for "tee" could match a sunglasses model number like 214050TEESPIBOR, and "slim" three eyeglass part numbers — the same kind of false match the whole-word rule exists to prevent. It also made search contradict itself: a long word was matched one way and a short one another.
@@ -267,147 +268,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * The feed address is checked before it is fetched. A feed URL that points at the server itself or into a private network is refused, so a mistyped or malicious address cannot be used to make your site fetch things that were never meant to face the internet.
 * Advanced options: pipe-separated is now offered as a format, which is what several networks publish. Choosing a file pre-selects the matching format from its name. The gzip entry is gone because compression is unpacked before the file is read. The network list drops Amazon, which has its own connection flow, and adds FlexOffers, Sovrn and Other.
 
-= 1.0.23 =
-* Opening a post that holds several product blocks is faster. Each block asked the database to refresh its saved products on its own, so a post with seven of them made seven separate requests - and what takes the time in one of those is WordPress starting up to answer it, not the lookup. The blocks now ask together, in one request. The answer also stopped carrying the full merchant record for every product, forty-odd fields of it, when a saved tile reads seven.
-
-= 1.0.22 =
-* Try the plugin before you have a feed. With no feed configured, the Feeds page now offers to load seven sample products, so you can open the Product Picker and see what a card looks like in your own theme. The offer only appears while you have no feed, the samples are marked as sample data throughout, and one button removes them. They take the free plugin's single feed slot, so removing them frees it for your real feed.
-* Product Picker: the Use and Cancel buttons are back. WordPress renders the post canvas in an iframe and caps a modal at 70% of the viewport; the picker asked for 95% of the viewport instead, which pushed its own bottom edge - and those two buttons - past the frame. Nothing in the modal names a height any more, so the results scroll and the buttons stay on screen however many come back.
-* Product Picker: buttons and product names are set in the admin typeface again, not a serif. The editor side never declared a font and inherited one from the admin page. Inside the iframe there is nothing to inherit, and an element with no font falls back to the browser default.
-* Product Picker: searching a large feed is roughly three times faster - measured on a real feed, 6.6 seconds down to 2.1. The candidate query stopped pulling every product's full source record through the database only to discard it, the three filter counts became a single pass when no filter is set, and those counts are held for five minutes so paging and re-sorting stop asking the same expensive question.
-* Product Picker: the search bar no longer lets results slide through a gap above it, and the Add button in the detail view is the same purple as the button a screen before it.
-* Feeds page: adding your first feed shows it straight away, and deleting your last one brings the empty state back. Both used to need a page reload before anything appeared to happen.
-* Feeds page: the feed URL field links to a page listing where each affiliate network hides its product feed export.
-
-= 1.0.21 =
-* The importer knows six more feed formats. Tradedoubler, Commission Junction, Impact and Rakuten now come with their column names built in, and Pepperjam and FlexOffers are recognised at all. Before this, a feed from one of those networks fell through to the generic guesser and left you mapping columns by hand on the Mapping Editor screen. Nothing else changed: feeds that already import correctly keep their saved mapping.
-
-= 1.0.20 =
-* The plugin is now called "MyFeeds - Affiliate Product Feed Manager, Importer & Product Display". Same plugin, same folder, nothing to do on your side. On the plugin directory the name is the single strongest field for being found at all, and "Manager" on its own left out the two things people actually type when they go looking: importing a feed, and displaying the products.
-
-= 1.0.19 =
-* Quick Sync no longer loads the whole feed into memory. It used to hold the compressed file as one string, unpack it into a second one, and then write the result to disk to read it back line by line: measured at 145 MB of peak memory to refresh 41 products out of a 40 MB feed, against a 56 MB floor for WordPress itself. On a host with a 128 or 256 MB limit that was a fatal waiting for a large enough feed, and the nightly auto-sync takes the same path. It now streams to disk the way the full import always has, and the same measurement shows nothing above the floor at all.
-* Quick Sync writes in batches. One database statement per hundred products instead of one per product. Same matching, so products that are not in the table are still left alone rather than inserted.
-* Quick Sync could be run twice in a row. Its execution lock was never released, so for two minutes after a perfectly good sync the next one was skipped silently: the button appeared to do nothing at all.
-* Imports now start on sites that cannot call themselves over HTTP. The background worker is spawned with a loopback request that cannot report a failure, so password-protected staging sites, some security plugins and hosts that block loopback left the import sitting at "Initializing" with an empty queue and no error anywhere. The worker now checks in when it arrives, and if it has not within ten seconds the progress poll runs the import itself.
-* The progress bar tells the truth. It used to measure products found against products wanted, written only after a whole feed had been scanned, so it sat empty for the entire run and then jumped to full. It now follows the read position in the feed, which also let Quick Sync drop a full extra pass over the file: 5.6 seconds down to 4.1 on the same feed.
-* When a sync finishes, the panel says how many products are simply no longer in the feed instead of counting them as failures.
-* The buttons on each feed row come back to life when an import finishes, instead of staying greyed out until the page is reloaded.
-* Amazon is signposted from the feeds screen, with a dialog describing what the paid Amazon source does. Nothing is installed or enabled by this plugin.
-* A one-time, dismissible review request. It appears once, it can be dismissed for good, and it never comes back on its own.
-
-= 1.0.18 =
-* Block editor: product images in the picker now match what visitors see on the published post. The selected-tile refresh endpoint, the colour-sibling swatch endpoint, and the product preview that runs on block mount all pipe their image URLs through the same CDN-aware upgrader the frontend renderer already uses, so a saved block can't look soft in the editor while the published post renders crisp. Pure render-time logic, no migration.
-* Smart mapper: generic hi-res image priority for custom and small-network feeds. Feeds that ship both a small `image_url` and an explicit hi-res mirror (`large_image`, `original_image`, `hires_image`, `full_image` — with or without `_url` suffix) now pick up the hi-res variant on every sync path (Full Import, Quick Sync, Action Scheduler batches, single-feed reimports). Feeds with only a single image column behave exactly as before. AWIN priority is unchanged.
-
-= 1.0.17 =
-* Product images: render-time URL upgrade for the known CDNs. AWIN's `images.productserve.com/preview/` thumbnails get rewritten to the `/large/` mirror; Shopify size suffixes (`_grande`, `_NNNxNNN`, …) get bumped to `_1024x1024`; Cloudinary upload paths without a transformation get `w_1024,q_auto,f_auto` injected; BigCommerce stencil paths bump to `1024x1024`; WordPress `-NNNxNNN` resize suffixes get stripped. Unknown URLs pass through untouched. Images go from soft thumbnail to crisp source on Retina displays without any cloud storage or extra account on your side.
-* AWIN feeds: `merchant_image_url` now wins over `aw_image_url` everywhere. The AWIN variant routes through their resized `/preview/` bucket; the merchant variant is the original-resolution mirror. The smart mapper used to prefer the AWIN one, which produced soft cards on every Retina display, and the importer's force-overwrite pass would silently re-apply that choice on every Quick Sync. Both paths now converge on the merchant URL.
-* AWIN affiliate links: `aw_deep_link` now wins over `merchant_deep_link` everywhere, in every sync path. The AWIN URL goes through `awin1.com` so the commission gets attributed; the merchant URL is the merchant's direct link with no AWIN involvement, so a click on it silently bypasses tracking and the publisher loses the commission. Same "last one wins" loop order in the force-overwrite map was silently overwriting the tracked URL on every Quick Sync. Replaced with explicit priority overrides in `process_critical_fields` so Full Import, Quick Sync, Action Scheduler batches and single-feed reimports all produce the same tracked URL. Existing rows where the untracked URL was already cached heal at the next nightly sync.
-
-= 1.0.16 =
-* Mapping Editor: new "Default currency" card at the bottom of the mapping grid. Pick an ISO 4217 three-letter code (USD, EUR, GBP, CHF, JPY, INR and many more, plus a custom code option) for feeds that silently omit a currency column. Without an override, silent-currency feeds used to land in the database with empty currency and the front-end rendered the price without a symbol. The override is saved together with the rest of the mapping when you click Save Mapping, so there's still just one big save button to remember. Existing imported rows pick up the override at the next sync.
-* Mapping Editor: three places that hardcoded "EUR" as a fallback are gone (class-batch-importer.php, class-feed-manager.php's Single-Source-of-Truth path, and class-smart-mapper.php's apply_fallbacks). All three used to stamp "EUR" on currency-less rows before the override could run, which made the new override invisible on USD-only feeds. Now currency stays empty through the entire mapping chain and the per-feed default fills it in at the right moment.
-* Mapping Editor: layout polish. Field rows inside each section (Essential, Important, Product Attributes, Additional Info, etc.) are now sorted A-Z by label. "Available Feed Columns" pills and the per-field dropdown options are also sorted A-Z. The preview pane is a collapsible details element, closed by default, so the raw-JSON sample row no longer dominates the editor.
-* Mapping Editor: drag and drop from a feed-column pill onto a field-mapping select now actually works. The pills had cursor: grab and looked draggable since 1.0.2 but had no JS handler. Native HTML5 dragstart -> dragover -> drop with dataTransfer payload and a hover highlight on the target select.
-* Smart Search: tokens longer than three characters now get a trailing `*` in the FULLTEXT match, so a query like "trouser" finds the same products and the same brand / colour / category facets as "trousers". Earlier behaviour: the German-leaning stemmer was producing "trous" for "trouser" — neither form existed in the FT index, so the main search found rows via a fuzzy fallback but compute_facets returned zero buckets and the filter panel disappeared. Prefix-wildcard fixes both paths.
-
-= 1.0.15 =
-* Product Picker: colour-variant swatches now catch the case where the feed leaves the colour column empty but spells the colour out in the product name. Example from a real merchant: "Denim Tears Wreath Jean Short Light Wash - S" and "Denim Tears Wreath Jean Short Black - S" both arrive with empty colour and identical attributes; we now extract "Light Wash" and "Black" from the names themselves and present them as switchable swatches. Multi-word colour phrases (Light Wash, Dark Wash, Off White, Light Blue, Hot Pink, etc.) are matched longest-first so "Light Wash" wins over "Light".
-
-= 1.0.14 =
-* Product Picker: the detail modal now shows clickable colour-variant swatches when a product has siblings in the same feed. Each swatch carries a thumbnail of that colour's actual product image, the colour name, and the colour-dot indicator. Click a swatch and the modal switches to that variant — image, price, affiliate link and title update in place. Add-to-Selection then picks up the chosen variant. Single-colour products and feeds where no family can be detected fall back to the existing display-only colour pill. The home-page counts, importer counts, feed-list stats and search result dedup are untouched: this is purely additive on the detail-modal-open path.
-* Product Picker: variant family detection uses a three-step strategy chain. First, an explicit family id from the feed's raw payload (item_group_id, parent_sku, aw_group_id and friends). Second, exact product_name match within the same feed when at least two distinct colours exist (Carhartt-style merchants). Third, a conservative name-strip fallback that removes size suffixes and common colour words, then groups by the cleaned base — only triggered when the first two return nothing and the base is long enough that false-positives are unlikely. All matches are scoped to the same feed_id so colours never cross feeds.
-
-= 1.0.13 =
-* Product Picker: the product detail view (the "i" icon next to a search result) now centers inside the visible content area instead of the full viewport. The wp-admin sidebar stays uncovered, and the modal and its dark overlay only span the area to the right of it. JS measures the sidebar live (including when the block editor runs inside an iframe, by walking up to the parent admin document) and reapplies the offset on window resize.
-
-= 1.0.12 =
-* Feature preview pages: marketing copy rewritten across Shop, Card Design and Analytics. Em-dashes traded for periods so the cadence stops reading like AI. The card-design subtitle no longer leans on the "no CSS, no theme overrides, no broken mobile layouts" reassurance triplet that flagged in voice review. Benefit bullets moved from feature-listy to outcome-first ("Your blog gets a real storefront on its own domain. Visitors browse, click out, and you keep the commission.") so the reader sees what changes for them, not what the feature is.
-* Feature preview pages: defensive screenshot caption "No save-and-reload loop." replaced with a positive description of what actually happens.
-* Feature preview pages: the screenshot zoom lightbox now measures the wp-admin sidebar live with JavaScript and anchors its left edge to the sidebar's right edge. The previous pixel-based offsets (160 / 36 / 0) didn't survive custom admin themes, hover-expand of the auto-fold menu, or admin-theme plugins that set their body classes after first paint, so the overlay still covered the sidebar on some setups. The image now centers cleanly inside the visible content area regardless of which admin theme you run.
-* Feature preview pages: CSS and JS now version themselves with file modification time, so a layout tweak between releases shows up on the next page load instead of waiting for the next plugin version bump.
-
-= 1.0.10 =
-* Listing copy: short description rewritten to name the actual mechanic up front. "Insert live affiliate product tiles into your posts. Prices and stock stay current, automatically." The old version said "searchable product cards" which buried the visual format under a feature word.
-* Listing copy: new bridge paragraph at the top of the long description makes the core mechanic visible in the first 50 words ("MyFeeds drops live product tiles into your posts. The prices, stock and links update themselves..."). The pain-first narrative below stays as-is.
-* Listing copy: "What changes for you" now leads with a product-tile bullet so the visual nature of the plugin is no longer a paragraph-3 discovery.
-* wp.org listing banners refreshed (772×250 + 1544×500) with a clearer subhead that mirrors the new copy.
-
-= 1.0.9 =
-* Mapping Editor: new intro card at the top of the page that frames the editor as a polish tool, not a setup step. Auto-mapping handles your columns at import time. You only open the editor when a feed shows less than 100% in the Quality column on the Feeds page, and the card links straight there.
-* Mapping Editor: Apply Template, Save as Template, Auto-Detect and the modal Save Template button now share a coherent brand look (outlined indigo for secondary actions, gradient indigo for primary). The bare WordPress grey button no longer sits next to the brand-gradient Save Mapping CTA.
-* Mapping Editor: deleting a template no longer fires a native browser confirm dialog. A brand-styled confirm modal asks once with the template name spelled out, and the destructive action uses a red gradient so it reads as different from the indigo save actions.
-* Mapping Editor: every alert() in the editor is gone. Save, apply, delete and validation feedback now use auto-dismissing toast notices in the top-right corner, including a clean error message for network or server failures.
-* Mapping Editor: deleting a template removes the row inline (fade-out, no page reload) and only triggers a refresh when the list becomes empty so the friendly empty state can render.
-* Feature preview pages: the screenshot zoom lightbox now centers in the visible content area instead of the full viewport. The wp-admin sidebar (160px expanded, 36px folded, 0 on mobile) is accounted for, so a screenshot you click no longer drifts behind the menu on the left.
-
-= 1.0.8 =
-* Compatibility: tested with WordPress 7.0. No code changes — the new "Modern" admin theme renders MyFeeds screens cleanly, and the iframed editor falls back to non-iframe mode for posts containing the product-picker block (block-API v3 upgrade is a future-proofing item, not a regression).
-
-= 1.0.7 =
-* Smart Search: the result counter and the facet pills now report the same number of products the grid actually renders. Previously, every size variant of a product was tallied separately in the header total and in the brand/colour/category pills, so a search for "head" could promise "17 results" or "Bape (15)" and then deliver 5 and 3 once the result deduplicator collapsed the sizes. Counts now flow through the same size-suffix pipeline as the result set.
-
-= 1.0.6 =
-* Smart Search: fixed a recall bug where any query containing a short token (e.g. "air force 1" or "nike 1") returned zero results because the FULLTEXT engine drops sub-min tokens from required clauses and the LIKE fallback was using a MySQL 5.x word-boundary regex that broke on 8.0.4+. Short tokens now AND-constrain the FULLTEXT match via a portable space-padded LIKE.
-* Smart Search: quoted-phrase queries ("air force 1") now use a substring LIKE constraint instead of a FULLTEXT phrase clause, so phrases that contain short tokens work too. Quote characters are also properly stripped before tokenization.
-* Smart Search: phrase + filter combinations now honour the phrase in facet aggregation and the honest-total count, so the result number and the facet pills stay in sync when you have a quoted phrase active.
-
-= 1.0.5 =
-* Smart Search: the picker can now narrow a result set without leaving the page. Brand, colour, category and price all live as one-click filters with live counts that respect every other active filter. Sort by best match, price, biggest discount or newest.
-* Smart Search: results-as-you-type. The picker refetches after a short pause so you stop having to hit Enter every time you change your mind.
-* Smart Search: did-you-mean. Type "addidas" and the picker offers "adidas" instead of returning nothing. Powered by edit-distance against your own product vocabulary, so it learns from the feeds you import.
-* Smart Search: phrase support. Put "nike air max" in double quotes and exact matches float to the top.
-* Smart Search: smart query parser. Type "schwarze sneaker unter 80 euro im sale" and the price + sale intent get pulled out of the query automatically.
-* Smart Search: visual colour picker. Tick a colour swatch instead of typing the colour name.
-* Smart Search: recently used products show up as quick-insert chips before you type anything, so a product you used yesterday is one click away.
-* Smart Search: honest result count. The total at the top now reflects the real number of products in your feed that match, not just the dedup'd top of the fetched batch.
-* Smart Mapper: self-healing repair pass at every sync (previously released in 1.0.4) — corrects a stale mapping when a merchant drops a column instead of writing default values into your DB.
-
-= 1.0.4 =
-* Smart Mapper: self-healing repair pass. After the initial auto-map the mapper now checks each chosen source column against a real sample row. If the column is empty for that row, the mapper walks the full ranked candidate list and swaps in the next column that genuinely carries data. Same pass runs at the start of every sync so a stale mapping (column dropped by the merchant after the feed was first added) gets corrected before the import writes default values into the DB.
-* Smart Mapper: kept-not-dropped policy. When no better alternative shows up in the inspected sample row, the existing mapping is kept rather than removed - the inspected row is one of thousands and the column may be populated for most products even if empty in the first row.
-
-= 1.0.3 =
-* Content Health: new read-only card on the MyFeeds page that surfaces published posts referencing products no longer in your feed. Shows the count, lists the affected post titles with how many products are missing each, and refreshes itself after every sync.
-* Importer: Quick Sync now self-heals from a crashed background worker. If the worker is killed mid-feed (PHP timeout, host OOM, feed-download stall), a watchdog auto-cancels the stale "running" state after 5 minutes so the UI stops looping on a phantom progress bar.
-* Importer: Cancel during a large batch is now respected. Previously a Cancel click that landed mid-feed could be silently overwritten by the in-flight batch finishing, leaving the UI showing IMPORTING for a sync that was actually done.
-* Importer: each Quick Sync now writes a starting-feed and finished-feed log line so a future stall points directly at the culprit feed.
-* Admin assets: per-file cache-buster so a single CSS or JS tweak invalidates the browser cache instantly between releases.
-* Listing copy: short description and feature list rewritten to focus on what changes for you (prices stop lying, posts stop rotting, you publish faster) instead of technical plumbing.
-
-= 1.0.2 =
-* Mapping Editor: new pill-style mapping quality bar with three buckets (>=90 green, >=70 orange, <70 red) - same palette as the feed-status badges.
-* Mapping Editor: click the quality bar to open a detail modal that lists every standard field with its actual source column from the feed (`<source_column>` to `<db_column>`) plus per-field tier and missing-row counts. Makes it obvious when the mapper picked the wrong source slot.
-* Mapping Editor: fixed a stale "Select a feed" dropdown bug - entries left behind from older multi-feed installs are now filtered out and the option is self-healed on first render.
-* Mapping Editor: long feed column names like `merchant_product_category_path` no longer push selects out of their card. Field rows now shrink correctly inside the grid.
-* Mapping Editor: bigger help icons with an instant on-hover tooltip that shows the field description (no more 1 second browser delay).
-* Mapping Editor: redesigned with the plugin's brand styling - cleaner cards, brand-accent panel titles, draggable pill-style column tags, focus rings, brand-gradient primary CTA.
-* Plugins screen: added an Upgrade action link on the plugin row that points at myfeeds.site.
-* New marketing preview pages for the Shop, Card Design and Analytics features - opened from the MyFeeds submenu, each shows a benefits overview and screenshots from the paid plugins.
-* Cleanup: removed the legacy dismissible top banner and the in-plugin Contact Us page (use the wp.org support forum or myfeeds.site/contact instead).
-* Internal: stripped emoji prefixes from debug-log lines.
-
-= 1.0.1 =
-* Importer: detect feed format from the URL (AWIN `format/csv` path, query strings like `?format=csv`, file extensions) so large AWIN datafeeds with 80+ columns no longer get misclassified.
-* Importer: format detection now reads 32 KB instead of 4 KB and walks the first unquoted line, so commas inside quoted product descriptions stop fooling the delimiter vote.
-* Importer: network-agnostic product-id detection covers AWIN, CJ, ShareASale, Belboon, Impact, Webgains, Tradedoubler, Adcell, Daisycon, and standard EAN/GTIN/UPC/MPN keys out of the box.
-* Importer: stop dropping `original_price` when the feed's rrp/list price equals the current price. The mapping is preserved; the strike-through display still only kicks in when there is a real discount.
-* Importer: stop defaulting `currency` to EUR when the feed has no currency column. Empty stays empty so a USD merchant never shows "€" on cards that link to a USD checkout.
-* Smart Mapper: AWIN category mapping now probes `category_name`, `merchant_product_category_path`, `merchant_category`, `product_type`, and the Fashion-feed taxonomy in order, so merchants that only fill the breadcrumb path get categorised correctly.
-* Card display: cap product-card z-indexes so they no longer punch through sticky theme headers.
-* Card display: drive grid gap and padding from CSS variables (no visible change with defaults).
-* Card display: remove mobile typography hardcodes that overrode user font-size settings; lock card line-height against host themes so prices stop inheriting oversized body line-heights.
-
-= 1.0.0 =
-* Initial release on WordPress.org.
-* Universal CSV, TSV, XML, and JSON feed parser.
-* Smart Mapping with automatic field detection and manual override.
-* Smart Search with FULLTEXT indexing, synonym expansion, and German-language handling.
-* MyFeeds – Product Picker Gutenberg block with a responsive grid layout.
-* Background imports via the bundled Action Scheduler library.
-* Nightly quick sync (active products) and weekly full import via WP-Cron.
-* AWIN Publisher API integration for credential and feed-URL resolution.
+Older entries (1.0.23 and earlier) are in changelog.txt, which ships with the plugin.
 
 == Upgrade Notice ==
 
