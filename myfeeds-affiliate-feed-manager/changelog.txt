@@ -4,6 +4,9 @@ Full changelog
 The most recent releases are also listed on the plugin page on WordPress.org.
 That listing has a length limit, so the complete history lives here.
 
+= 1.0.41 =
+* Improved: the Analytics preview's insight cards show every card the dashboard has today, including top earning posts and risers and fallers (example data).
+
 = 1.0.40 =
 * Improved: the Analytics preview shows the dashboard as it looks now, with unique visitors, earnings per click and the day-by-day comparison with the period before (example data).
 

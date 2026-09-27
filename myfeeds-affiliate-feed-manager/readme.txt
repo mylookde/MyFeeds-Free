@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.40
+Stable tag: 1.0.41
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.41 =
+* Improved: the Analytics preview's insight cards show every card the dashboard has today, including top earning posts and risers and fallers (example data).
 
 = 1.0.40 =
 * Improved: the Analytics preview shows the dashboard as it looks now, with unique visitors, earnings per click and the day-by-day comparison with the period before (example data).

@@ -222,7 +222,7 @@ class MyFeeds_Feature_Previews {
                 array(
                     'image'       => $this->preview_image_url('analytics-insights.png'),
                     'placeholder' => __('Insight cards', 'myfeeds-affiliate-feed-manager'),
-                    'caption'     => __('Action cards surface what to do next: top earners to amplify, dead products to swap, posts with no clicks to revisit.', 'myfeeds-affiliate-feed-manager'),
+                    'caption'     => __('Action cards surface what to do next: top earners to amplify, dead products to swap, posts with no clicks to revisit. Example data.', 'myfeeds-affiliate-feed-manager'),
                 ),
             ),
             'benefits' => array(
