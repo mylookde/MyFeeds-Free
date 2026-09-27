@@ -4,6 +4,9 @@ Full changelog
 The most recent releases are also listed on the plugin page on WordPress.org.
 That listing has a length limit, so the complete history lives here.
 
+= 1.0.42 =
+* Improved: product card images now come in the size the card is actually shown at. The browser measures the card and picks the smallest file that is still sharp on that screen, instead of one 800 px image for every device. Only for image hosts that can deliver smaller copies; cards set to fill their frame keep the one sharp image.
+
 = 1.0.41 =
 * Improved: the Analytics preview's insight cards show every card the dashboard has today, including top earning posts and risers and fallers (example data).
 

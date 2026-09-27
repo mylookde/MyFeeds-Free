@@ -623,7 +623,7 @@ if (!function_exists('myfeeds_image_srcset')) {
      * @param array  $widths Pixel widths, ascending.
      * @return string srcset value, or '' when the host cannot resize.
      */
-    function myfeeds_image_srcset($url, $widths = array(300, 450, 600, 900)) {
+    function myfeeds_image_srcset($url, $widths = array(200, 300, 450, 600, 900)) {
         if (!function_exists('myfeeds_thumb_image_url')) {
             return '';
         }
@@ -712,7 +712,11 @@ if (!function_exists('myfeeds_image_render_attrs')) {
      *                       for the ~400 px a product tile occupies on a
      *                       desktop grid. 0 turns the cap off.
      *   - 'sizes'     string. The caller's own `sizes` attribute. Without
-     *                       it no srcset is emitted - see below.
+     *                       it no srcset is emitted - see below. On a lazy
+     *                       image it becomes the fallback behind `auto`.
+     *   - 'fit'       string. 'contain' (default) or 'cover' - how the
+     *                       card fits the picture into its box. Cover
+     *                       gets no srcset, see below.
      *
      * Returns `sized` so the caller can tell a site-wide image CDN to
      * keep its hands off this one. Jetpack's Photon rewrites the src to
@@ -760,13 +764,30 @@ if (!function_exists('myfeeds_image_render_attrs')) {
         //
         // So: no `sizes` from the caller, no srcset. The cap still
         // applies, which is the bulk of the win either way.
+        //
+        // Cover is the other exception. A landscape photo filling a
+        // portrait box is drawn wider than the box, so a file chosen by
+        // the box's width would be stretched - visibly soft. Only
+        // "contain" guarantees the picture is never wider than its box.
         $srcset = '';
         $sizes  = isset($opts['sizes']) && is_string($opts['sizes']) ? trim($opts['sizes']) : '';
-        if ($sized && $sizes !== '' && function_exists('myfeeds_image_srcset')) {
+        $fit    = isset($opts['fit']) ? (string) $opts['fit'] : 'contain';
+        if ($sized && $sizes !== '' && $fit !== 'cover' && function_exists('myfeeds_image_srcset')) {
             $srcset = myfeeds_image_srcset($base);
         }
         if ($srcset === '') {
             $sizes = '';
+        } elseif (!$is_lcp) {
+            // "auto" makes the browser use the width the image is
+            // actually laid out at - after the theme's container, its
+            // padding and the grid gap, none of which this file can see.
+            // It then picks the smallest file that is still sharp at the
+            // screen's pixel density: never a guess that can come out
+            // too small. Only valid on lazy images, which is why the
+            // eager LCP tiles keep the computed value. Browsers that do
+            // not know "auto" skip it and read the caller's `sizes`,
+            // which errs large - exactly what they did before.
+            $sizes = 'auto, ' . $sizes;
         }
 
         $attrs = $is_lcp

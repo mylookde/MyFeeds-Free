@@ -541,10 +541,36 @@ class MyFeeds_Product_Picker {
         // Cloudinary, BigCommerce, AWIN productserve, WP uploads) so we
         // serve a sharp variant instead of whatever thumbnail size the
         // feed happened to ship. Falls through unchanged for unknown CDNs.
+        //
+        // A card sits in somebody's post, in a layout this plugin has never
+        // seen - so no computed `sizes`. The lazy card lets the browser
+        // measure it ("auto", see myfeeds_image_render_attrs()); the
+        // fallback behind it errs large, so a browser without "auto" gets
+        // a file at least as sharp as the single 800px one it got before.
+        // A cover-fit card gets no srcset at all: it draws a landscape
+        // photo wider than its box.
+        if ($card_design === null && class_exists('MyFeeds_Settings_Manager')) {
+            $card_design = MyFeeds_Settings_Manager::get_card_design();
+        }
+        $img_fit  = (is_array($card_design) && ($card_design['image_object_fit'] ?? '') === 'cover') ? 'cover' : 'contain';
         $img_data = function_exists('myfeeds_image_render_attrs')
-            ? myfeeds_image_render_attrs($image_url)
+            ? myfeeds_image_render_attrs($image_url, array(
+                'sizes' => '(max-width: 800px) 100vw, 800px',
+                'fit'   => $img_fit,
+            ))
             : array('src' => $image_url, 'attrs' => 'loading="lazy" decoding="async"');
-        $card_html .= '<img src="' . esc_url($img_data['src']) . '" alt="' . esc_attr($title) . '" ' . $img_data['attrs'] . ' onerror="this.parentNode.classList.add(\'myfeeds-img-error\');this.style.display=\'none\';">';
+        $img_responsive = '';
+        $img_retry      = '';
+        if (!empty($img_data['srcset']) && !empty($img_data['sizes'])) {
+            $img_responsive = ' srcset="' . esc_attr($img_data['srcset']) . '" sizes="' . esc_attr($img_data['sizes']) . '"';
+        }
+        // A resized URL that one merchant does not serve must not blank
+        // the card: first retry with the feed's own URL, then give up.
+        if ($img_responsive !== '' || !empty($img_data['sized'])) {
+            $img_retry = ' data-myfeeds-src="' . esc_url($image_url) . '"';
+        }
+        $card_html .= '<img src="' . esc_url($img_data['src']) . '"' . $img_responsive . $img_retry . ' alt="' . esc_attr($title) . '" ' . $img_data['attrs']
+            . ' onerror="if(this.dataset.myfeedsSrc&&!this.dataset.myfeedsRetried){this.dataset.myfeedsRetried=1;this.removeAttribute(\'srcset\');this.removeAttribute(\'sizes\');this.src=this.dataset.myfeedsSrc;}else{this.parentNode.classList.add(\'myfeeds-img-error\');this.style.display=\'none\';}">';
         $card_html .= '</div>';
 
         $card_html .= '<div class="myfeeds-product-details">';
