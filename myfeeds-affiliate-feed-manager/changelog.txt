@@ -4,6 +4,9 @@ Full changelog
 The most recent releases are also listed on the plugin page on WordPress.org.
 That listing has a length limit, so the complete history lives here.
 
+= 1.0.39 =
+* Fixed: undo and redo in the block editor now update a product block's tiles. Before, the tiles kept showing the old selection, and the next change inside the block could save it back.
+
 = 1.0.38 =
 * Improved: the storefront picture on the E-commerce page shows the shop as it looks now.
 * Improved: the changelog on WordPress.org was being cut off part way through. The recent releases are listed there in full again, and the complete history now ships with the plugin in changelog.txt.

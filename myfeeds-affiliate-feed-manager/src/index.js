@@ -328,6 +328,20 @@
       const [answeredLoosely, setAnsweredLoosely] = useState(false);
       const [recents, setRecents] = useState([]);
 
+      // Keep the local list in step with the saved one. Undo, redo and
+      // anything that edits the block's attributes from outside change
+      // attributes.selectedProducts without touching this state: the
+      // tiles kept showing the old list, and the next save from inside
+      // the block wrote that old list back over the change. Picks made
+      // in the open search modal only live in `selected`, so they never
+      // trigger this.
+      useEffect(function () {
+        var saved = attributes.selectedProducts || [];
+        if (JSON.stringify(saved) !== JSON.stringify(selected)) {
+          setSelected(saved);
+        }
+      }, [attributes.selectedProducts]);
+
       // On block mount: refresh selected products with current data from DB
       useEffect(function() {
         if (!selected || selected.length === 0 || !apiUrl) return;
