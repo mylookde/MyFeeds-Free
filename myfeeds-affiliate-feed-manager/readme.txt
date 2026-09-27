@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.39
+Stable tag: 1.0.40
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.40 =
+* Improved: the Analytics preview shows the dashboard as it looks now, with unique visitors and the day-by-day comparison with the period before.
 
 = 1.0.39 =
 * Fixed: undo and redo in the block editor now update a product block's tiles. Before, the tiles kept showing the old selection, and the next change inside the block could save it back.
