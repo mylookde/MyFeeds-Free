@@ -192,7 +192,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 == Changelog ==
 
 = 1.0.40 =
-* Improved: the Analytics preview shows the dashboard as it looks now, with unique visitors and the day-by-day comparison with the period before.
+* Improved: the Analytics preview shows the dashboard as it looks now, with unique visitors, earnings per click and the day-by-day comparison with the period before (example data).
 
 = 1.0.39 =
 * Fixed: undo and redo in the block editor now update a product block's tiles. Before, the tiles kept showing the old selection, and the next change inside the block could save it back.

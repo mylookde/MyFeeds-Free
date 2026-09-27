@@ -217,7 +217,7 @@ class MyFeeds_Feature_Previews {
                 array(
                     'image'       => $this->preview_image_url('analytics-overview.png'),
                     'placeholder' => __('Analytics overview', 'myfeeds-affiliate-feed-manager'),
-                    'caption'     => __('Total clicks, earnings, EPC and unique visitors at a glance, day by day against the period before, broken down by post, product, brand and network.', 'myfeeds-affiliate-feed-manager'),
+                    'caption'     => __('Total clicks, earnings, EPC and unique visitors at a glance, day by day against the period before, broken down by post, product, brand and network. Example data. Your numbers will differ.', 'myfeeds-affiliate-feed-manager'),
                 ),
                 array(
                     'image'       => $this->preview_image_url('analytics-insights.png'),
