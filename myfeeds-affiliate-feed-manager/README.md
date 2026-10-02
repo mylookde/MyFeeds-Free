@@ -63,7 +63,7 @@ A professional WordPress plugin for affiliate marketers to display products from
 1. Go to **MyLook Feeds** in your WordPress admin
 2. Click "Add New Feed"
 3. Select your configured network
-4. Enter a descriptive name for your feed
+4. Name the feed after the shop (like "JD Sports"): readers see the name on your product cards
 5. The plugin will automatically generate the feed URL and mapping
 6. Save and test your feed
 

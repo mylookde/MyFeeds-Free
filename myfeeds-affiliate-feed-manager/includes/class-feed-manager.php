@@ -465,7 +465,7 @@ class MyFeeds_Feed_Manager {
                                 <td>
                                     <input name="feed_name" type="text" id="feed_name" class="regular-text" 
                                            value="" required data-testid="feed-name-input">
-                                    <p class="description"><?php esc_html_e('A descriptive name for this feed (e.g., "Fashion Products", "Electronics")', 'myfeeds-affiliate-feed-manager'); ?></p>
+                                    <p class="description"><?php esc_html_e('The shop\'s name, like "JD Sports". Readers see it: it is the shop name on your product cards.', 'myfeeds-affiliate-feed-manager'); ?></p>
                                 </td>
                             </tr>
                             
