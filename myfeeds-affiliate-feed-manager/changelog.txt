@@ -4,6 +4,14 @@ Full changelog
 The most recent releases are also listed on the plugin page on WordPress.org.
 That listing has a length limit, so the complete history lives here.
 
+= 1.0.43 =
+* Improved: prices are written the way their currency is normally written: "£150.00", "$150.00", "150,00 €". A site whose language uses that same currency keeps its own way of writing it. The card and the block editor always show the same price.
+* Improved: the Feed Name field says what the name is for. Readers see it on your product cards, so the shop's name works best.
+* Fixed: the product picker no longer says "Free Shipping" when a feed has no shipping data. Only a real shipping cost of 0 counts as free shipping, and a delivery time is no longer shown as a shipping cost.
+* Fixed: a product without a price says "Price on request" in the product picker too, the same as on the card.
+* Fixed: one selected product reads "Use 1 Product".
+* Fixed: on the Feeds screen the feed dialogs no longer appear twice after a feed is added or removed, and a script error after an import is gone.
+
 = 1.0.42 =
 * Improved: product card images now come in the size the card is actually shown at. The browser measures the card and picks the smallest file that is still sharp on that screen, instead of one 800 px image for every device. Only for image hosts that can deliver smaller copies; cards set to fill their frame keep the one sharp image.
 
