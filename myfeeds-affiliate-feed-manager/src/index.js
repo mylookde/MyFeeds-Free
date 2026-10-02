@@ -129,6 +129,15 @@
     return n > 0 ? n : 0;
   }
   function getCurrency(p) { return p.currency || (p.attributes && p.attributes.currency) || 'EUR'; }
+  // Prices in the site's format, the same rule the card on the page uses:
+  // the plugin hands it over as window.myfeedsFormatPrice
+  // (assets/price-format.js, a dependency of this bundle).
+  function formatMoney(amount, currency) {
+    if (typeof window.myfeedsFormatPrice === 'function') {
+      return window.myfeedsFormatPrice(toNumber(amount), currency || '');
+    }
+    return toNumber(amount).toFixed(2) + (currency ? ' ' + currency : '');
+  }
   function looksLikeSku(str) {
     if (!str || typeof str !== 'string') return false;
     const noSpaces = !/\s/.test(str);
@@ -230,17 +239,41 @@
     const result = main ? [main, ...uniq.filter(u => u !== main)] : uniq;
     return result;
   }
-  function isLikelyShippingString(s, currency) {
-    if (!s) return false;
-    const str = String(s).toLowerCase();
-    if (str.includes('free')) return true;
-    if (str.includes('ship')) return true;
-    if (currency && str.includes(String(currency).toLowerCase())) return true;
-    const n = toNumber(s);
-    if (!isNaN(n) && (n >= 0)) return true;
-    // guard: strings that look like product ids
-    if (looksLikeSku(String(s))) return false;
-    return false;
+  // A product without a price: the card on the page says "Price on request"
+  // (render_product_card()), so the editor says the same instead of "0.00".
+  // Called as wp.i18n.__ with literal strings so the translation tools find
+  // it in the minified bundle too; the msgid is the card's.
+  function priceOnRequest() {
+    return (window.wp && wp.i18n) ? wp.i18n.__('Price on request', 'myfeeds-affiliate-feed-manager') : 'Price on request';
+  }
+
+  // Counted labels: "1 Product", not "1 Products". Also called as wp.i18n.*
+  // with literal strings (see priceOnRequest()), so a language with more
+  // plural forms than English gets all of them.
+  function labelUseProducts(n) {
+    if (!(window.wp && wp.i18n)) return 'Use ' + n + (n === 1 ? ' Product' : ' Products');
+    /* translators: %d: number of selected products */
+    return wp.i18n.sprintf(wp.i18n._n('Use %d Product', 'Use %d Products', n, 'myfeeds-affiliate-feed-manager'), n);
+  }
+  function labelProductsSelected(n) {
+    if (!(window.wp && wp.i18n)) return n + (n === 1 ? ' Product Selected' : ' Products Selected');
+    /* translators: %d: number of selected products */
+    return wp.i18n.sprintf(wp.i18n._n('%d Product Selected', '%d Products Selected', n, 'myfeeds-affiliate-feed-manager'), n);
+  }
+  function labelProductsSaved(n) {
+    if (!(window.wp && wp.i18n)) return n + (n === 1 ? ' product saved' : ' products saved') + ' | Smart search enabled';
+    /* translators: %d: number of products saved in this block */
+    return wp.i18n.sprintf(wp.i18n._n('%d product saved', '%d products saved', n, 'myfeeds-affiliate-feed-manager'), n)
+      + ' | ' + wp.i18n.__('Smart search enabled', 'myfeeds-affiliate-feed-manager');
+  }
+
+  // The shipping cost a feed value names, or null: the plugin's rule
+  // (myfeeds_shipping_amount(), handed over by assets/price-format.js).
+  function shippingAmount(raw) {
+    if (typeof window.myfeedsShippingAmount === 'function') return window.myfeedsShippingAmount(raw);
+    if (typeof raw === 'number') return (isFinite(raw) && raw >= 0) ? raw : null;
+    const m = typeof raw === 'string' ? /^\s*([0-9]+(?:[.,][0-9]{1,2})?)\s*$/.exec(raw) : null;
+    return m ? parseFloat(m[1].replace(',', '.')) : null;
   }
 
   registerBlockType("myfeeds/product-picker", {
@@ -818,20 +851,18 @@
         setShowModal(false);
       };
 
+      // The card's rule (format_shipping_info_raw() in class-product-picker.php):
+      // only a real 0 is free shipping, and a value that names no cost - empty,
+      // "3-4 days", the sentence the importer stores - says that costs may
+      // apply. Reading any text as a number made "Shipping costs may apply" a
+      // 0, and the tile said "Free Shipping" while the card said the opposite.
       const formatShipping = function (product) {
-        const s = product.shipping || product.shipping_text || product.shipping_cost || product.delivery_cost || '';
-        const currency = getCurrency(product);
-        if (!s || !isLikelyShippingString(s, currency)) return '';
-        const n = toNumber(s);
-        if (n > 0) return 'Shipping: ' + n.toFixed(2) + ' ' + currency;
-        if (n === 0) return 'Free Shipping';
-        if (typeof s === 'string' && s.indexOf(':') !== -1) {
-          const parts = s.split(':');
-          const val = toNumber(parts[parts.length - 1]);
-          if (val > 0) return 'Shipping: ' + val.toFixed(2) + ' ' + currency;
-          if (val === 0) return 'Free Shipping';
+        const raw = product.shipping;
+        const amount = shippingAmount(raw);
+        if (amount !== null) {
+          return amount > 0 ? 'Shipping: ' + formatMoney(amount, getCurrency(product)) : 'Free Shipping';
         }
-        if (/(free)/i.test(String(s))) return 'Free Shipping';
+        if (typeof raw === 'string' && /free/i.test(raw)) return 'Free Shipping';
         return 'Shipping costs may apply';
       };
 
@@ -844,12 +875,15 @@
         }
         const hasDiscount = originalPrice > currentPrice && originalPrice > 0 && currentPrice > 0;
         const currency = getCurrency(product);
+        if (!(currentPrice > 0)) {
+          return React.createElement("div", { style: { margin: "2px 0 6px", fontSize: "13px", color: "#888" } }, priceOnRequest());
+        }
         return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px", margin: "2px 0 6px" } },
           hasDiscount ? [
-            React.createElement("span", { key: "original", style: { fontSize: "13px", color: "#888", textDecoration: "line-through" } }, originalPrice.toFixed(2) + ' ' + currency),
-            React.createElement("span", { key: "current", style: { fontSize: "14px", fontWeight: 700, color: "#c0392b" } }, currentPrice.toFixed(2) + ' ' + currency)
+            React.createElement("span", { key: "original", style: { fontSize: "13px", color: "#888", textDecoration: "line-through" } }, formatMoney(originalPrice, currency)),
+            React.createElement("span", { key: "current", style: { fontSize: "14px", fontWeight: 700, color: "#c0392b" } }, formatMoney(currentPrice, currency))
           ] : [
-            React.createElement("span", { key: "normal", style: { fontSize: "14px", fontWeight: 700, color: "#111" } }, currentPrice.toFixed(2) + ' ' + currency)
+            React.createElement("span", { key: "normal", style: { fontSize: "14px", fontWeight: 700, color: "#111" } }, formatMoney(currentPrice, currency))
           ]
         );
       };
@@ -1440,7 +1474,7 @@
         // Header
         React.createElement("div", { className: "myfeeds-editor-header" },
           React.createElement("h3", null, "My Product Picker"),
-          React.createElement("p", null, (attributes.selectedProducts || []).length + " products saved | Smart search enabled")
+          React.createElement("p", null, labelProductsSaved((attributes.selectedProducts || []).length))
         ),
 
         // Search Section
@@ -1454,7 +1488,7 @@
 
         // Selected Products Preview
         selected.length > 0 && React.createElement("div", { className: "myfeeds-selected-products", style: { margin: "20px 0", padding: "12px", border: "1px solid #e5e7eb", borderRadius: "6px", backgroundColor: "#f9fafb" } },
-          React.createElement("h4", { style: { margin: "0 0 10px 0", fontSize: "14px" } }, selected.length + " Products Selected"),
+          React.createElement("h4", { style: { margin: "0 0 10px 0", fontSize: "14px" } }, labelProductsSelected(selected.length)),
           React.createElement("div", { style: { display: "flex", flexWrap: "wrap", justifyContent: "flex-start", gap: "10px" } },
             selected.map(function(product, index){
               return React.createElement("div", { key: "selected-" + product.id + "-" + index, className: "myfeeds-selected-product-tile", style: { border: "1px solid #e5e7eb", borderRadius: "4px", padding: "6px", textAlign: "center", fontSize: "12px", position: "relative", backgroundColor: "#fff", width: "130px", flexShrink: 0 } },
@@ -1462,13 +1496,14 @@
                 React.createElement("img", { src: product.image_url || PLACEHOLDER_IMG, alt: product.title || '', style: { width: "100%", height: "90px", objectFit: "contain", borderRadius: "2px" } }),
                 product.brand && React.createElement("div", { style: { fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.3px", fontWeight: 600, marginTop: "4px", lineHeight: 1.2, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" } }, product.brand),
                 React.createElement("div", { style: { marginTop: "2px", fontWeight: 600, fontSize: "11px", lineHeight: 1.3 } }, (product.title || '').substring(0, 28) + ((product.title || '').length > 28 ? '...' : '')),
+                !(product.price > 0) && React.createElement("div", { style: { marginTop: "2px", fontSize: "10px", lineHeight: 1.3, color: "#888" } }, priceOnRequest()),
                 (product.price > 0) && React.createElement("div", { style: { marginTop: "2px", fontSize: "10px", lineHeight: 1.3 } },
                   (product.original_price > 0 && product.original_price > product.price)
                     ? [
-                        React.createElement("span", { key: "old", style: { color: "#999", textDecoration: "line-through", marginRight: "3px" } }, toNumber(product.original_price).toFixed(2)),
-                        React.createElement("span", { key: "cur", style: { color: "#c0392b", fontWeight: 600 } }, toNumber(product.price).toFixed(2) + ' ' + (product.currency || 'EUR'))
+                        React.createElement("span", { key: "old", style: { color: "#999", textDecoration: "line-through", marginRight: "3px" } }, formatMoney(product.original_price, product.currency || 'EUR')),
+                        React.createElement("span", { key: "cur", style: { color: "#c0392b", fontWeight: 600 } }, formatMoney(product.price, product.currency || 'EUR'))
                       ]
-                    : React.createElement("span", { style: { color: "#333", fontWeight: 600 } }, toNumber(product.price).toFixed(2) + ' ' + (product.currency || 'EUR'))
+                    : React.createElement("span", { style: { color: "#333", fontWeight: 600 } }, formatMoney(product.price, product.currency || 'EUR'))
                 )
               );
             })
@@ -1771,7 +1806,7 @@
             // to reach it with. As a flex item of the frame it simply sits at
             // the bottom, always.
             React.createElement("div", { className: "myfeeds-modal-actions" },
-              React.createElement(Button, { isPrimary: true, onClick: saveSelection, disabled: selected.length === 0, style: { padding: "10px 18px", fontSize: "14px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, "Use " + selected.length + " Products"),
+              React.createElement(Button, { isPrimary: true, onClick: saveSelection, disabled: selected.length === 0, style: { padding: "10px 18px", fontSize: "14px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, labelUseProducts(selected.length)),
               React.createElement(Button, { isSecondary: true, onClick: function(){ setSelected(attributes.selectedProducts || []); setShowModal(false); }, style: { padding: "10px 18px", fontSize: "14px", background: "#fff", color: "#667eea", border: "1px solid #667eea", borderRadius: "6px" } }, "Cancel")
             )
         ),
@@ -1826,8 +1861,9 @@
                     const discount = original > current && current > 0 ? Math.round(((original - current) / original) * 100) : 0;
                     
                     return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "15px" } },
-                      current > 0 && React.createElement("span", { className: "myfeeds-current-price" }, current.toFixed(2) + " " + currency),
-                      original > current && original > 0 && React.createElement("span", { className: "myfeeds-old-price" }, original.toFixed(2) + " " + currency),
+                      current > 0 && React.createElement("span", { className: "myfeeds-current-price" }, formatMoney(current, currency)),
+                      !(current > 0) && React.createElement("span", { className: "myfeeds-price-unavailable" }, priceOnRequest()),
+                      original > current && original > 0 && React.createElement("span", { className: "myfeeds-old-price" }, formatMoney(original, currency)),
                       discount > 0 && React.createElement("span", { className: "myfeeds-discount-badge" }, "-" + discount + "%")
                     );
                   })()

@@ -82,16 +82,24 @@ class MyFeeds_Product_Picker {
         }
 
         // Register block script
+        // Every price the editor shows goes through the site's price format,
+        // the same rule the card on the page uses.
         $script_registered = wp_register_script(
             'myfeeds-product-picker-editor',
             MYFEEDS_PLUGIN_URL . 'build/index.js',
-            ['wp-blocks', 'wp-components', 'wp-element'],
+            ['wp-blocks', 'wp-components', 'wp-element', 'wp-i18n', myfeeds_price_format_script()],
             $script_ver,
             true
         );
         
         if (!$script_registered && class_exists('MyFeeds_External_Debug')) {
             MyFeeds_External_Debug::log("BLOCK DEBUG: Failed to register JavaScript!");
+        }
+
+        // The editor says what the card says ("Price on request"), in the
+        // site's language once the language pack carries the bundle's strings.
+        if ($script_registered && function_exists('wp_set_script_translations')) {
+            wp_set_script_translations('myfeeds-product-picker-editor', 'myfeeds-affiliate-feed-manager');
         }
         
         // Register block styles
@@ -482,10 +490,9 @@ class MyFeeds_Product_Picker {
      *   - esc_attr() for any other HTML attribute value
      *   - esc_html() for text inside element bodies
      *   - intval()   for numeric values that must remain integers
-     * The helper methods used here (get_currency_symbol_raw,
-     * format_price_raw, format_shipping_info_raw) all return raw strings
-     * by contract; the caller wraps their return values in esc_html() at
-     * the concat site.
+     * myfeeds_format_price() and format_shipping_info_raw() return raw
+     * strings by contract; the caller wraps their return values in
+     * esc_html() at the concat site.
      *
      * @param array       $product         Resolved product data (raw).
      * @param string      $placeholder_url Fallback image URL.
@@ -517,7 +524,7 @@ class MyFeeds_Product_Picker {
             $price = $sale_price;
         }
 
-        $currency_symbol_raw = $this->get_currency_symbol_raw((string) ($product['currency'] ?? 'EUR'));
+        $currency = (string) ($product['currency'] ?? 'EUR');
 
         $discount_percent = 0;
         if (!empty($product['discount_percentage']) && (float) $product['discount_percentage'] > 0) {
@@ -526,9 +533,11 @@ class MyFeeds_Product_Picker {
             $discount_percent = (int) round((($old_price - $price) / $old_price) * 100);
         }
 
-        $shipping_text_raw = !empty($product['shipping_text'])
-            ? (string) $product['shipping_text']
-            : $this->format_shipping_info_raw((string) ($product['shipping'] ?? ''), $currency_symbol_raw);
+        // Worked out from the feed's own shipping value on every render, not
+        // read from the stored shipping_text: the importer wrote that once,
+        // in whatever currency the row had then, and read "3-4 days" as a
+        // cost of 3.00. The editor tile follows the same rule.
+        $shipping_text_raw = $this->format_shipping_info_raw($product['shipping'] ?? null, $currency);
 
         // ── Output composition. Every dynamic value is escaped here. ──
         $card_html  = '<a class="myfeeds-product-card" href="' . esc_url($affiliate_link) . '" target="_blank" rel="nofollow sponsored noopener">';
@@ -590,10 +599,10 @@ class MyFeeds_Product_Picker {
                 case 'price':
                     $card_html .= '<div class="myfeeds-product-price">';
                     if ($old_price > $price && $price > 0) {
-                        $card_html .= '<span class="myfeeds-old-price">' . esc_html($this->format_price_raw($old_price, $currency_symbol_raw)) . '</span> ';
-                        $card_html .= '<span class="myfeeds-current-price has-discount">' . esc_html($this->format_price_raw($price, $currency_symbol_raw)) . '</span>';
+                        $card_html .= '<span class="myfeeds-old-price">' . esc_html(myfeeds_format_price($old_price, $currency)) . '</span> ';
+                        $card_html .= '<span class="myfeeds-current-price has-discount">' . esc_html(myfeeds_format_price($price, $currency)) . '</span>';
                     } elseif ($price > 0) {
-                        $card_html .= '<span class="myfeeds-current-price">' . esc_html($this->format_price_raw($price, $currency_symbol_raw)) . '</span>';
+                        $card_html .= '<span class="myfeeds-current-price">' . esc_html(myfeeds_format_price($price, $currency)) . '</span>';
                     } else {
                         $card_html .= '<span class="myfeeds-price-unavailable">' . esc_html__('Price on request', 'myfeeds-affiliate-feed-manager') . '</span>';
                     }
@@ -620,73 +629,29 @@ class MyFeeds_Product_Picker {
     }
 
     /**
-     * Return the raw currency symbol for a currency code. Falls back to
-     * the code itself for unknown currencies. The return value is NOT
-     * escaped — callers must wrap it in the appropriate escape function
-     * for the output context.
-     *
-     * @param string $currency_code ISO 4217-style code, e.g. 'EUR'.
-     * @return string                Raw symbol or the original code.
-     */
-    private function get_currency_symbol_raw($currency_code) {
-        $symbols = [
-            'EUR' => '€',
-            'USD' => '$',
-            'GBP' => '£',
-            'JPY' => '¥',
-            'CHF' => 'CHF',
-            'CAD' => 'C$',
-            'AUD' => 'A$',
-        ];
-        return $symbols[strtoupper((string) $currency_code)] ?? (string) $currency_code;
-    }
-
-    /**
-     * Format a price amount with its currency symbol. Returns a raw
-     * string — the caller must wrap this in esc_html() (or similar) at
-     * the concat site.
-     *
-     * @param float|int|string $amount      Numeric amount.
-     * @param string           $symbol_raw  Raw currency symbol.
-     * @return string                         Raw formatted string.
-     */
-    private function format_price_raw($amount, $symbol_raw) {
-        return number_format((float) $amount, 2, ',', '.') . ' ' . $symbol_raw;
-    }
-
-    /**
      * Format shipping information into a human-readable string. Returns
      * a raw, translated string — the caller is responsible for escaping
      * (esc_html) at the concat site.
      *
-     * @param string $shipping_raw           Raw shipping field from feed.
-     * @param string $currency_symbol_raw    Raw currency symbol.
-     * @return string                          Raw translated shipping text.
+     * Only a real 0 is free shipping (myfeeds_shipping_amount()); a value
+     * that names no cost - empty, "3-4 days", "normal" - says that costs
+     * may apply.
+     *
+     * @param mixed  $shipping_raw The feed's shipping field (string, number or null).
+     * @param string $currency     ISO currency code of the product.
+     * @return string              Raw translated shipping text.
      */
-    private function format_shipping_info_raw($shipping_raw, $currency_symbol_raw) {
-        if (empty($shipping_raw)) {
-            return __('Shipping costs may apply', 'myfeeds-affiliate-feed-manager');
-        }
-
-        if (is_numeric($shipping_raw)) {
-            $shipping_val = (float) $shipping_raw;
-            return $shipping_val > 0
+    private function format_shipping_info_raw($shipping_raw, $currency) {
+        $amount = myfeeds_shipping_amount($shipping_raw);
+        if ($amount !== null) {
+            return $amount > 0
                 /* translators: %s: formatted shipping cost with currency */
-                ? sprintf(__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), $this->format_price_raw($shipping_val, $currency_symbol_raw))
+                ? sprintf(__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), myfeeds_format_price($amount, $currency))
                 : __('Free Shipping', 'myfeeds-affiliate-feed-manager');
         }
 
-        if (is_string($shipping_raw)) {
-            if (stripos($shipping_raw, 'free') !== false) {
-                return __('Free Shipping', 'myfeeds-affiliate-feed-manager');
-            }
-            if (preg_match('/(\d+\.?\d*)/', $shipping_raw, $matches)) {
-                $val = (float) $matches[1];
-                return $val > 0
-                    /* translators: %s: formatted shipping cost with currency */
-                    ? sprintf(__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), $this->format_price_raw($val, $currency_symbol_raw))
-                    : __('Free Shipping', 'myfeeds-affiliate-feed-manager');
-            }
+        if (is_string($shipping_raw) && stripos($shipping_raw, 'free') !== false) {
+            return __('Free Shipping', 'myfeeds-affiliate-feed-manager');
         }
 
         return __('Shipping costs may apply', 'myfeeds-affiliate-feed-manager');
