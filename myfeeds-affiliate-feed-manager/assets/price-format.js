@@ -52,5 +52,23 @@
     return (n < 0 && cents > 0) ? '-' + out : out;
   }
 
+  // The shipping cost a feed value names, or null when it names none - the
+  // same pattern string myfeeds_shipping_amount() matches with, handed over
+  // with the spec. Only a real 0 is free shipping.
+  var shippingPattern = null;
+  try {
+    shippingPattern = typeof spec.shipping_pattern === 'string' ? new RegExp(spec.shipping_pattern) : null;
+  } catch (e) { shippingPattern = null; }
+
+  function shippingAmount(raw) {
+    if (typeof raw === 'number') {
+      return (isFinite(raw) && raw >= 0) ? raw : null;
+    }
+    if (typeof raw !== 'string' || !shippingPattern) return null;
+    var m = shippingPattern.exec(raw);
+    return m ? parseFloat(m[1].replace(',', '.')) : null;
+  }
+
   window.myfeedsFormatPrice = format;
+  window.myfeedsShippingAmount = shippingAmount;
 })();

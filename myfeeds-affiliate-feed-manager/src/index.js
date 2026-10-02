@@ -239,17 +239,13 @@
     const result = main ? [main, ...uniq.filter(u => u !== main)] : uniq;
     return result;
   }
-  function isLikelyShippingString(s, currency) {
-    if (!s) return false;
-    const str = String(s).toLowerCase();
-    if (str.includes('free')) return true;
-    if (str.includes('ship')) return true;
-    if (currency && str.includes(String(currency).toLowerCase())) return true;
-    const n = toNumber(s);
-    if (!isNaN(n) && (n >= 0)) return true;
-    // guard: strings that look like product ids
-    if (looksLikeSku(String(s))) return false;
-    return false;
+  // The shipping cost a feed value names, or null: the plugin's rule
+  // (myfeeds_shipping_amount(), handed over by assets/price-format.js).
+  function shippingAmount(raw) {
+    if (typeof window.myfeedsShippingAmount === 'function') return window.myfeedsShippingAmount(raw);
+    if (typeof raw === 'number') return (isFinite(raw) && raw >= 0) ? raw : null;
+    const m = typeof raw === 'string' ? /^\s*([0-9]+(?:[.,][0-9]{1,2})?)\s*$/.exec(raw) : null;
+    return m ? parseFloat(m[1].replace(',', '.')) : null;
   }
 
   registerBlockType("myfeeds/product-picker", {
@@ -827,20 +823,18 @@
         setShowModal(false);
       };
 
+      // The card's rule (format_shipping_info_raw() in class-product-picker.php):
+      // only a real 0 is free shipping, and a value that names no cost - empty,
+      // "3-4 days", the sentence the importer stores - says that costs may
+      // apply. Reading any text as a number made "Shipping costs may apply" a
+      // 0, and the tile said "Free Shipping" while the card said the opposite.
       const formatShipping = function (product) {
-        const s = product.shipping || product.shipping_text || product.shipping_cost || product.delivery_cost || '';
-        const currency = getCurrency(product);
-        if (!s || !isLikelyShippingString(s, currency)) return '';
-        const n = toNumber(s);
-        if (n > 0) return 'Shipping: ' + formatMoney(n, currency);
-        if (n === 0) return 'Free Shipping';
-        if (typeof s === 'string' && s.indexOf(':') !== -1) {
-          const parts = s.split(':');
-          const val = toNumber(parts[parts.length - 1]);
-          if (val > 0) return 'Shipping: ' + formatMoney(val, currency);
-          if (val === 0) return 'Free Shipping';
+        const raw = product.shipping;
+        const amount = shippingAmount(raw);
+        if (amount !== null) {
+          return amount > 0 ? 'Shipping: ' + formatMoney(amount, getCurrency(product)) : 'Free Shipping';
         }
-        if (/(free)/i.test(String(s))) return 'Free Shipping';
+        if (typeof raw === 'string' && /free/i.test(raw)) return 'Free Shipping';
         return 'Shipping costs may apply';
       };
 

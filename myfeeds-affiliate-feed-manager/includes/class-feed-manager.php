@@ -3533,17 +3533,19 @@ class MyFeeds_Feed_Manager {
             }
         }
         
-        // Shipping Text
+        // Shipping Text - the rule the card renders with (only a real 0 is
+        // free shipping); the card no longer reads what is stored here.
         if (!isset($mapped['shipping_text'])) {
-            $ship_val = isset($mapped['shipping']) ? $mapped['shipping'] : '';
-            if (empty($ship_val)) {
-                $mapped['shipping_text'] = 'Shipping costs may apply';
-            } elseif (is_numeric($ship_val) && floatval($ship_val) == 0) {
-                $mapped['shipping_text'] = 'Free Shipping';
-            } elseif (is_numeric($ship_val)) {
-                $mapped['shipping_text'] = 'Shipping: ' . number_format(floatval($ship_val), 2) . ' ' . ($mapped['currency'] ?? 'EUR');
+            $ship_val = $mapped['shipping'] ?? null;
+            $ship_amount = myfeeds_shipping_amount($ship_val);
+            if ($ship_amount !== null && $ship_amount > 0) {
+                /* translators: %s: formatted shipping cost with currency */
+                $mapped['shipping_text'] = sprintf(__('Shipping: %s', 'myfeeds-affiliate-feed-manager'),
+                    myfeeds_format_price($ship_amount, (string) ($mapped['currency'] ?? 'EUR')));
+            } elseif ($ship_amount !== null || (is_string($ship_val) && stripos($ship_val, 'free') !== false)) {
+                $mapped['shipping_text'] = __('Free Shipping', 'myfeeds-affiliate-feed-manager');
             } else {
-                $mapped['shipping_text'] = 'Shipping costs may apply';
+                $mapped['shipping_text'] = __('Shipping costs may apply', 'myfeeds-affiliate-feed-manager');
             }
         }
         

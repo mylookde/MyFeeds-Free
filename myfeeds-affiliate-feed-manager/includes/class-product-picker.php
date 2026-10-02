@@ -527,9 +527,11 @@ class MyFeeds_Product_Picker {
             $discount_percent = (int) round((($old_price - $price) / $old_price) * 100);
         }
 
-        $shipping_text_raw = !empty($product['shipping_text'])
-            ? (string) $product['shipping_text']
-            : $this->format_shipping_info_raw((string) ($product['shipping'] ?? ''), $currency);
+        // Worked out from the feed's own shipping value on every render, not
+        // read from the stored shipping_text: the importer wrote that once,
+        // in whatever currency the row had then, and read "3-4 days" as a
+        // cost of 3.00. The editor tile follows the same rule.
+        $shipping_text_raw = $this->format_shipping_info_raw($product['shipping'] ?? null, $currency);
 
         // ── Output composition. Every dynamic value is escaped here. ──
         $card_html  = '<a class="myfeeds-product-card" href="' . esc_url($affiliate_link) . '" target="_blank" rel="nofollow sponsored noopener">';
@@ -625,34 +627,25 @@ class MyFeeds_Product_Picker {
      * a raw, translated string — the caller is responsible for escaping
      * (esc_html) at the concat site.
      *
-     * @param string $shipping_raw Raw shipping field from feed.
+     * Only a real 0 is free shipping (myfeeds_shipping_amount()); a value
+     * that names no cost - empty, "3-4 days", "normal" - says that costs
+     * may apply.
+     *
+     * @param mixed  $shipping_raw The feed's shipping field (string, number or null).
      * @param string $currency     ISO currency code of the product.
-     * @return string                Raw translated shipping text.
+     * @return string              Raw translated shipping text.
      */
     private function format_shipping_info_raw($shipping_raw, $currency) {
-        if (empty($shipping_raw)) {
-            return __('Shipping costs may apply', 'myfeeds-affiliate-feed-manager');
-        }
-
-        if (is_numeric($shipping_raw)) {
-            $shipping_val = (float) $shipping_raw;
-            return $shipping_val > 0
+        $amount = myfeeds_shipping_amount($shipping_raw);
+        if ($amount !== null) {
+            return $amount > 0
                 /* translators: %s: formatted shipping cost with currency */
-                ? sprintf(__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), myfeeds_format_price($shipping_val, $currency))
+                ? sprintf(__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), myfeeds_format_price($amount, $currency))
                 : __('Free Shipping', 'myfeeds-affiliate-feed-manager');
         }
 
-        if (is_string($shipping_raw)) {
-            if (stripos($shipping_raw, 'free') !== false) {
-                return __('Free Shipping', 'myfeeds-affiliate-feed-manager');
-            }
-            if (preg_match('/(\d+\.?\d*)/', $shipping_raw, $matches)) {
-                $val = (float) $matches[1];
-                return $val > 0
-                    /* translators: %s: formatted shipping cost with currency */
-                    ? sprintf(__('Shipping: %s', 'myfeeds-affiliate-feed-manager'), myfeeds_format_price($val, $currency))
-                    : __('Free Shipping', 'myfeeds-affiliate-feed-manager');
-            }
+        if (is_string($shipping_raw) && stripos($shipping_raw, 'free') !== false) {
+            return __('Free Shipping', 'myfeeds-affiliate-feed-manager');
         }
 
         return __('Shipping costs may apply', 'myfeeds-affiliate-feed-manager');

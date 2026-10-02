@@ -1255,43 +1255,27 @@ class MyFeeds_Smart_Mapper {
     
     /**
      * Process shipping information intelligently
+     *
+     * The rule the card renders with (myfeeds_shipping_amount()): only a
+     * real 0 is free shipping, and a value that names no cost ("3-4 days",
+     * "normal") is not read as one - this used to store "Shipping: 3.00"
+     * for a delivery time. The card works the line out from the feed's
+     * value on every render and no longer reads what is stored here.
      */
     private function process_shipping_info($product) {
-        $shipping = $product['shipping'] ?? '';
-        
-        if (empty($shipping)) {
-            $product['shipping_text'] = __('Shipping costs may apply', 'myfeeds-affiliate-feed-manager');
-            return $product;
-        }
-        
-        // Try to parse shipping cost
-        if (is_numeric($shipping)) {
-            $cost = floatval($shipping);
-            if ($cost == 0) {
-                $product['shipping_text'] = __('Free Shipping', 'myfeeds-affiliate-feed-manager');
-            } else {
-                $currency = $product['currency'] ?? 'EUR';
-                /* translators: %1$s: shipping cost, %2$s: currency */
-                $product['shipping_text'] = sprintf(__('Shipping: %1$s %2$s', 'myfeeds-affiliate-feed-manager'), 
-                    number_format($cost, 2), $currency);
-            }
+        $raw    = $product['shipping'] ?? null;
+        $amount = myfeeds_shipping_amount($raw);
+
+        if ($amount !== null && $amount > 0) {
+            /* translators: %s: formatted shipping cost with currency */
+            $product['shipping_text'] = sprintf(__('Shipping: %s', 'myfeeds-affiliate-feed-manager'),
+                myfeeds_format_price($amount, (string) ($product['currency'] ?? 'EUR')));
+        } elseif ($amount !== null || (is_string($raw) && stripos($raw, 'free') !== false)) {
+            $product['shipping_text'] = __('Free Shipping', 'myfeeds-affiliate-feed-manager');
         } else {
-            // Handle complex shipping formats like "DE::Ground:3.49"
-            if (preg_match('/(\d+\.?\d*)/', $shipping, $matches)) {
-                $cost = floatval($matches[1]);
-                if ($cost == 0) {
-                    $product['shipping_text'] = __('Free Shipping', 'myfeeds-affiliate-feed-manager');
-                } else {
-                    $currency = $product['currency'] ?? 'EUR';
-                    /* translators: %1$s: shipping cost, %2$s: currency */
-                    $product['shipping_text'] = sprintf(__('Shipping: %1$s %2$s', 'myfeeds-affiliate-feed-manager'), 
-                        number_format($cost, 2), $currency);
-                }
-            } else {
-                $product['shipping_text'] = __('Shipping costs may apply', 'myfeeds-affiliate-feed-manager');
-            }
+            $product['shipping_text'] = __('Shipping costs may apply', 'myfeeds-affiliate-feed-manager');
         }
-        
+
         return $product;
     }
     

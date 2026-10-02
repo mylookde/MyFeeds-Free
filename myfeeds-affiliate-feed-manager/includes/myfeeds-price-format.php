@@ -399,6 +399,45 @@ if (!function_exists('myfeeds_format_price')) {
     }
 }
 
+if (!function_exists('myfeeds_shipping_pattern')) {
+    /**
+     * A shipping value that IS a cost: "0", "4.95", "4,95", "4.95 EUR",
+     * "£3.95", or Google's "DE::Ground:3.49". Anything else - "3-4 days",
+     * "normal", "Shipping costs may apply" - is not a number, and reading a
+     * number into it is how the picker came to say "Free Shipping" about a
+     * feed that never named a cost, and the card "Shipping: 3.00 EUR" about
+     * a delivery time of "3-4 days".
+     *
+     * Written so PCRE and JavaScript read it the same way: the editor gets
+     * this very string (assets/price-format.js) instead of a copy of it.
+     *
+     * @return string Pattern without delimiters.
+     */
+    function myfeeds_shipping_pattern() {
+        return '^[ \t]*(?:[A-Za-z]{2}:[^:]*:[^:]*:)?[ \t]*(?:[A-Za-z]{3}|[€$£¥])?[ \t]*([0-9]+(?:[.,][0-9]{1,2})?)[ \t]*(?:[A-Za-z]{3}|[€$£¥])?[ \t]*$';
+    }
+}
+
+if (!function_exists('myfeeds_shipping_amount')) {
+    /**
+     * The shipping cost a feed value names, or null when it names none.
+     * Only a real 0 is free shipping.
+     *
+     * @param mixed $raw The product's "shipping" field as the feed gave it.
+     * @return float|null
+     */
+    function myfeeds_shipping_amount($raw) {
+        if (is_int($raw) || is_float($raw)) {
+            return (is_finite((float) $raw) && $raw >= 0) ? (float) $raw : null;
+        }
+        // D: "$" is the very end, as in JavaScript - not "before a final newline".
+        if (!is_string($raw) || !preg_match('/' . myfeeds_shipping_pattern() . '/uD', $raw, $m)) {
+            return null;
+        }
+        return (float) str_replace(',', '.', $m[1]);
+    }
+}
+
 if (!function_exists('myfeeds_price_format_script')) {
     /**
      * Registers assets/price-format.js with the site's spec in front of it
@@ -417,7 +456,9 @@ if (!function_exists('myfeeds_price_format_script')) {
             ? myfeeds_asset_ver($rel)
             : (file_exists(MYFEEDS_PLUGIN_DIR . $rel) ? (string) filemtime(MYFEEDS_PLUGIN_DIR . $rel) : MYFEEDS_VERSION);
         wp_register_script($handle, MYFEEDS_PLUGIN_URL . $rel, array(), $ver, true);
-        wp_add_inline_script($handle, 'window.myfeedsPriceFormat = ' . wp_json_encode(myfeeds_price_format_spec()) . ';', 'before');
+        $payload = myfeeds_price_format_spec();
+        $payload['shipping_pattern'] = myfeeds_shipping_pattern();
+        wp_add_inline_script($handle, 'window.myfeedsPriceFormat = ' . wp_json_encode($payload) . ';', 'before');
         return $handle;
     }
 }
