@@ -6,9 +6,29 @@
 
 /* ==========================================================================
    GRID LAYOUT - Equal-width cards, centered, responsive
-   Uses auto-fit + minmax for flexible column count
-   max-width + margin auto for centering in content area
    ========================================================================== */
+
+/* How wide the grid is belongs to the theme, like every other block in
+   the post. A block theme gives each block its content width (645px in
+   Twenty Twenty-Five) and Wide or Full when the author picks one; a
+   classic theme narrows .entry-content > * or styles .alignwide /
+   .alignfull its own way. This used to read max-width: 1200px
+   !important, which beat all of that - in a block theme the text sat in
+   a 645px column and the cards ran 1200px wide around it.
+
+   Zero specificity on purpose: any width the theme gives wins. The cap
+   is only for a column that has no width of its own, such as a
+   full-width page-builder row, where an uncapped grid would stretch the
+   cards across the whole screen. */
+:where(.myfeeds-product-grid, .myfeeds-no-products) {
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+:where(.myfeeds-product-grid.alignfull, .myfeeds-no-products.alignfull) {
+    max-width: none;
+}
 
 html body .myfeeds-product-grid {
     display: flex !important;
@@ -20,9 +40,25 @@ html body .myfeeds-product-grid {
        free-only installs look identical to before. */
     gap: var(--myfeeds-grid-gap, 16px) !important;
     padding: var(--myfeeds-grid-padding-y, 24px) 0 !important;
-    max-width: 1200px !important;
-    margin: 0 auto !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
     box-sizing: border-box !important;
+}
+
+/* Centred in its column whatever the theme says about margins - except
+   when aligned: some themes pull a wide block out with negative margins,
+   and a full-width one always is. */
+html body .myfeeds-product-grid:not(.alignwide):not(.alignfull),
+html body .myfeeds-no-products:not(.alignwide):not(.alignfull) {
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+
+/* Full width runs edge to edge; the cards keep the page's side padding
+   so the outer ones never touch the screen. */
+html body .myfeeds-product-grid.alignfull {
+    padding-left: var(--wp--style--root--padding-left, 16px) !important;
+    padding-right: var(--wp--style--root--padding-right, 16px) !important;
 }
 
 /* Card widths derived from the gap variable so the row stays flush
@@ -239,13 +275,17 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
 html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price {
     display: var(--myfeeds-price-display, flex) !important;
     align-items: baseline !important;
-    gap: 8px !important;
+    gap: 0 8px !important;
     margin-bottom: 6px !important;
     /* Explicit line-height so the price row stays a predictable height
        no matter what the host theme's body line-height is — OceanWP +
        Raleway pushed it to ~41px otherwise. 1.3 matches brand + title. */
     line-height: 1.3 !important;
-    flex-wrap: nowrap !important;
+    /* An old and a sale price side by side need about 150px. In a
+       narrower card - four of them in a 645px text column - the sale
+       price used to be cut to "89,9...". Now it moves to its own line
+       instead; a card wide enough keeps both on one line, as before. */
+    flex-wrap: wrap !important;
     overflow: hidden !important;
     min-width: 0 !important;
 }
@@ -357,8 +397,9 @@ html body .myfeeds-no-products {
     border: 2px dashed #ddd !important;
     border-radius: 8px !important;
     background: #f9f9f9 !important;
-    max-width: 1200px !important;
-    margin: 0 auto !important;
+    /* Width comes from the theme, as for the grid (see the top). */
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
 }
 
 /* ==========================================================================

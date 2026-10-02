@@ -130,6 +130,14 @@ class MyFeeds_Product_Picker {
             'editor_style' => 'myfeeds-product-picker-editor',
             'style' => 'myfeeds-product-picker-frontend',
             'render_callback' => [$this, 'render_callback'],
+            // Wide and Full in the block toolbar. Without an alignment
+            // the grid is as wide as the text around it; the theme
+            // decides what Wide and Full mean. src/index.js declares the
+            // same, because the editor takes the script's settings over
+            // these.
+            'supports' => [
+                'align' => ['wide', 'full'],
+            ],
             'attributes' => [
                 'selectedProducts' => [
                     'type' => 'array',
@@ -174,6 +182,48 @@ class MyFeeds_Product_Picker {
     }
 
     /**
+     * The class attribute of the block's outer element, with a leading
+     * space, ready to go into the opening tag.
+     *
+     * Wide and Full are drawn by the theme (.alignwide / .alignfull), so
+     * the block only has to carry the class. While WordPress renders the
+     * block, get_block_wrapper_attributes() supplies it, together with the
+     * "Additional CSS class(es)" from the Advanced panel, which a dynamic
+     * block otherwise drops on the floor. Called anywhere else, the
+     * alignment comes straight from the attribute.
+     *
+     * @param array  $attrs   Block attributes.
+     * @param string $classes The element's own classes.
+     * @return string
+     */
+    public static function wrapper_attributes($attrs, $classes) {
+        if (function_exists('get_block_wrapper_attributes')
+            && class_exists('WP_Block_Supports')
+            && !empty(WP_Block_Supports::$block_to_render)) {
+            $attributes = get_block_wrapper_attributes(['class' => $classes]);
+            if ($attributes !== '') {
+                return ' ' . $attributes;
+            }
+        }
+
+        $align = self::align_class($attrs);
+        return ' class="' . esc_attr($align === '' ? $classes : $classes . ' ' . $align) . '"';
+    }
+
+    /**
+     * 'alignwide' or 'alignfull' for the two alignments the block offers,
+     * '' for anything else - no alignment, or a value the block does not
+     * support.
+     *
+     * @param array $attrs Block attributes.
+     * @return string
+     */
+    public static function align_class($attrs) {
+        $align = (is_array($attrs) && isset($attrs['align']) && is_string($attrs['align'])) ? $attrs['align'] : '';
+        return in_array($align, ['wide', 'full'], true) ? 'align' . $align : '';
+    }
+
+    /**
      * Block render callback. Returns HTML that WordPress outputs directly,
      * so every dynamic value in the returned string is escaped at the
      * point of HTML composition using the appropriate WordPress escaping
@@ -199,7 +249,7 @@ class MyFeeds_Product_Picker {
         $products = isset($attrs['selectedProducts']) ? $attrs['selectedProducts'] : array();
 
         if (empty($products)) {
-            return '<div class="myfeeds-no-products">' . esc_html__('No products selected.', 'myfeeds-affiliate-feed-manager') . '</div>';
+            return '<div' . self::wrapper_attributes($attrs, 'myfeeds-no-products') . '>' . esc_html__('No products selected.', 'myfeeds-affiliate-feed-manager') . '</div>';
         }
 
         $placeholder_url = MYFEEDS_PLUGIN_URL . 'assets/placeholder.png';
@@ -210,7 +260,7 @@ class MyFeeds_Product_Picker {
             $cached_card_design = MyFeeds_Settings_Manager::get_card_design();
         }
 
-        $output = '<div class="myfeeds-product-grid">';
+        $output = '<div' . self::wrapper_attributes($attrs, 'myfeeds-product-grid') . '>';
         $rendered_count = 0;
         $rendered_products = array();
 
