@@ -275,13 +275,17 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
 html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price {
     display: var(--myfeeds-price-display, flex) !important;
     align-items: baseline !important;
-    gap: 8px !important;
+    gap: 0 8px !important;
     margin-bottom: 6px !important;
     /* Explicit line-height so the price row stays a predictable height
        no matter what the host theme's body line-height is — OceanWP +
        Raleway pushed it to ~41px otherwise. 1.3 matches brand + title. */
     line-height: 1.3 !important;
-    flex-wrap: nowrap !important;
+    /* An old and a sale price side by side need about 150px. In a
+       narrower card - four of them in a 645px text column - the sale
+       price used to be cut to "89,9...". Now it moves to its own line
+       instead; a card wide enough keeps both on one line, as before. */
+    flex-wrap: wrap !important;
     overflow: hidden !important;
     min-width: 0 !important;
 }
