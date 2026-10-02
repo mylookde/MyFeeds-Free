@@ -255,7 +255,9 @@ class MyFeeds_Feed_Manager {
 
             <?php $this->render_dead_products_health(); ?>
 
+            <?php $this->render_demo_next_steps(); ?>
             <?php $this->render_feeds_table($feeds); ?>
+            <?php $this->render_feeds_modals(); ?>
             
             <div class="myfeeds-actions-section">
                 <h3><?php esc_html_e('Feed Management', 'myfeeds-affiliate-feed-manager'); ?></h3>
@@ -1063,7 +1065,6 @@ class MyFeeds_Feed_Manager {
     private function render_feeds_table($feeds) {
         $has_feed = !empty($feeds);
         ?>
-        <?php $this->render_demo_next_steps(); ?>
         <div class="myfeeds-feeds-table">
             <div class="myfeeds-feeds-table-header">
                 <h2><?php esc_html_e('Configured Feed', 'myfeeds-affiliate-feed-manager'); ?></h2>
@@ -1261,7 +1262,19 @@ class MyFeeds_Feed_Manager {
             </table>
             <?php endif; ?>
         </div>
-        
+        <?php
+    }
+
+    /**
+     * The dialogs of the feeds screen, rendered once per page load.
+     *
+     * They used to come out of render_feeds_table(), so every in-place
+     * refresh (first feed added) put a second copy of each dialog into
+     * the page under the same ids. Scripts kept talking to the first
+     * copy; the second sat there hidden.
+     */
+    private function render_feeds_modals() {
+        ?>
         <!-- Mapping Quality Detail Modal -->
         <div id="myfeeds-quality-modal" class="myfeeds-modal-overlay" style="display:none;">
             <div class="myfeeds-modal-content">
