@@ -247,6 +247,26 @@
     return (window.wp && wp.i18n) ? wp.i18n.__('Price on request', 'myfeeds-affiliate-feed-manager') : 'Price on request';
   }
 
+  // Counted labels: "1 Product", not "1 Products". Also called as wp.i18n.*
+  // with literal strings (see priceOnRequest()), so a language with more
+  // plural forms than English gets all of them.
+  function labelUseProducts(n) {
+    if (!(window.wp && wp.i18n)) return 'Use ' + n + (n === 1 ? ' Product' : ' Products');
+    /* translators: %d: number of selected products */
+    return wp.i18n.sprintf(wp.i18n._n('Use %d Product', 'Use %d Products', n, 'myfeeds-affiliate-feed-manager'), n);
+  }
+  function labelProductsSelected(n) {
+    if (!(window.wp && wp.i18n)) return n + (n === 1 ? ' Product Selected' : ' Products Selected');
+    /* translators: %d: number of selected products */
+    return wp.i18n.sprintf(wp.i18n._n('%d Product Selected', '%d Products Selected', n, 'myfeeds-affiliate-feed-manager'), n);
+  }
+  function labelProductsSaved(n) {
+    if (!(window.wp && wp.i18n)) return n + (n === 1 ? ' product saved' : ' products saved') + ' | Smart search enabled';
+    /* translators: %d: number of products saved in this block */
+    return wp.i18n.sprintf(wp.i18n._n('%d product saved', '%d products saved', n, 'myfeeds-affiliate-feed-manager'), n)
+      + ' | ' + wp.i18n.__('Smart search enabled', 'myfeeds-affiliate-feed-manager');
+  }
+
   // The shipping cost a feed value names, or null: the plugin's rule
   // (myfeeds_shipping_amount(), handed over by assets/price-format.js).
   function shippingAmount(raw) {
@@ -1454,7 +1474,7 @@
         // Header
         React.createElement("div", { className: "myfeeds-editor-header" },
           React.createElement("h3", null, "My Product Picker"),
-          React.createElement("p", null, (attributes.selectedProducts || []).length + " products saved | Smart search enabled")
+          React.createElement("p", null, labelProductsSaved((attributes.selectedProducts || []).length))
         ),
 
         // Search Section
@@ -1468,7 +1488,7 @@
 
         // Selected Products Preview
         selected.length > 0 && React.createElement("div", { className: "myfeeds-selected-products", style: { margin: "20px 0", padding: "12px", border: "1px solid #e5e7eb", borderRadius: "6px", backgroundColor: "#f9fafb" } },
-          React.createElement("h4", { style: { margin: "0 0 10px 0", fontSize: "14px" } }, selected.length + " Products Selected"),
+          React.createElement("h4", { style: { margin: "0 0 10px 0", fontSize: "14px" } }, labelProductsSelected(selected.length)),
           React.createElement("div", { style: { display: "flex", flexWrap: "wrap", justifyContent: "flex-start", gap: "10px" } },
             selected.map(function(product, index){
               return React.createElement("div", { key: "selected-" + product.id + "-" + index, className: "myfeeds-selected-product-tile", style: { border: "1px solid #e5e7eb", borderRadius: "4px", padding: "6px", textAlign: "center", fontSize: "12px", position: "relative", backgroundColor: "#fff", width: "130px", flexShrink: 0 } },
@@ -1786,7 +1806,7 @@
             // to reach it with. As a flex item of the frame it simply sits at
             // the bottom, always.
             React.createElement("div", { className: "myfeeds-modal-actions" },
-              React.createElement(Button, { isPrimary: true, onClick: saveSelection, disabled: selected.length === 0, style: { padding: "10px 18px", fontSize: "14px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, "Use " + selected.length + " Products"),
+              React.createElement(Button, { isPrimary: true, onClick: saveSelection, disabled: selected.length === 0, style: { padding: "10px 18px", fontSize: "14px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, labelUseProducts(selected.length)),
               React.createElement(Button, { isSecondary: true, onClick: function(){ setSelected(attributes.selectedProducts || []); setShowModal(false); }, style: { padding: "10px 18px", fontSize: "14px", background: "#fff", color: "#667eea", border: "1px solid #667eea", borderRadius: "6px" } }, "Cancel")
             )
         ),
