@@ -425,6 +425,7 @@ function myfeeds_load_includes() {
     $includes_dir = MYFEEDS_PLUGIN_DIR . 'includes/';
     $include_files = array(
         'myfeeds-text.php' => 'Text repair (one definition of valid UTF-8: a regex without the u modifier ate the first byte of every em dash and a "force UTF-8" step turned the rest into question marks)',
+        'myfeeds-price-format.php' => 'Price format (one rule for every price on the page and in the editor, in the site\'s locale: the cards wrote "150,00 £" on English sites)',
         'myfeeds-http.php' => 'Feed fetch guard (the one door every feed download goes through)',
         'myfeeds-market-currency.php' => 'Market currency (the currency a feed does not say: read from deliverytime_gb and /en-gb/ when no column names it)',
         'myfeeds-saved-link.php' => 'Saved-link repair (a picker block whose JSON lost its backslashes stores links that name no merchant)',

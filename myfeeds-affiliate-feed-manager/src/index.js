@@ -129,6 +129,15 @@
     return n > 0 ? n : 0;
   }
   function getCurrency(p) { return p.currency || (p.attributes && p.attributes.currency) || 'EUR'; }
+  // Prices in the site's format, the same rule the card on the page uses:
+  // the plugin hands it over as window.myfeedsFormatPrice
+  // (assets/price-format.js, a dependency of this bundle).
+  function formatMoney(amount, currency) {
+    if (typeof window.myfeedsFormatPrice === 'function') {
+      return window.myfeedsFormatPrice(toNumber(amount), currency || '');
+    }
+    return toNumber(amount).toFixed(2) + (currency ? ' ' + currency : '');
+  }
   function looksLikeSku(str) {
     if (!str || typeof str !== 'string') return false;
     const noSpaces = !/\s/.test(str);
@@ -823,12 +832,12 @@
         const currency = getCurrency(product);
         if (!s || !isLikelyShippingString(s, currency)) return '';
         const n = toNumber(s);
-        if (n > 0) return 'Shipping: ' + n.toFixed(2) + ' ' + currency;
+        if (n > 0) return 'Shipping: ' + formatMoney(n, currency);
         if (n === 0) return 'Free Shipping';
         if (typeof s === 'string' && s.indexOf(':') !== -1) {
           const parts = s.split(':');
           const val = toNumber(parts[parts.length - 1]);
-          if (val > 0) return 'Shipping: ' + val.toFixed(2) + ' ' + currency;
+          if (val > 0) return 'Shipping: ' + formatMoney(val, currency);
           if (val === 0) return 'Free Shipping';
         }
         if (/(free)/i.test(String(s))) return 'Free Shipping';
@@ -846,10 +855,10 @@
         const currency = getCurrency(product);
         return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px", margin: "2px 0 6px" } },
           hasDiscount ? [
-            React.createElement("span", { key: "original", style: { fontSize: "13px", color: "#888", textDecoration: "line-through" } }, originalPrice.toFixed(2) + ' ' + currency),
-            React.createElement("span", { key: "current", style: { fontSize: "14px", fontWeight: 700, color: "#c0392b" } }, currentPrice.toFixed(2) + ' ' + currency)
+            React.createElement("span", { key: "original", style: { fontSize: "13px", color: "#888", textDecoration: "line-through" } }, formatMoney(originalPrice, currency)),
+            React.createElement("span", { key: "current", style: { fontSize: "14px", fontWeight: 700, color: "#c0392b" } }, formatMoney(currentPrice, currency))
           ] : [
-            React.createElement("span", { key: "normal", style: { fontSize: "14px", fontWeight: 700, color: "#111" } }, currentPrice.toFixed(2) + ' ' + currency)
+            React.createElement("span", { key: "normal", style: { fontSize: "14px", fontWeight: 700, color: "#111" } }, formatMoney(currentPrice, currency))
           ]
         );
       };
@@ -1465,10 +1474,10 @@
                 (product.price > 0) && React.createElement("div", { style: { marginTop: "2px", fontSize: "10px", lineHeight: 1.3 } },
                   (product.original_price > 0 && product.original_price > product.price)
                     ? [
-                        React.createElement("span", { key: "old", style: { color: "#999", textDecoration: "line-through", marginRight: "3px" } }, toNumber(product.original_price).toFixed(2)),
-                        React.createElement("span", { key: "cur", style: { color: "#c0392b", fontWeight: 600 } }, toNumber(product.price).toFixed(2) + ' ' + (product.currency || 'EUR'))
+                        React.createElement("span", { key: "old", style: { color: "#999", textDecoration: "line-through", marginRight: "3px" } }, formatMoney(product.original_price, product.currency || 'EUR')),
+                        React.createElement("span", { key: "cur", style: { color: "#c0392b", fontWeight: 600 } }, formatMoney(product.price, product.currency || 'EUR'))
                       ]
-                    : React.createElement("span", { style: { color: "#333", fontWeight: 600 } }, toNumber(product.price).toFixed(2) + ' ' + (product.currency || 'EUR'))
+                    : React.createElement("span", { style: { color: "#333", fontWeight: 600 } }, formatMoney(product.price, product.currency || 'EUR'))
                 )
               );
             })
@@ -1826,8 +1835,8 @@
                     const discount = original > current && current > 0 ? Math.round(((original - current) / original) * 100) : 0;
                     
                     return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "15px" } },
-                      current > 0 && React.createElement("span", { className: "myfeeds-current-price" }, current.toFixed(2) + " " + currency),
-                      original > current && original > 0 && React.createElement("span", { className: "myfeeds-old-price" }, original.toFixed(2) + " " + currency),
+                      current > 0 && React.createElement("span", { className: "myfeeds-current-price" }, formatMoney(current, currency)),
+                      original > current && original > 0 && React.createElement("span", { className: "myfeeds-old-price" }, formatMoney(original, currency)),
                       discount > 0 && React.createElement("span", { className: "myfeeds-discount-badge" }, "-" + discount + "%")
                     );
                   })()
