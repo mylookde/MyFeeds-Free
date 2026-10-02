@@ -239,6 +239,14 @@
     const result = main ? [main, ...uniq.filter(u => u !== main)] : uniq;
     return result;
   }
+  // A product without a price: the card on the page says "Price on request"
+  // (render_product_card()), so the editor says the same instead of "0.00".
+  // Called as wp.i18n.__ with literal strings so the translation tools find
+  // it in the minified bundle too; the msgid is the card's.
+  function priceOnRequest() {
+    return (window.wp && wp.i18n) ? wp.i18n.__('Price on request', 'myfeeds-affiliate-feed-manager') : 'Price on request';
+  }
+
   // The shipping cost a feed value names, or null: the plugin's rule
   // (myfeeds_shipping_amount(), handed over by assets/price-format.js).
   function shippingAmount(raw) {
@@ -847,6 +855,9 @@
         }
         const hasDiscount = originalPrice > currentPrice && originalPrice > 0 && currentPrice > 0;
         const currency = getCurrency(product);
+        if (!(currentPrice > 0)) {
+          return React.createElement("div", { style: { margin: "2px 0 6px", fontSize: "13px", color: "#888" } }, priceOnRequest());
+        }
         return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px", margin: "2px 0 6px" } },
           hasDiscount ? [
             React.createElement("span", { key: "original", style: { fontSize: "13px", color: "#888", textDecoration: "line-through" } }, formatMoney(originalPrice, currency)),
@@ -1465,6 +1476,7 @@
                 React.createElement("img", { src: product.image_url || PLACEHOLDER_IMG, alt: product.title || '', style: { width: "100%", height: "90px", objectFit: "contain", borderRadius: "2px" } }),
                 product.brand && React.createElement("div", { style: { fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.3px", fontWeight: 600, marginTop: "4px", lineHeight: 1.2, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" } }, product.brand),
                 React.createElement("div", { style: { marginTop: "2px", fontWeight: 600, fontSize: "11px", lineHeight: 1.3 } }, (product.title || '').substring(0, 28) + ((product.title || '').length > 28 ? '...' : '')),
+                !(product.price > 0) && React.createElement("div", { style: { marginTop: "2px", fontSize: "10px", lineHeight: 1.3, color: "#888" } }, priceOnRequest()),
                 (product.price > 0) && React.createElement("div", { style: { marginTop: "2px", fontSize: "10px", lineHeight: 1.3 } },
                   (product.original_price > 0 && product.original_price > product.price)
                     ? [
@@ -1830,6 +1842,7 @@
                     
                     return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "15px" } },
                       current > 0 && React.createElement("span", { className: "myfeeds-current-price" }, formatMoney(current, currency)),
+                      !(current > 0) && React.createElement("span", { className: "myfeeds-price-unavailable" }, priceOnRequest()),
                       original > current && original > 0 && React.createElement("span", { className: "myfeeds-old-price" }, formatMoney(original, currency)),
                       discount > 0 && React.createElement("span", { className: "myfeeds-discount-badge" }, "-" + discount + "%")
                     );

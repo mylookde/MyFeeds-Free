@@ -87,13 +87,19 @@ class MyFeeds_Product_Picker {
         $script_registered = wp_register_script(
             'myfeeds-product-picker-editor',
             MYFEEDS_PLUGIN_URL . 'build/index.js',
-            ['wp-blocks', 'wp-components', 'wp-element', myfeeds_price_format_script()],
+            ['wp-blocks', 'wp-components', 'wp-element', 'wp-i18n', myfeeds_price_format_script()],
             $script_ver,
             true
         );
         
         if (!$script_registered && class_exists('MyFeeds_External_Debug')) {
             MyFeeds_External_Debug::log("BLOCK DEBUG: Failed to register JavaScript!");
+        }
+
+        // The editor says what the card says ("Price on request"), in the
+        // site's language once the language pack carries the bundle's strings.
+        if ($script_registered && function_exists('wp_set_script_translations')) {
+            wp_set_script_translations('myfeeds-product-picker-editor', 'myfeeds-affiliate-feed-manager');
         }
         
         // Register block styles
