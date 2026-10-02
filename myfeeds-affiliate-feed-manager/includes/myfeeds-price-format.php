@@ -45,7 +45,13 @@
  *    The editor learns every currency in it, so add a currency here, not
  *    only in the first filter, for the picker to agree with the page.
  * And myfeeds_price_format ($spec, $locale) overrides separators or symbols
- * of one locale.
+ * of one locale, myfeeds_price_currency_digits (array code => digits) the
+ * number of decimals of a currency.
+ *
+ * Some WordPress locales carry no region ("fi", "lv", "el", "ja"), and ICU
+ * names no currency for a language alone. Their own currency comes from the
+ * table below on every host, so a Finnish site writes its euros the Finnish
+ * way ("1 234,50 €") with intl as without it.
  *
  * Separators and the symbol's side come from ICU (PHP intl) when it is
  * installed, from a table of the common WordPress locales when it is not.
@@ -57,7 +63,10 @@
  *    written "C$" and "$". One table, plus the site's own currency (so a
  *    Swedish site writes "kr" and a Canadian one "$"), keeps every host
  *    printing the same symbol.
- *  - the decimals. Always two, as before.
+ *  - the decimals. Two, as ever, except for a currency that has no
+ *    cents or has mills (myfeeds_price_currency_digits(): a yen is "¥1,500",
+ *    not "¥1,500.00"). Rounded half up, as PHP's round() does, so the
+ *    editor and the page agree on every amount.
  *  - the space between number and symbol. A plain space, as the cards have
  *    always printed it ("59,90 €"). A space INSIDE a number (French,
  *    Swedish, Polish thousands) is a no-break space, whatever ICU version
@@ -118,6 +127,53 @@ if (!function_exists('myfeeds_price_currency_locales')) {
             }
         }
         return $out;
+    }
+}
+
+if (!function_exists('myfeeds_price_currency_digits')) {
+    /**
+     * Currency code => decimals, for the currencies that do not have two
+     * (ISO 4217, as ICU writes them). Anything not listed has two.
+     * Filter: myfeeds_price_currency_digits.
+     *
+     * @return array<string,int>
+     */
+    function myfeeds_price_currency_digits() {
+        $map = array(
+            'JPY' => 0,
+            'KRW' => 0,
+            'ISK' => 0,
+            'CLP' => 0,
+            'VND' => 0,
+            'KWD' => 3,
+            'BHD' => 3,
+            'OMR' => 3,
+            'JOD' => 3,
+            'TND' => 3,
+        );
+        if (function_exists('apply_filters')) {
+            $map = apply_filters('myfeeds_price_currency_digits', $map);
+        }
+        $out = array();
+        foreach ((array) $map as $code => $digits) {
+            $code = myfeeds_price_currency_code($code);
+            if (preg_match('/^[A-Z]{3}$/', $code) && is_numeric($digits) && (int) $digits >= 0 && (int) $digits <= 4) {
+                $out[$code] = (int) $digits;
+            }
+        }
+        return $out;
+    }
+}
+
+if (!function_exists('myfeeds_price_digits')) {
+    /**
+     * @param string $currency ISO code; anything else has two.
+     * @return int
+     */
+    function myfeeds_price_digits($currency) {
+        $map  = myfeeds_price_currency_digits();
+        $code = myfeeds_price_currency_code($currency);
+        return isset($map[$code]) ? $map[$code] : 2;
     }
 }
 
@@ -228,6 +284,14 @@ if (!function_exists('myfeeds_price_table')) {
                 'sl' => $after_dot,
                 'ca' => $after_dot,
                 'vi' => $after_dot,
+                'eu' => $after_dot,
+                'gl' => $after_dot,
+                'lb' => $after_dot,
+                'dsb' => $after_dot,
+                'hsb' => $after_dot,
+                'fy' => array(',', '.', true, true),
+                'fur' => array(',', '.', true, true),
+                'oci' => array(',', $nbsp, false, false),
                 'fr' => $after_space,
                 'pt' => $after_space,
                 'sv' => $after_space,
@@ -294,8 +358,49 @@ if (!function_exists('myfeeds_price_table')) {
                 'ko_KR' => array('KRW', '₩'),
                 'he_IL' => array('ILS', '₪'),
                 'ja_JP' => array('JPY', "\xEF\xBF\xA5"),
+                // Languages of one currency, for the WordPress locales that
+                // carry no region ("fi", "lv", "ja"): ICU names no currency
+                // for a language alone. A row with a region above wins.
+                'ja'  => array('JPY', "\xEF\xBF\xA5"),
+                'fi'  => array('EUR', '€'),
+                'et'  => array('EUR', '€'),
+                'lv'  => array('EUR', '€'),
+                'lt'  => array('EUR', '€'),
+                'sk'  => array('EUR', '€'),
+                'sl'  => array('EUR', '€'),
+                'el'  => array('EUR', '€'),
+                'hr'  => array('EUR', '€'),
+                'mt'  => array('EUR', '€'),
+                'ga'  => array('EUR', '€'),
+                'ca'  => array('EUR', '€'),
+                'eu'  => array('EUR', '€'),
+                'gl'  => array('EUR', '€'),
+                'lb'  => array('EUR', '€'),
+                'fy'  => array('EUR', '€'),
+                'fur' => array('EUR', '€'),
+                'oci' => array('EUR', '€'),
+                'dsb' => array('EUR', '€'),
+                'hsb' => array('EUR', '€'),
             ),
         );
+    }
+}
+
+if (!function_exists('myfeeds_price_table_own')) {
+    /**
+     * The locale's own currency from the table: code => symbol, or [].
+     *
+     * @param string $locale
+     * @return array<string,string>
+     */
+    function myfeeds_price_table_own($locale) {
+        $table = myfeeds_price_table();
+        foreach (myfeeds_price_locale_candidates($locale) as $candidate) {
+            if (isset($table['own'][$candidate])) {
+                return array($table['own'][$candidate][0] => $table['own'][$candidate][1]);
+            }
+        }
+        return array();
     }
 }
 
@@ -307,16 +412,12 @@ if (!function_exists('myfeeds_price_spec_from_table')) {
     function myfeeds_price_spec_from_table($locale) {
         $table = myfeeds_price_table();
         $row = null;
-        $own = array();
         foreach (myfeeds_price_locale_candidates($locale) as $candidate) {
             if ($row === null && isset($table['locales'][$candidate])) {
                 $row = $table['locales'][$candidate];
             }
             if ($row === null && isset($table['languages'][$candidate])) {
                 $row = $table['languages'][$candidate];
-            }
-            if (!$own && isset($table['own'][$candidate])) {
-                $own = array($table['own'][$candidate][0] => $table['own'][$candidate][1]);
             }
         }
         if ($row === null) {
@@ -328,7 +429,7 @@ if (!function_exists('myfeeds_price_spec_from_table')) {
             'group'        => $row[1],
             'symbol_first' => $row[2],
             'space'        => $row[3],
-            'own'          => $own,
+            'own'          => myfeeds_price_table_own($locale),
         );
     }
 }
@@ -422,6 +523,9 @@ if (!function_exists('myfeeds_price_format_spec')) {
             $spec = myfeeds_price_spec_from_intl($locale);
             if ($spec === null) {
                 $spec = myfeeds_price_spec_from_table($locale);
+            } elseif (!$spec['own']) {
+                // "fi", "lv", "ja": ICU knows the language, not its money.
+                $spec['own'] = myfeeds_price_table_own($locale);
             }
             $spec['currency'] = $spec['own'] ? (string) key($spec['own']) : '';
             $spec['symbols']  = array_merge(myfeeds_price_symbols(), $spec['own']);
@@ -473,8 +577,9 @@ if (!function_exists('myfeeds_format_price_with_spec')) {
         if (!is_finite($amount)) {
             $amount = 0.0;
         }
-        $abs    = round(abs($amount), 2);
-        $number = number_format($abs, 2, (string) $spec['decimal'], (string) $spec['group']);
+        $digits = myfeeds_price_digits($currency);
+        $abs    = round(abs($amount), $digits);
+        $number = number_format($abs, $digits, (string) $spec['decimal'], (string) $spec['group']);
         $symbol = myfeeds_currency_symbol($currency, $spec);
 
         $out = $number;
@@ -532,7 +637,8 @@ if (!function_exists('myfeeds_price_format_payload')) {
      * What assets/price-format.js gets as window.myfeedsPriceFormat: the
      * site language's spec (for a currency without a home, and the symbols
      * of all), the layout of every currency in the home table and of the
-     * site's own currency, and the shipping pattern. The editor applies it
+     * site's own currency, the decimals of the currencies without two, and
+     * the shipping pattern. The editor applies it
      * exactly as myfeeds_format_price() does.
      *
      * @param string|null $site The site's language; null = get_locale().
@@ -555,6 +661,7 @@ if (!function_exists('myfeeds_price_format_payload')) {
                 'space'        => $spec['space'],
             );
         }
+        $payload['digits'] = myfeeds_price_currency_digits();
         $payload['shipping_pattern'] = myfeeds_shipping_pattern();
         return $payload;
     }

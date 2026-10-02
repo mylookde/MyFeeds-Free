@@ -21,6 +21,9 @@
   // Currency code => the layout that currency is written in on this site.
   // A currency missing here keeps the site's layout above, as in PHP.
   var currencies = spec.currencies && typeof spec.currencies === 'object' ? spec.currencies : {};
+  // Currency code => decimals, for the currencies without two (a yen has
+  // none). Anything missing has two, as in PHP.
+  var digitsBy = spec.digits && typeof spec.digits === 'object' ? spec.digits : {};
   var has = Object.prototype.hasOwnProperty;
 
   var letterAtEnd = /[A-Za-z]$/;
@@ -33,6 +36,14 @@
   function codeOf(currency) {
     var code = String(currency == null ? '' : currency).trim();
     return /^[A-Za-z]{3}$/.test(code) ? code.toUpperCase() : code;
+  }
+
+  function digitsFor(code) {
+    if (has.call(digitsBy, code)) {
+      var d = Number(digitsBy[code]);
+      if (d >= 0 && d <= 4 && d === Math.floor(d)) return d;
+    }
+    return 2;
   }
 
   function symbolFor(code) {
@@ -50,12 +61,17 @@
 
     var n = Number(amount);
     if (!isFinite(n)) n = 0;
+    var digits = digitsFor(code);
+    var unit = Math.pow(10, digits);
     // "1.005e2" parses to 100.5 exactly, where 1.005 * 100 is 100.4999...;
     // this is how PHP's round() lands on 1.01 too.
-    var cents = Math.round(Number(Math.abs(n).toFixed(8) + 'e2'));
-    var whole = String(Math.floor(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, function () { return grp; });
-    var frac = String(cents % 100);
-    var number = whole + dec + (frac.length < 2 ? '0' + frac : frac);
+    var scaled = Math.round(Number(Math.abs(n).toFixed(8) + 'e' + digits));
+    var number = String(Math.floor(scaled / unit)).replace(/\B(?=(\d{3})+(?!\d))/g, function () { return grp; });
+    if (digits > 0) {
+      var frac = String(scaled % unit);
+      while (frac.length < digits) frac = '0' + frac;
+      number += dec + frac;
+    }
 
     var out = number;
     var symbol = symbolFor(code);
@@ -64,7 +80,7 @@
       var gap = (spaced || touchingLetter) ? ' ' : '';
       out = first ? symbol + gap + number : number + gap + symbol;
     }
-    return (n < 0 && cents > 0) ? '-' + out : out;
+    return (n < 0 && scaled > 0) ? '-' + out : out;
   }
 
   // The shipping cost a feed value names, or null when it names none - the
