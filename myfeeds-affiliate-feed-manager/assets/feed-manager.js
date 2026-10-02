@@ -14,10 +14,15 @@
     };
     var formatNumber = window.formatNumber;
 
+    // The status poll is started in the first ready block and stopped from
+    // the second one too (a single-feed reimport ends the main poll). Kept
+    // here, where both blocks can see it: declared inside the first, the
+    // second threw "importInterval is not defined" and left the poll running.
+    var importInterval = null;
+
         jQuery(document).ready(function($) {
             console.log('MyFeeds: Admin JS initialized');
             
-            var importInterval = null;
             window.currentReimportFeedKey = null;
             window.currentReimportInterval = null;
             var nonce = myfeedsAdmin.nonce;
