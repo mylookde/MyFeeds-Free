@@ -591,7 +591,17 @@
 
 /* WordPress Block Editor Adjustments */
 .wp-block[data-type="myfeeds/product-picker"] {
-    margin: 20px auto;
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+/* As wide as the text, like the grid on the page. Wide and Full are left
+   to the theme's own editor rules: in a block theme the wrapper carries
+   .alignwide / .alignfull, and capping it here would make the toolbar
+   button do nothing in the editor. */
+.wp-block[data-type="myfeeds/product-picker"]:not(.alignwide):not(.alignfull) {
+    margin-left: auto;
+    margin-right: auto;
     max-width: var(--wp--style--global--content-size, 840px);
 }
 

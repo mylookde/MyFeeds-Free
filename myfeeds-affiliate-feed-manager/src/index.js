@@ -282,6 +282,14 @@
     category: "widgets",
     description: "Display affiliate products from your configured feeds with smart search",
 
+    // Wide and Full in the block toolbar; without either the grid is as
+    // wide as the text. WordPress adds the `align` attribute itself and
+    // the theme draws both widths. The PHP registration says the same,
+    // but the editor takes these settings over the server's.
+    supports: {
+      align: ["wide", "full"],
+    },
+
     attributes: {
       selectedProducts: { type: "array", default: [] },
     },
