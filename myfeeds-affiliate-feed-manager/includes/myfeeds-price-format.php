@@ -1,18 +1,57 @@
 <?php
 /**
- * Prices as the site's language writes them.
+ * Prices the way their currency is written.
  *
  * One rule for every place that shows a price - the cards in a post, the
  * carousel, the shop tiles, the Look block, the Amazon live price - and,
- * through the spec handed to assets/price-format.js, every price the editor
- * shows. Until October 2026 each of those had its own formatter, and the
- * card one wrote every currency the German way: "150,00 £" on an English
+ * through the payload handed to assets/price-format.js, every price the
+ * editor shows. Until October 2026 each of those had its own formatter, and
+ * the card one wrote every currency the German way: "150,00 £" on an English
  * site, while the picker tile next to it said "150.00 GBP".
  *
- * The locale is the SITE's (get_locale()), not the editing user's
+ * Which convention a price is written in (October 2026):
+ *  - the site's language, when that language's own currency IS the price's
+ *    currency: a German site writes euros "59,90 €" exactly as before, a
+ *    French one "1 234,50 €", a British one "£150.00";
+ *  - otherwise the currency's home convention (myfeeds_price_currency_locales()):
+ *    a pound is "£150.00" on a German site too, a dollar "$150.00" - the way
+ *    the shop that sells it writes it, and the way a reader has seen that
+ *    currency written everywhere else;
+ *  - a currency without a home in that table keeps the site's language.
+ * The site's language is get_locale(), not the editing user's
  * (determine_locale() in wp-admin): the picker must show the price the way
  * the visitor will read it on the page. Multilingual plugins filter
  * get_locale(), so a translated page follows its own language.
+ *
+ * The euro has no single home. It is written "150,00 €" (de_DE): number
+ * first, decimal comma, symbol after a space - the form Germany, Spain,
+ * Italy, Finland, Slovakia, the Baltics and (but for the thousands space)
+ * France share, the form every euro card of this plugin has printed since
+ * its first release, and the one most of its euro merchants use. An Irish
+ * or Dutch site writes its own euros its own way all the same (rule one);
+ * a site that wants "€150.00" for foreign euros says so through the
+ * myfeeds_price_currency_locales filter.
+ *
+ * The symbol is the READER's: the international table below plus the site
+ * language's own symbol, so a Swedish site writes its crowns "kr" while a
+ * German one writes "150,00 SEK" (not "kr", which is also Norway's and
+ * Denmark's), and a Canadian dollar on a German site is "C$150.00".
+ *
+ * Two filters:
+ *  - myfeeds_price_locale ($locale, $currency, $site_locale) - the locale
+ *    one price is written in, after the rule. Return one locale whatever the
+ *    currency and every price on the site is written that way.
+ *  - myfeeds_price_currency_locales (array code => locale) - the home table.
+ *    The editor learns every currency in it, so add a currency here, not
+ *    only in the first filter, for the picker to agree with the page.
+ * And myfeeds_price_format ($spec, $locale) overrides separators or symbols
+ * of one locale, myfeeds_price_currency_digits (array code => digits) the
+ * number of decimals of a currency.
+ *
+ * Some WordPress locales carry no region ("fi", "lv", "el", "ja"), and ICU
+ * names no currency for a language alone. Their own currency comes from the
+ * table below on every host, so a Finnish site writes its euros the Finnish
+ * way ("1 234,50 €") with intl as without it.
  *
  * Separators and the symbol's side come from ICU (PHP intl) when it is
  * installed, from a table of the common WordPress locales when it is not.
@@ -24,7 +63,10 @@
  *    written "C$" and "$". One table, plus the site's own currency (so a
  *    Swedish site writes "kr" and a Canadian one "$"), keeps every host
  *    printing the same symbol.
- *  - the decimals. Always two, as before.
+ *  - the decimals. Two, as ever, except for a currency that has no
+ *    cents or has mills (myfeeds_price_currency_digits(): a yen is "¥1,500",
+ *    not "¥1,500.00"). Rounded half up, as PHP's round() does, so the
+ *    editor and the page agree on every amount.
  *  - the space between number and symbol. A plain space, as the cards have
  *    always printed it ("59,90 €"). A space INSIDE a number (French,
  *    Swedish, Polish thousands) is a no-break space, whatever ICU version
@@ -38,18 +80,136 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-if (!function_exists('myfeeds_price_locale')) {
+if (!function_exists('myfeeds_price_currency_code')) {
     /**
-     * The locale prices are written in: the site's, filterable.
+     * "gbp " -> "GBP". A stored symbol ("€") or anything that is not a
+     * three-letter code passes through trimmed.
      *
+     * @param mixed $currency
      * @return string
      */
-    function myfeeds_price_locale() {
-        $locale = function_exists('get_locale') ? (string) get_locale() : '';
+    function myfeeds_price_currency_code($currency) {
+        $code = trim((string) $currency);
+        return preg_match('/^[A-Za-z]{3}$/', $code) ? strtoupper($code) : $code;
+    }
+}
+
+if (!function_exists('myfeeds_price_currency_locales')) {
+    /**
+     * Currency code => the locale that currency is written in at home.
+     * Filter: myfeeds_price_currency_locales.
+     *
+     * @return array<string,string>
+     */
+    function myfeeds_price_currency_locales() {
+        $map = array(
+            'GBP' => 'en_GB',
+            'USD' => 'en_US',
+            'EUR' => 'de_DE', // No single home; why this one: see the top of this file.
+            'CHF' => 'de_CH',
+            'SEK' => 'sv_SE',
+            'NOK' => 'nb_NO',
+            'DKK' => 'da_DK',
+            'PLN' => 'pl_PL',
+            'CAD' => 'en_CA',
+            'AUD' => 'en_AU',
+            'NZD' => 'en_NZ',
+            'JPY' => 'ja_JP',
+        );
         if (function_exists('apply_filters')) {
-            $locale = (string) apply_filters('myfeeds_price_locale', $locale);
+            $map = apply_filters('myfeeds_price_currency_locales', $map);
         }
-        return $locale !== '' ? $locale : 'en_US';
+        $out = array();
+        foreach ((array) $map as $code => $locale) {
+            $code = myfeeds_price_currency_code($code);
+            if (is_string($locale) && $locale !== '' && preg_match('/^[A-Z]{3}$/', $code)) {
+                $out[$code] = $locale;
+            }
+        }
+        return $out;
+    }
+}
+
+if (!function_exists('myfeeds_price_currency_digits')) {
+    /**
+     * Currency code => decimals, for the currencies that do not have two
+     * (ISO 4217, as ICU writes them). Anything not listed has two.
+     * Filter: myfeeds_price_currency_digits.
+     *
+     * @return array<string,int>
+     */
+    function myfeeds_price_currency_digits() {
+        $map = array(
+            'JPY' => 0,
+            'KRW' => 0,
+            'ISK' => 0,
+            'CLP' => 0,
+            'VND' => 0,
+            'KWD' => 3,
+            'BHD' => 3,
+            'OMR' => 3,
+            'JOD' => 3,
+            'TND' => 3,
+        );
+        if (function_exists('apply_filters')) {
+            $map = apply_filters('myfeeds_price_currency_digits', $map);
+        }
+        $out = array();
+        foreach ((array) $map as $code => $digits) {
+            $code = myfeeds_price_currency_code($code);
+            if (preg_match('/^[A-Z]{3}$/', $code) && is_numeric($digits) && (int) $digits >= 0 && (int) $digits <= 4) {
+                $out[$code] = (int) $digits;
+            }
+        }
+        return $out;
+    }
+}
+
+if (!function_exists('myfeeds_price_digits')) {
+    /**
+     * @param string $currency ISO code; anything else has two.
+     * @return int
+     */
+    function myfeeds_price_digits($currency) {
+        $map  = myfeeds_price_currency_digits();
+        $code = myfeeds_price_currency_code($currency);
+        return isset($map[$code]) ? $map[$code] : 2;
+    }
+}
+
+if (!function_exists('myfeeds_price_locale')) {
+    /**
+     * The locale one price is written in.
+     *
+     * With no currency: the site's language - what a price in a currency
+     * without a home is written in, and whose symbols every price uses.
+     *
+     * @param string      $currency ISO code; '' = none.
+     * @param string|null $site     The site's language; null = get_locale().
+     * @return string
+     */
+    function myfeeds_price_locale($currency = '', $site = null) {
+        if ($site === null || $site === '') {
+            $site = function_exists('get_locale') ? (string) get_locale() : '';
+        }
+        $site = (string) $site !== '' ? (string) $site : 'en_US';
+        $code = myfeeds_price_currency_code($currency);
+
+        $locale = $site;
+        if ($code !== '') {
+            $own = myfeeds_price_format_spec($site);
+            if (!isset($own['currency']) || $own['currency'] !== $code) {
+                $homes = myfeeds_price_currency_locales();
+                if (isset($homes[$code])) {
+                    $locale = $homes[$code];
+                }
+            }
+        }
+
+        if (function_exists('apply_filters')) {
+            $locale = (string) apply_filters('myfeeds_price_locale', $locale, $code, $site);
+        }
+        return $locale !== '' ? $locale : $site;
     }
 }
 
@@ -124,6 +284,14 @@ if (!function_exists('myfeeds_price_table')) {
                 'sl' => $after_dot,
                 'ca' => $after_dot,
                 'vi' => $after_dot,
+                'eu' => $after_dot,
+                'gl' => $after_dot,
+                'lb' => $after_dot,
+                'dsb' => $after_dot,
+                'hsb' => $after_dot,
+                'fy' => array(',', '.', true, true),
+                'fur' => array(',', '.', true, true),
+                'oci' => array(',', $nbsp, false, false),
                 'fr' => $after_space,
                 'pt' => $after_space,
                 'sv' => $after_space,
@@ -189,8 +357,50 @@ if (!function_exists('myfeeds_price_table')) {
                 'zh_CN' => array('CNY', '¥'),
                 'ko_KR' => array('KRW', '₩'),
                 'he_IL' => array('ILS', '₪'),
+                'ja_JP' => array('JPY', "\xEF\xBF\xA5"),
+                // Languages of one currency, for the WordPress locales that
+                // carry no region ("fi", "lv", "ja"): ICU names no currency
+                // for a language alone. A row with a region above wins.
+                'ja'  => array('JPY', "\xEF\xBF\xA5"),
+                'fi'  => array('EUR', '€'),
+                'et'  => array('EUR', '€'),
+                'lv'  => array('EUR', '€'),
+                'lt'  => array('EUR', '€'),
+                'sk'  => array('EUR', '€'),
+                'sl'  => array('EUR', '€'),
+                'el'  => array('EUR', '€'),
+                'hr'  => array('EUR', '€'),
+                'mt'  => array('EUR', '€'),
+                'ga'  => array('EUR', '€'),
+                'ca'  => array('EUR', '€'),
+                'eu'  => array('EUR', '€'),
+                'gl'  => array('EUR', '€'),
+                'lb'  => array('EUR', '€'),
+                'fy'  => array('EUR', '€'),
+                'fur' => array('EUR', '€'),
+                'oci' => array('EUR', '€'),
+                'dsb' => array('EUR', '€'),
+                'hsb' => array('EUR', '€'),
             ),
         );
+    }
+}
+
+if (!function_exists('myfeeds_price_table_own')) {
+    /**
+     * The locale's own currency from the table: code => symbol, or [].
+     *
+     * @param string $locale
+     * @return array<string,string>
+     */
+    function myfeeds_price_table_own($locale) {
+        $table = myfeeds_price_table();
+        foreach (myfeeds_price_locale_candidates($locale) as $candidate) {
+            if (isset($table['own'][$candidate])) {
+                return array($table['own'][$candidate][0] => $table['own'][$candidate][1]);
+            }
+        }
+        return array();
     }
 }
 
@@ -202,16 +412,12 @@ if (!function_exists('myfeeds_price_spec_from_table')) {
     function myfeeds_price_spec_from_table($locale) {
         $table = myfeeds_price_table();
         $row = null;
-        $own = array();
         foreach (myfeeds_price_locale_candidates($locale) as $candidate) {
             if ($row === null && isset($table['locales'][$candidate])) {
                 $row = $table['locales'][$candidate];
             }
             if ($row === null && isset($table['languages'][$candidate])) {
                 $row = $table['languages'][$candidate];
-            }
-            if (!$own && isset($table['own'][$candidate])) {
-                $own = array($table['own'][$candidate][0] => $table['own'][$candidate][1]);
             }
         }
         if ($row === null) {
@@ -223,7 +429,7 @@ if (!function_exists('myfeeds_price_spec_from_table')) {
             'group'        => $row[1],
             'symbol_first' => $row[2],
             'space'        => $row[3],
-            'own'          => $own,
+            'own'          => myfeeds_price_table_own($locale),
         );
     }
 }
@@ -303,8 +509,11 @@ if (!function_exists('myfeeds_price_format_spec')) {
      * Everything needed to write a price for a locale - the one rule the
      * PHP side applies and the editor scripts receive.
      *
+     * "currency" is the locale's own currency code ('' when it has none):
+     * the one a site in that language writes its own way.
+     *
      * @param string|null $locale Null = the site's.
-     * @return array{locale:string,decimal:string,group:string,symbol_first:bool,space:bool,symbols:array<string,string>}
+     * @return array{locale:string,decimal:string,group:string,symbol_first:bool,space:bool,currency:string,symbols:array<string,string>}
      */
     function myfeeds_price_format_spec($locale = null) {
         static $cache = array();
@@ -314,8 +523,12 @@ if (!function_exists('myfeeds_price_format_spec')) {
             $spec = myfeeds_price_spec_from_intl($locale);
             if ($spec === null) {
                 $spec = myfeeds_price_spec_from_table($locale);
+            } elseif (!$spec['own']) {
+                // "fi", "lv", "ja": ICU knows the language, not its money.
+                $spec['own'] = myfeeds_price_table_own($locale);
             }
-            $spec['symbols'] = array_merge(myfeeds_price_symbols(), $spec['own']);
+            $spec['currency'] = $spec['own'] ? (string) key($spec['own']) : '';
+            $spec['symbols']  = array_merge(myfeeds_price_symbols(), $spec['own']);
             unset($spec['own']);
             $cache[$locale] = $spec;
         }
@@ -338,12 +551,9 @@ if (!function_exists('myfeeds_currency_symbol')) {
      * @return string Raw, unescaped.
      */
     function myfeeds_currency_symbol($currency, $spec = null) {
-        $code = trim((string) $currency);
+        $code = myfeeds_price_currency_code($currency);
         if ($code === '') {
             return '';
-        }
-        if (preg_match('/^[A-Za-z]{3}$/', $code)) {
-            $code = strtoupper($code);
         }
         if (!is_array($spec)) {
             $spec = myfeeds_price_format_spec();
@@ -367,8 +577,9 @@ if (!function_exists('myfeeds_format_price_with_spec')) {
         if (!is_finite($amount)) {
             $amount = 0.0;
         }
-        $abs    = round(abs($amount), 2);
-        $number = number_format($abs, 2, (string) $spec['decimal'], (string) $spec['group']);
+        $digits = myfeeds_price_digits($currency);
+        $abs    = round(abs($amount), $digits);
+        $number = number_format($abs, $digits, (string) $spec['decimal'], (string) $spec['group']);
         $symbol = myfeeds_currency_symbol($currency, $spec);
 
         $out = $number;
@@ -384,18 +595,75 @@ if (!function_exists('myfeeds_format_price_with_spec')) {
     }
 }
 
+if (!function_exists('myfeeds_price_spec_for_currency')) {
+    /**
+     * The spec one currency is written with on a site: separators and the
+     * symbol's side from the currency's locale (myfeeds_price_locale()),
+     * the symbols from the site's language.
+     *
+     * @param string      $currency ISO code.
+     * @param string|null $site     The site's language; null = get_locale().
+     * @return array
+     */
+    function myfeeds_price_spec_for_currency($currency, $site = null) {
+        $home   = myfeeds_price_format_spec(myfeeds_price_locale('', $site));
+        $locale = myfeeds_price_locale($currency, $site);
+        if ($locale === $home['locale']) {
+            return $home;
+        }
+        $spec = myfeeds_price_format_spec($locale);
+        $spec['symbols'] = $home['symbols'];
+        return $spec;
+    }
+}
+
 if (!function_exists('myfeeds_format_price')) {
     /**
-     * A price as the site's language writes it. Raw - escape at the
-     * output site.
+     * A price the way its currency is written (see the top of this file).
+     * Raw - escape at the output site.
      *
      * @param float|int|string $amount
      * @param string           $currency ISO code, e.g. "GBP".
-     * @param string|null      $locale   Null = the site's.
+     * @param string|null      $site     The site's language; null = get_locale().
      * @return string
      */
-    function myfeeds_format_price($amount, $currency, $locale = null) {
-        return myfeeds_format_price_with_spec($amount, $currency, myfeeds_price_format_spec($locale));
+    function myfeeds_format_price($amount, $currency, $site = null) {
+        return myfeeds_format_price_with_spec($amount, $currency, myfeeds_price_spec_for_currency($currency, $site));
+    }
+}
+
+if (!function_exists('myfeeds_price_format_payload')) {
+    /**
+     * What assets/price-format.js gets as window.myfeedsPriceFormat: the
+     * site language's spec (for a currency without a home, and the symbols
+     * of all), the layout of every currency in the home table and of the
+     * site's own currency, the decimals of the currencies without two, and
+     * the shipping pattern. The editor applies it
+     * exactly as myfeeds_format_price() does.
+     *
+     * @param string|null $site The site's language; null = get_locale().
+     * @return array
+     */
+    function myfeeds_price_format_payload($site = null) {
+        $payload = myfeeds_price_format_spec(myfeeds_price_locale('', $site));
+        $codes = array_keys(myfeeds_price_currency_locales());
+        if ($payload['currency'] !== '') {
+            $codes[] = $payload['currency'];
+        }
+        $payload['currencies'] = array();
+        foreach (array_unique($codes) as $code) {
+            $spec = myfeeds_price_spec_for_currency($code, $site);
+            $payload['currencies'][$code] = array(
+                'locale'       => $spec['locale'],
+                'decimal'      => $spec['decimal'],
+                'group'        => $spec['group'],
+                'symbol_first' => $spec['symbol_first'],
+                'space'        => $spec['space'],
+            );
+        }
+        $payload['digits'] = myfeeds_price_currency_digits();
+        $payload['shipping_pattern'] = myfeeds_shipping_pattern();
+        return $payload;
     }
 }
 
@@ -440,7 +708,7 @@ if (!function_exists('myfeeds_shipping_amount')) {
 
 if (!function_exists('myfeeds_price_format_script')) {
     /**
-     * Registers assets/price-format.js with the site's spec in front of it
+     * Registers assets/price-format.js with the site's payload in front of it
      * and returns its handle, for scripts that show prices to list as a
      * dependency. Safe to call more than once.
      *
@@ -456,9 +724,7 @@ if (!function_exists('myfeeds_price_format_script')) {
             ? myfeeds_asset_ver($rel)
             : (file_exists(MYFEEDS_PLUGIN_DIR . $rel) ? (string) filemtime(MYFEEDS_PLUGIN_DIR . $rel) : MYFEEDS_VERSION);
         wp_register_script($handle, MYFEEDS_PLUGIN_URL . $rel, array(), $ver, true);
-        $payload = myfeeds_price_format_spec();
-        $payload['shipping_pattern'] = myfeeds_shipping_pattern();
-        wp_add_inline_script($handle, 'window.myfeedsPriceFormat = ' . wp_json_encode($payload) . ';', 'before');
+        wp_add_inline_script($handle, 'window.myfeedsPriceFormat = ' . wp_json_encode(myfeeds_price_format_payload()) . ';', 'before');
         return $handle;
     }
 }

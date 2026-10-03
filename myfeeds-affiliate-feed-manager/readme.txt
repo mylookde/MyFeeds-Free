@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.42
+Stable tag: 1.0.43
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -191,6 +191,14 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.43 =
+* Improved: prices are written the way their currency is normally written: "£150.00", "$150.00", "150,00 €". A site whose language uses that same currency keeps its own way of writing it. The card and the block editor always show the same price.
+* Improved: the Feed Name field says what the name is for. Readers see it on your product cards, so the shop's name works best.
+* Fixed: the product picker no longer says "Free Shipping" when a feed has no shipping data. Only a real shipping cost of 0 counts as free shipping, and a delivery time is no longer shown as a shipping cost.
+* Fixed: a product without a price says "Price on request" in the product picker too, the same as on the card.
+* Fixed: one selected product reads "Use 1 Product".
+* Fixed: on the Feeds screen the feed dialogs no longer appear twice after a feed is added or removed, and a script error after an import is gone.
+
 = 1.0.42 =
 * Improved: product card images now come in the size the card is actually shown at. The browser measures the card and picks the smallest file that is still sharp on that screen, instead of one 800 px image for every device. Only for image hosts that can deliver smaller copies; cards set to fill their frame keep the one sharp image.
 
@@ -268,19 +276,6 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 = 1.0.25 =
 * The plugin now lists MyFeeds as its author instead of a personal name, and links to myfeeds.site. Only the entry on your Plugins screen changes; nothing about how the plugin works is affected.
-
-= 1.0.24 =
-* Update All could not finish on some hosts. The importer runs the work in a background request to your own site; where that request is blocked - by hosting configuration, by a password-protected staging site - it falls back to running the import inline. That fallback referred to something that did not exist and stopped with an error the log recorded and nobody saw, so the progress bar sat at 1% until you gave up. On those hosts importing was simply impossible. Fixed.
-* An import that could not read a feed now says so. A feed URL behind a login, a typo, an expired key: all of them used to end on "Update completed successfully" with a green tick and no products. The panel now names each feed it could not read and stays open until you dismiss it.
-* Feeds that arrive as a .zip are unpacked for you. Several networks ship their catalogue that way, and until now the archive was handed to the CSV parser, which produced nothing and reported nothing. Files that are not feeds at all - an archive MyFeeds cannot open, a PDF, or the HTML login page a network returns when a link needs authentication - are now named in the error instead of being parsed as a spreadsheet.
-* You can upload a feed file. Four networks hand publishers a file and no link, and the answer used to be "find your own hosting for it first". The dialog now offers a URL or an upload, recommends the URL, and says plainly that an uploaded file does not refresh by itself - the feeds list shows it as such. Accepted: .csv, .tsv, .psv, .ssv, .txt, .tab, .xml, .json, .jsonl, .ndjson, .gz and .zip.
-* Deleting a feed now removes its products. They used to stay in the database, keep appearing in the Product Picker and keep inflating the product count on the Feeds page. Products that a published post still shows are the exception: those are kept so your pages do not go blank, with the values they last had, and they are no longer offered when you add new ones.
-* The progress bar moves while an import runs. It updated once per batch of a thousand rows, so a small feed showed nothing at all between starting and finishing.
-* MyFeeds now tidies up after itself. Once a day it removes options left behind by versions you no longer run, expired cached data, and its own finished background jobs once they are more than a week old. Other plugins' jobs are never touched.
-* The feed address is checked before it is fetched. A feed URL that points at the server itself or into a private network is refused, so a mistyped or malicious address cannot be used to make your site fetch things that were never meant to face the internet.
-* Advanced options: pipe-separated is now offered as a format, which is what several networks publish. Choosing a file pre-selects the matching format from its name. The gzip entry is gone because compression is unpacked before the file is read. The network list drops Amazon, which has its own connection flow, and adds FlexOffers, Sovrn and Other.
-
-Older entries (1.0.23 and earlier) are in changelog.txt, which ships with the plugin.
 
 == Upgrade Notice ==
 
