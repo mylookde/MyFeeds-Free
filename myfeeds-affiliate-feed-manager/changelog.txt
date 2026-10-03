@@ -4,6 +4,10 @@ Full changelog
 The most recent releases are also listed on the plugin page on WordPress.org.
 That listing has a length limit, so the complete history lives here.
 
+= 1.0.45 =
+* Improved: the product grid is as wide as your post's text instead of a fixed 1,200 pixels, so cards line up with your writing in every theme. In the block toolbar you can now set it to Wide or Full width, like other blocks.
+* Fixed: on narrow cards a sale price was cut off ("89,9...") next to the struck-through old price. It now moves to its own line. Wider cards look exactly as before.
+
 = 1.0.44 =
 * Fixed: products of a feed you deleted came back into your posts. Deleting a feed takes the products your posts show off the page and keeps them in the database, but the clean-up that runs right after the delete marked them to stay visible again, with their last price and a link that may no longer lead anywhere. They now stay hidden, and products this already happened to are hidden again once, on the first page load after the update.
 * Fixed: products of a removed feed that no post uses any more are now cleared out of the database instead of staying there forever.

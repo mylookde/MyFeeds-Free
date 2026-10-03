@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.44
+Stable tag: 1.0.45
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -191,6 +191,10 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.45 =
+* Improved: the product grid is as wide as your post's text instead of a fixed 1,200 pixels, so cards line up with your writing in every theme. In the block toolbar you can now set it to Wide or Full width, like other blocks.
+* Fixed: on narrow cards a sale price was cut off ("89,9...") next to the struck-through old price. It now moves to its own line. Wider cards look exactly as before.
+
 = 1.0.44 =
 * Fixed: products of a feed you deleted came back into your posts. Deleting a feed takes the products your posts show off the page and keeps them in the database, but the clean-up that runs right after the delete marked them to stay visible again, with their last price and a link that may no longer lead anywhere. They now stay hidden, and products this already happened to are hidden again once, on the first page load after the update.
 * Fixed: products of a removed feed that no post uses any more are now cleared out of the database instead of staying there forever.
@@ -274,11 +278,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * There is one way to delete a feed again. A second one existed that dropped the feed from your settings and left every one of its products in the database - rows with an image, a price and a link into a partnership that had ended, which the product picker would still offer you. It could not actually be reached from the plugin's screens, so nothing was broken by it; it is gone now rather than waiting to be found.
 * The daily housekeeping also clears out products whose feed no longer exists, whatever removed it - a restored backup, an edit made straight in the database. Products a published post is showing are kept, as before, so your live pages never go blank.
 
-= 1.0.26 =
-* A product that is no longer available is left out of your pages instead of being shown as a grey "no longer available" card. That card told a reader nothing they could act on, and it made a good post look broken. Where a block has nothing left to show it now renders nothing at all, rather than an empty gap.
-* Products your published posts are showing are no longer removed when you delete their feed. A product block stores only the id, so once the row was gone the post could not name what it lost and the editor could not show you what used to be there. Those rows are kept now, out of your pages but still there to work with.
-
-Older entries (1.0.25 and earlier) are in changelog.txt, which ships with the plugin.
+Older entries (1.0.26 and earlier) are in changelog.txt, which ships with the plugin.
 
 == Upgrade Notice ==
 
