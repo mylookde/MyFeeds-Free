@@ -610,7 +610,9 @@ class MyFeeds_DB_Manager {
         // exists.
         //
         // Deliberately not STATUS_ARCHIVED: that means a product kept
-        // visible after losing a licence, which is the opposite of this.
+        // visible after its feed left the configuration without being
+        // deleted, which is the opposite of this. The orphan sweep that
+        // runs straight after the delete leaves these rows alone.
         $placed = self::placed_product_ids();
 
         if (!empty($placed)) {
@@ -704,12 +706,16 @@ class MyFeeds_DB_Manager {
      */
 
     /**
-     * Status for a product whose feed is gone but which a post still shows.
-     *
-     * Deliberately not 'unavailable' - that means the merchant dropped the
-     * item and the card renders as a placeholder. These are different: the
+     * Status for a product a post still shows whose feed left the
+     * configuration without being deleted - a restored backup, an edit in
+     * the database, a path that drops a feed but not its products. The
      * product is fine, the feed that fed it simply is not configured any
-     * more, so the card must keep rendering with the last values it had.
+     * more, so the card keeps rendering with the last values it had.
+     *
+     * Deliberately not 'unavailable': that is a product the merchant
+     * dropped, or one whose feed the user deleted - gone from the site.
+     * And never written over 'unavailable': that brought a deleted feed's
+     * products back into posts.
      */
     const STATUS_ARCHIVED = 'archived';
 
@@ -764,15 +770,27 @@ class MyFeeds_DB_Manager {
 
         $placeholders = implode(',', array_fill(0, count($orphan_ids), '%d'));
 
-        // Products a post still shows are frozen, not deleted.
+        // What a post still shows stays; everything else of the feed goes,
+        // so the picker stops offering products the site can no longer
+        // refresh.
         //
-        // Losing a feed - by downgrading, by removing it, by the plan
-        // limit taking it away - must not blank out cards that are live on
-        // the site. Those keep rendering with the values they last had;
-        // they simply stop updating, which is what a reader would expect
-        // if the plugin had been switched off. Everything else from that
-        // feed goes, so the picker stops offering products the site can no
-        // longer refresh.
+        // Two kinds of feed land here, and the row's status is what tells
+        // them apart. A feed the user DELETED: the delete path has already
+        // marked what a post holds 'unavailable' - gone from the site - and
+        // removed the rest. Such a row stays exactly as it is. Until
+        // 2026-10-03 this sweep, which runs straight after the delete,
+        // turned it into 'archived', the status that keeps a card
+        // rendering: a deleted feed's products came back into posts with
+        // frozen data.
+        //
+        // A feed that left the configuration WITHOUT being deleted (see
+        // STATUS_ARCHIVED): its rows are still 'active', and the ones a
+        // post shows are archived - frozen at their last values, as if the
+        // plugin had been switched off.
+        //
+        // Every row no post holds goes, whatever its status - an archived
+        // one too, once its last post let it go. Without the list of what
+        // is placed nothing can be told apart, so then only live rows go.
         $placed = self::placed_product_ids();
         $archived = 0;
 
@@ -781,23 +799,30 @@ class MyFeeds_DB_Manager {
                 $keep_ph = implode(',', array_fill(0, count($chunk), '%s'));
                 $archived += (int) $wpdb->query($wpdb->prepare(
                     "UPDATE {$table} SET status = %s
-                     WHERE feed_id IN ({$placeholders}) AND external_id IN ({$keep_ph})",
+                     WHERE feed_id IN ({$placeholders}) AND status = 'active' AND external_id IN ({$keep_ph})",
                     array_merge(array(self::STATUS_ARCHIVED), $orphan_ids, $chunk)
                 ));
             }
-        }
 
-        $deleted = $wpdb->query($wpdb->prepare(
-            "DELETE FROM {$table} WHERE feed_id IN ({$placeholders}) AND status <> %s",
-            array_merge($orphan_ids, array(self::STATUS_ARCHIVED))
-        ));
+            $keep_ph = implode(',', array_fill(0, count($placed), '%s'));
+            $deleted = $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table} WHERE feed_id IN ({$placeholders}) AND external_id NOT IN ({$keep_ph})",
+                array_merge($orphan_ids, $placed)
+            ));
+        } else {
+            $deleted = $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table} WHERE feed_id IN ({$placeholders}) AND status = 'active'",
+                $orphan_ids
+            ));
+        }
 
         // Clear count caches
         delete_transient('myfeeds_active_count_cache');
         delete_transient('myfeeds_feed_counts_cache');
 
         myfeeds_log("DB Cleanup: Deleted {$deleted} products from feed_ids [" . implode(',', $orphan_ids)
-            . "] that belong to no configured feed; kept {$archived} that a published post still shows", 'info');
+            . "] that belong to no configured feed; archived {$archived} live ones a post still shows"
+            . " (unavailable ones a post holds stay unavailable)", 'info');
 
         return (int) $deleted;
     }

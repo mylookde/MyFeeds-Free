@@ -41,12 +41,67 @@ class MyFeeds_Maintenance {
         );
     }
 
+    /** Set once the archived rows that feed deletions left behind are reset. */
+    const ARCHIVED_RESET_FLAG = 'myfeeds_archived_reset_v1';
+
     public static function init() {
         add_action(self::HOOK, array(__CLASS__, 'sweep'));
+        add_action('init', array(__CLASS__, 'reset_archived_from_deletions'), 5);
 
         if (!wp_next_scheduled(self::HOOK)) {
             wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', self::HOOK);
         }
+    }
+
+    /**
+     * Puts back what the orphan sweep took from deleted feeds.
+     *
+     * Until 2026-10-03 the sweep ran straight after a feed was deleted and
+     * turned the products the delete had just marked 'unavailable' into
+     * 'archived' - the status that keeps a card rendering. Nothing else
+     * archived a row in practice: deleting is the only way a feed leaves
+     * the configuration, and a downgrade removes no feed. So an archived
+     * row from before the fix is a deleted feed's product (or a leftover
+     * of the feed-id migration) and goes back to what the delete meant:
+     * unavailable - out of the post, still in the table for the editor.
+     * On mylook.com.de that was 380 rows (UGG DE, SuitSupply, Kickz, UGG,
+     * myGemma), none of them still in a post.
+     *
+     * Before a reader sees a page, hence 'init' and not admin_init: an
+     * archived card renders, and these must not. Once, under a flag; a
+     * storage rebuild in progress (Pro) postpones it to the next request.
+     *
+     * @return int Rows reset.
+     */
+    public static function reset_archived_from_deletions() {
+        if (get_option(self::ARCHIVED_RESET_FLAG)) {
+            return 0;
+        }
+        if (!class_exists('MyFeeds_DB_Manager') || !MyFeeds_DB_Manager::table_exists()) {
+            return 0;
+        }
+        if (class_exists('MyFeeds_Storage_Job') && !MyFeeds_Storage_Job::writers_may_proceed()) {
+            return 0;
+        }
+
+        global $wpdb;
+        $table = MyFeeds_DB_Manager::table_name();
+        $reset = $wpdb->query($wpdb->prepare(
+            "UPDATE {$table} SET status = 'unavailable', unavailable_since = COALESCE(unavailable_since, %s)
+             WHERE status = %s",
+            current_time('mysql'),
+            MyFeeds_DB_Manager::STATUS_ARCHIVED
+        ));
+        if ($reset === false) {
+            myfeeds_log('Archived reset failed, retried on the next request: ' . (string) ($wpdb->last_error ?? ''), 'error');
+            return 0;
+        }
+
+        update_option(self::ARCHIVED_RESET_FLAG, 1, true);
+        if ($reset > 0) {
+            myfeeds_log("Archived reset: {$reset} products of deleted feeds are unavailable again", 'info');
+        }
+        return (int) $reset;
     }
 
     public static function deactivate() {
