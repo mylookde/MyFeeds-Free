@@ -4,6 +4,10 @@ Full changelog
 The most recent releases are also listed on the plugin page on WordPress.org.
 That listing has a length limit, so the complete history lives here.
 
+= 1.0.44 =
+* Fixed: products of a feed you deleted came back into your posts. Deleting a feed takes the products your posts show off the page and keeps them in the database, but the clean-up that runs right after the delete marked them to stay visible again, with their last price and a link that may no longer lead anywhere. They now stay hidden, and products this already happened to are hidden again once, on the first page load after the update.
+* Fixed: products of a removed feed that no post uses any more are now cleared out of the database instead of staying there forever.
+
 = 1.0.43 =
 * Improved: prices are written the way their currency is normally written: "£150.00", "$150.00", "150,00 €". A site whose language uses that same currency keeps its own way of writing it. The card and the block editor always show the same price.
 * Improved: the Feed Name field says what the name is for. Readers see it on your product cards, so the shop's name works best.

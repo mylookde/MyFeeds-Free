@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.43
+Stable tag: 1.0.44
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -191,6 +191,10 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.44 =
+* Fixed: products of a feed you deleted came back into your posts. Deleting a feed takes the products your posts show off the page and keeps them in the database, but the clean-up that runs right after the delete marked them to stay visible again, with their last price and a link that may no longer lead anywhere. They now stay hidden, and products this already happened to are hidden again once, on the first page load after the update.
+* Fixed: products of a removed feed that no post uses any more are now cleared out of the database instead of staying there forever.
+
 = 1.0.43 =
 * Improved: prices are written the way their currency is normally written: "£150.00", "$150.00", "150,00 €". A site whose language uses that same currency keeps its own way of writing it. The card and the block editor always show the same price.
 * Improved: the Feed Name field says what the name is for. Readers see it on your product cards, so the shop's name works best.
@@ -274,8 +278,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * A product that is no longer available is left out of your pages instead of being shown as a grey "no longer available" card. That card told a reader nothing they could act on, and it made a good post look broken. Where a block has nothing left to show it now renders nothing at all, rather than an empty gap.
 * Products your published posts are showing are no longer removed when you delete their feed. A product block stores only the id, so once the row was gone the post could not name what it lost and the editor could not show you what used to be there. Those rows are kept now, out of your pages but still there to work with.
 
-= 1.0.25 =
-* The plugin now lists MyFeeds as its author instead of a personal name, and links to myfeeds.site. Only the entry on your Plugins screen changes; nothing about how the plugin works is affected.
+Older entries (1.0.25 and earlier) are in changelog.txt, which ships with the plugin.
 
 == Upgrade Notice ==
 
