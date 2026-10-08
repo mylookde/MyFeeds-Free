@@ -4,6 +4,9 @@ Full changelog
 The most recent releases are also listed on the plugin page on WordPress.org.
 That listing has a length limit, so the complete history lives here.
 
+= 1.0.46 =
+* Fixed: activating the plugin skipped its own setup step. The product table, the default settings and the scheduled syncs only appeared with the first visit to the WordPress admin afterwards, so a site activated from the command line had no product table until then, and the daily housekeeping wrote "feed list unreadable" to the error log every day until the first feed was added. Activation now sets everything up right away, and running it again (deactivate, activate) keeps your feeds and products as they are.
+
 = 1.0.45 =
 * Improved: the product grid is as wide as your post's text instead of a fixed 1,200 pixels, so cards line up with your writing in every theme. In the block toolbar you can now set it to Wide or Full width, like other blocks.
 * Fixed: on narrow cards a sale price was cut off ("89,9...") next to the struck-through old price. It now moves to its own line. Wider cards look exactly as before.

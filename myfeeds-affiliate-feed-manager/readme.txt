@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.45
+Stable tag: 1.0.46
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -191,6 +191,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.46 =
+* Fixed: activating the plugin skipped its own setup step. The product table, the default settings and the scheduled syncs only appeared with the first visit to the WordPress admin afterwards, so a site activated from the command line had no product table until then, and the daily housekeeping wrote "feed list unreadable" to the error log every day until the first feed was added. Activation now sets everything up right away, and running it again (deactivate, activate) keeps your feeds and products as they are.
+
 = 1.0.45 =
 * Improved: the product grid is as wide as your post's text instead of a fixed 1,200 pixels, so cards line up with your writing in every theme. In the block toolbar you can now set it to Wide or Full width, like other blocks.
 * Fixed: on narrow cards a sale price was cut off ("89,9...") next to the struck-through old price. It now moves to its own line. Wider cards look exactly as before.
@@ -274,11 +277,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 = 1.0.28 =
 * A card no longer sends readers to a size that has sold out. Feeds ship one row per size, and the address stored with a product carries the size along with it - so a reader following a card whose size had gone landed on exactly the size that was gone. MyFeeds now recognises the sizes of one product and links to one that can be bought. Colours stay apart: the grouping is confirmed against the product photograph, so a card showing the sand-coloured pair never links to the black one.
 
-= 1.0.27 =
-* There is one way to delete a feed again. A second one existed that dropped the feed from your settings and left every one of its products in the database - rows with an image, a price and a link into a partnership that had ended, which the product picker would still offer you. It could not actually be reached from the plugin's screens, so nothing was broken by it; it is gone now rather than waiting to be found.
-* The daily housekeeping also clears out products whose feed no longer exists, whatever removed it - a restored backup, an edit made straight in the database. Products a published post is showing are kept, as before, so your live pages never go blank.
-
-Older entries (1.0.26 and earlier) are in changelog.txt, which ships with the plugin.
+Older entries (1.0.27 and earlier) are in changelog.txt, which ships with the plugin.
 
 == Upgrade Notice ==
 
