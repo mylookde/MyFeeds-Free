@@ -4,6 +4,9 @@ Full changelog
 The most recent releases are also listed on the plugin page on WordPress.org.
 That listing has a length limit, so the complete history lives here.
 
+= 1.0.47 =
+* Fixed: a product card could show its grey placeholder instead of the picture on sites where an image optimisation or CDN plugin rewrites the addresses of pictures. Some shops turn such services away, and the card then had no picture, although the same picture loads in any browser. A card now goes back to the picture's own address at the shop, once, when the copy it was given does not load. Sites without such a plugin behave exactly as before, and Jetpack's image CDN already left product cards alone.
+
 = 1.0.46 =
 * Fixed: activating the plugin skipped its own setup step. The product table, the default settings and the scheduled syncs only appeared with the first visit to the WordPress admin afterwards, so a site activated from the command line had no product table until then, and the daily housekeeping wrote "feed list unreadable" to the error log every day until the first feed was added. Activation now sets everything up right away, and running it again (deactivate, activate) keeps your feeds and products as they are.
 

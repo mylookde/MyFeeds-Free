@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.46
+Stable tag: 1.0.47
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -191,6 +191,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.0.47 =
+* Fixed: a product card could show its grey placeholder instead of the picture on sites where an image optimisation or CDN plugin rewrites the addresses of pictures. Some shops turn such services away, and the card then had no picture, although the same picture loads in any browser. A card now goes back to the picture's own address at the shop, once, when the copy it was given does not load. Sites without such a plugin behave exactly as before, and Jetpack's image CDN already left product cards alone.
+
 = 1.0.46 =
 * Fixed: activating the plugin skipped its own setup step. The product table, the default settings and the scheduled syncs only appeared with the first visit to the WordPress admin afterwards, so a site activated from the command line had no product table until then, and the daily housekeeping wrote "feed list unreadable" to the error log every day until the first feed was added. Activation now sets everything up right away, and running it again (deactivate, activate) keeps your feeds and products as they are.
 
@@ -274,10 +277,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * In the product detail view, clicking one of the smaller images now shows it in the large frame. They were there to look at and did nothing.
 * Choosing a size now selects that size. Picking a colour already switched the product for real - link, price and all - but a size only changed what was highlighted, so adding the product to a post linked to whichever size the search had opened. Pick 42 and the card links to 42.
 
-= 1.0.28 =
-* A card no longer sends readers to a size that has sold out. Feeds ship one row per size, and the address stored with a product carries the size along with it - so a reader following a card whose size had gone landed on exactly the size that was gone. MyFeeds now recognises the sizes of one product and links to one that can be bought. Colours stay apart: the grouping is confirmed against the product photograph, so a card showing the sand-coloured pair never links to the black one.
-
-Older entries (1.0.27 and earlier) are in changelog.txt, which ships with the plugin.
+Older entries (1.0.28 and earlier) are in changelog.txt, which ships with the plugin.
 
 == Upgrade Notice ==
 
