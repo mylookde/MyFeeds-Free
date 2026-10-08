@@ -370,6 +370,37 @@ if (!function_exists('myfeeds_image_recipe_for_url')) {
     }
 }
 
+if (!function_exists('myfeeds_image_host_is_small')) {
+    /**
+     * True when the probe measured this host and found its originals
+     * already small.
+     *
+     * That verdict used to mean "nothing for us to do" and nothing
+     * else. It also answers a second question: is a site-wide image CDN
+     * in front of this host worth having? For a 48 KB feed image it is
+     * not - there is nothing left to shrink - and it is one more server
+     * that has to be let in. Famous Footwear's bot protection turned
+     * Jetpack's fetchers away (2026-10-08, mylook.com.de): every image
+     * the CDN had not cached yet came back 403 and the tile stood there
+     * as its alt text, while the same URL loaded in any browser.
+     *
+     * An unmeasured host and a host that is large but cannot be resized
+     * both answer false: there the CDN is the only thing between the
+     * reader and the merchant's original.
+     *
+     * @param string $url Image URL.
+     * @return bool
+     */
+    function myfeeds_image_host_is_small($url) {
+        $host = myfeeds_image_url_host($url);
+        if ($host === '') {
+            return false;
+        }
+        $learned = myfeeds_image_learned_recipes();
+        return isset($learned[$host]['reason']) && $learned[$host]['reason'] === 'small';
+    }
+}
+
 if (!function_exists('myfeeds_image_url_is_signed')) {
     /**
      * True when the query string looks like it carries a signature.
@@ -687,6 +718,60 @@ if (!function_exists('myfeeds_shop_tile_sizes')) {
     }
 }
 
+if (!function_exists('myfeeds_image_origin_fallback_attrs')) {
+    /**
+     * The way back to the feed's own image URL, as <img> attributes.
+     *
+     * Two things can stand between the reader and that URL: our own
+     * rewrite (a resized copy one merchant does not serve) and a
+     * site-wide image CDN that rewrites the src after us (a merchant
+     * that turns the CDN's fetchers away). Either way the browser gets
+     * an error where a picture should be, and either way the answer is
+     * the same: load what the feed shipped, once.
+     *
+     * Three constraints, each one a way this has gone wrong or would:
+     *
+     *   - Nothing in here may contain the plugin's name. The CDN skip
+     *     filter (MyFeeds_Product_Picker::skip_image_cdn_for_cards())
+     *     reads that word anywhere in the tag as "leave this image
+     *     alone". On a tile that is meant to keep its CDN, a fallback
+     *     spelled with the name would switch the CDN off by accident.
+     *   - The URL is stored encoded. A CDN that swaps every copy of the
+     *     URL it finds in the tag (Jetpack before it moved to the HTML
+     *     API did exactly that) would otherwise rewrite the way back
+     *     along with the src, and the fallback would lead to the same
+     *     error it is there to get around.
+     *   - srcset and sizes go before the src is set. While a srcset
+     *     stands the browser keeps choosing from it and never looks at
+     *     the new src.
+     *
+     * The attribute is removed before the retry, so a feed URL that is
+     * broken too ends there instead of looping. When the failing
+     * address IS the feed URL - no CDN in front, nothing rewritten -
+     * there is nothing to go back to and nothing is requested twice.
+     *
+     * @param string $url The feed's own image URL.
+     * @return string Attributes with a leading space, or ''.
+     */
+    function myfeeds_image_origin_fallback_attrs($url) {
+        if (!is_string($url) || $url === '') {
+            return '';
+        }
+        $origin = function_exists('esc_url_raw') ? esc_url_raw($url) : $url;
+        if ($origin === '') {
+            return '';
+        }
+        $encoded = rawurlencode($origin);
+        if (function_exists('esc_attr')) {
+            $encoded = esc_attr($encoded);
+        }
+        return ' data-origin="' . $encoded . '"'
+            . ' onerror="var o=this.getAttribute(\'data-origin\');if(o){this.removeAttribute(\'data-origin\');'
+            . 'o=decodeURIComponent(o);if(o!==this.src){this.removeAttribute(\'srcset\');'
+            . 'this.removeAttribute(\'sizes\');this.src=o;}}"';
+    }
+}
+
 if (!function_exists('myfeeds_image_render_attrs')) {
     /**
      * Build the attribute set for a product <img> tag, with the URL
@@ -718,23 +803,31 @@ if (!function_exists('myfeeds_image_render_attrs')) {
      *                       card fits the picture into its box. Cover
      *                       gets no srcset, see below.
      *
-     * Returns `sized` so the caller can tell a site-wide image CDN to
-     * keep its hands off this one. Jetpack's Photon rewrites the src to
-     * i0.wp.com and DROPS the query string on the way, which throws away
-     * the width we just asked for and sends it back to its own fallback
-     * (content_width, 1200px on most themes). Worse, it then has to pull
-     * the merchant's full-size original itself - and a cold fetch of a
-     * 16.7 MB PNG is exactly the request the browser gave up on, which
-     * is how this whole thing started. Measured on one Jack & Jones
-     * product: Photon at its fallback width 169 KB, our own cap 87 KB,
-     * and no 3 MB fetch behind it.
+     * Returns `sized` and `direct` so the caller can tell a site-wide
+     * image CDN to keep its hands off this one. Jetpack's Photon rewrites
+     * the src to i0.wp.com and DROPS the query string on the way, which
+     * throws away the width we just asked for and sends it back to its
+     * own fallback (content_width, 1200px on most themes). Worse, it
+     * then has to pull the merchant's full-size original itself - and a
+     * cold fetch of a 16.7 MB PNG is exactly the request the browser
+     * gave up on, which is how this whole thing started. Measured on one
+     * Jack & Jones product: Photon at its fallback width 169 KB, our own
+     * cap 87 KB, and no 3 MB fetch behind it.
      *
-     * Only true when the cap actually did something. For a host we
-     * cannot size, an image CDN in front is a real win and must stay.
+     * `sized` is only true when the cap actually did something.
+     *
+     * `direct` is the answer to the CDN question, and it is wider than
+     * `sized`: true when the cap applied, and true when the host's
+     * originals are already small (myfeeds_image_host_is_small()) - a
+     * CDN has nothing to add there and is one more thing that can fail.
+     * False for everything else: for a host we cannot size and whose
+     * originals are large or unmeasured, an image CDN in front is a
+     * real win and must stay. A caller that marks its <img> reads
+     * `direct`, not `sized`.
      *
      * @param string $url  Source image URL.
      * @param array  $opts Optional flags.
-     * @return array { src: string, attrs: string, sized: bool }
+     * @return array { src: string, attrs: string, sized: bool, direct: bool, srcset: string, sizes: string }
      */
     function myfeeds_image_render_attrs($url, $opts = array()) {
         $base   = myfeeds_upgrade_image_url($url);
@@ -798,6 +891,7 @@ if (!function_exists('myfeeds_image_render_attrs')) {
             'src'    => $src,
             'attrs'  => implode(' ', $attrs),
             'sized'  => $sized,
+            'direct' => $sized || myfeeds_image_host_is_small($src),
             'srcset' => $srcset,
             'sizes'  => $sizes,
         );
