@@ -619,17 +619,27 @@ class MyFeeds_Product_Picker {
             ))
             : array('src' => $image_url, 'attrs' => 'loading="lazy" decoding="async"');
         $img_responsive = '';
-        $img_retry      = '';
         if (!empty($img_data['srcset']) && !empty($img_data['sizes'])) {
             $img_responsive = ' srcset="' . esc_attr($img_data['srcset']) . '" sizes="' . esc_attr($img_data['sizes']) . '"';
         }
-        // A resized URL that one merchant does not serve must not blank
-        // the card: first retry with the feed's own URL, then give up.
-        if ($img_responsive !== '' || !empty($img_data['sized'])) {
-            $img_retry = ' data-myfeeds-src="' . esc_url($image_url) . '"';
-        }
-        $card_html .= '<img src="' . esc_url($img_data['src']) . '"' . $img_responsive . $img_retry . ' alt="' . esc_attr($title) . '" ' . $img_data['attrs']
-            . ' onerror="if(this.dataset.myfeedsSrc&&!this.dataset.myfeedsRetried){this.dataset.myfeedsRetried=1;this.removeAttribute(\'srcset\');this.removeAttribute(\'sizes\');this.src=this.dataset.myfeedsSrc;}else{this.parentNode.classList.add(\'myfeeds-img-error\');this.style.display=\'none\';}">';
+        // Whatever fails on the way to the picture - a resized URL one
+        // merchant does not serve, or an image CDN on this site that
+        // the merchant turns away - the card goes back to the feed's
+        // own URL once, and only then gives up and shows its
+        // placeholder. Every card carries that way back: the plugin
+        // cannot know which optimisation plugin rewrites the src after
+        // it, and most of them never ask.
+        //
+        // The give-up script is also what keeps Jetpack's image CDN off
+        // the card: skip_image_cdn_for_cards() looks for the plugin's
+        // name in the tag, and the class name set here carries it. A
+        // card image is always served by the merchant.
+        $img_give_up  = 'this.parentNode.classList.add(\'myfeeds-img-error\');this.style.display=\'none\';';
+        $img_fallback = function_exists('myfeeds_image_origin_fallback_attrs')
+            ? myfeeds_image_origin_fallback_attrs($image_url, $img_give_up)
+            : ' onerror="' . $img_give_up . '"';
+        $card_html .= '<img src="' . esc_url($img_data['src']) . '"' . $img_responsive . ' alt="' . esc_attr($title) . '" ' . $img_data['attrs']
+            . $img_fallback . '>';
         $card_html .= '</div>';
 
         $card_html .= '<div class="myfeeds-product-details">';

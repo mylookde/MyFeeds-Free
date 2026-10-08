@@ -750,16 +750,26 @@ if (!function_exists('myfeeds_image_origin_fallback_attrs')) {
      * address IS the feed URL - no CDN in front, nothing rewritten -
      * there is nothing to go back to and nothing is requested twice.
      *
-     * @param string $url The feed's own image URL.
+     * $give_up is what the caller wants done once there is no way back
+     * left: the picture failed at the feed's own address, or failed
+     * again after the retry. A product card hides the broken image and
+     * shows its placeholder; a storefront tile leaves the alt text
+     * standing and passes nothing. It is the caller's own literal
+     * script, never data, and it goes into a double-quoted attribute:
+     * single quotes only.
+     *
+     * @param string $url     The feed's own image URL.
+     * @param string $give_up Script to run when no way back is left.
      * @return string Attributes with a leading space, or ''.
      */
-    function myfeeds_image_origin_fallback_attrs($url) {
-        if (!is_string($url) || $url === '') {
-            return '';
+    function myfeeds_image_origin_fallback_attrs($url, $give_up = '') {
+        $give_up = is_string($give_up) ? $give_up : '';
+        $origin  = '';
+        if (is_string($url) && $url !== '') {
+            $origin = function_exists('esc_url_raw') ? esc_url_raw($url) : $url;
         }
-        $origin = function_exists('esc_url_raw') ? esc_url_raw($url) : $url;
         if ($origin === '') {
-            return '';
+            return $give_up === '' ? '' : ' onerror="' . $give_up . '"';
         }
         $encoded = rawurlencode($origin);
         if (function_exists('esc_attr')) {
@@ -768,7 +778,7 @@ if (!function_exists('myfeeds_image_origin_fallback_attrs')) {
         return ' data-origin="' . $encoded . '"'
             . ' onerror="var o=this.getAttribute(\'data-origin\');if(o){this.removeAttribute(\'data-origin\');'
             . 'o=decodeURIComponent(o);if(o!==this.src){this.removeAttribute(\'srcset\');'
-            . 'this.removeAttribute(\'sizes\');this.src=o;}}"';
+            . 'this.removeAttribute(\'sizes\');this.src=o;return;}}' . $give_up . '"';
     }
 }
 
