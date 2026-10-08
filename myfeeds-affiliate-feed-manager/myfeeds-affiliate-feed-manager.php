@@ -499,10 +499,7 @@ class MyFeeds_Affiliate_Product_Picker {
         $this->init_components();
         
         add_action('plugins_loaded', array($this, 'init'), 20);
-        
-        register_activation_hook(__FILE__, array($this, 'activate'));
-        register_deactivation_hook(__FILE__, array($this, 'deactivate'));
-        
+
         myfeeds_log("Plugin constructor completed");
     }
     
@@ -726,7 +723,13 @@ class MyFeeds_Affiliate_Product_Picker {
         }
     }
     
-    public function activate() {
+    /**
+     * Runs on every activation, a re-activation included, so each step is
+     * safe to repeat. Each is also redone lazily (the schema steps on
+     * admin_init, the cron checks in init()), which is why a step that fails
+     * is logged instead of keeping the plugin from activating.
+     */
+    public static function activate() {
         myfeeds_log("Plugin activation started");
 
         try {
@@ -734,26 +737,28 @@ class MyFeeds_Affiliate_Product_Picker {
             // imports never race against directory creation on first run.
             myfeeds_uploads_dir();
 
-            $this->create_database_tables();
-            $this->set_default_options();
+            self::create_database_tables();
+            self::set_default_options();
             
             // Schedule daily feed update at 03:00 AM
-            $this->schedule_daily_cron();
-            
-            // Schedule active products sync check
-            if (!wp_next_scheduled('myfeeds_check_import_queue')) {
-                wp_schedule_event(time(), 'every_minute', 'myfeeds_check_import_queue');
-            }
+            self::schedule_daily_cron();
+
+            // No myfeeds_check_import_queue here: the importer decides on
+            // every request (only without Action Scheduler) and clears it
+            // otherwise.
             
             if (class_exists('MyFeeds_Maintenance')) {
                 MyFeeds_Maintenance::init();
             }
 
-            flush_rewrite_rules();
+            // Rebuilt on the next request rather than flushed now. A plugin
+            // adds its rules on init, and init ran before this file was
+            // loaded (activation) or while it still was (deactivation): a
+            // flush here would save the wrong set of rules.
+            delete_option('rewrite_rules');
             myfeeds_log("Plugin activation completed successfully");
-        } catch (Exception $e) {
-            myfeeds_log("EXCEPTION in activate(): " . $e->getMessage());
-            throw $e;
+        } catch (\Throwable $e) {
+            myfeeds_log("EXCEPTION in activate(): " . $e->getMessage(), 'error');
         }
     }
     
@@ -761,7 +766,7 @@ class MyFeeds_Affiliate_Product_Picker {
      * Schedule daily cron job for 02:00 AM local time (Quick Sync)
      * and weekly cron job for Sunday 03:00 AM (Full Import)
      */
-    private function schedule_daily_cron() {
+    private static function schedule_daily_cron() {
         $timezone = wp_timezone();
         $now = new DateTime('now', $timezone);
         
@@ -789,7 +794,7 @@ class MyFeeds_Affiliate_Product_Picker {
         myfeeds_log("Weekly Full Import scheduled for: " . $weekly_target->format('Y-m-d H:i:s T'));
     }
     
-    public function deactivate() {
+    public static function deactivate() {
         myfeeds_log("Plugin deactivation started");
         
         // Clear all scheduled hooks
@@ -806,11 +811,12 @@ class MyFeeds_Affiliate_Product_Picker {
             MyFeeds_Maintenance::deactivate();
         }
 
-        flush_rewrite_rules();
+        // See activate().
+        delete_option('rewrite_rules');
         myfeeds_log("Plugin deactivation completed - all cron jobs cleared");
     }
     
-    private function create_database_tables() {
+    private static function create_database_tables() {
         myfeeds_log("Creating database tables");
         
         if (class_exists('MyFeeds_DB_Manager')) {
@@ -825,13 +831,9 @@ class MyFeeds_Affiliate_Product_Picker {
                 add_option('myfeeds_log_level', 'info');
             }
             
-            // One-time migration: if JSON index exists and DB is empty, migrate
-            if (MyFeeds_DB_Manager::table_exists() && MyFeeds_DB_Manager::get_product_count() === 0) {
-                $migrated = MyFeeds_DB_Manager::migrate_from_json();
-                if ($migrated > 0) {
-                    myfeeds_log("Migrated {$migrated} products from JSON to DB");
-                }
-            }
+            // No import from the old JSON index: an index file a past import
+            // left behind would bring products back into an emptied catalogue
+            // on every re-activation.
             
             // One-time cleanup: Remove "(Priorität)" suffix from feed_name in DB
             MyFeeds_DB_Manager::cleanup_priority_suffix();
@@ -857,7 +859,7 @@ class MyFeeds_Affiliate_Product_Picker {
         }
     }
     
-    private function set_default_options() {
+    private static function set_default_options() {
         myfeeds_log("Setting default options");
         
         $default_options = array(
@@ -895,6 +897,13 @@ class MyFeeds_Affiliate_Product_Picker {
         return $this->feed_manager;
     }
 }
+
+// Registered while this file loads, not in the constructor: the constructor
+// runs on plugins_loaded, and when WordPress activates a plugin that hook
+// has already fired in the same request, so a hook added there is never
+// called.
+register_activation_hook(__FILE__, array('MyFeeds_Affiliate_Product_Picker', 'activate'));
+register_deactivation_hook(__FILE__, array('MyFeeds_Affiliate_Product_Picker', 'deactivate'));
 
 // myfeeds_log merged into myfeeds_log — see line ~214
 
