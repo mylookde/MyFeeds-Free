@@ -1693,6 +1693,7 @@ class MyFeeds_Feed_Manager {
                     $detected_network = $mapper_network;
                     $entry['detected_network'] = $detected_network;
                 }
+                $warning .= self::untracked_awin_notice($test_result['sample_data']);
             } else {
                 $warning = __(' Sample parsing incomplete (large feed) — full mapping will run during import.', 'myfeeds-affiliate-feed-manager');
             }
@@ -2006,13 +2007,13 @@ class MyFeeds_Feed_Manager {
      */
     private function detect_network_from_url($url) {
         $url_patterns = array(
-            'awin' => array('awin.com', 'affiliate-window'),
+            'awin' => array('awin.com', 'awin1.com', 'zenaps.com', 'datafeed.api.productserve.com', 'affiliate-window'),
             'webgains' => array('webgains.com', 'platform-api.webgains.com', 'ikhnaie.link'),
             'admitad' => array('admitad.com', 'export.admitad.com', 'bywiola.com'),
             'tradedoubler' => array('tradedoubler.com', 'clkuk.tradedoubler'),
             'amazon' => array('amazon.', 'amzn.'),
             'ebay' => array('ebay.', 'rover.ebay'),
-            'commissionjunction' => array('cj.com', 'commission-junction', 'dpbolvw.net', 'anrdoezrs.net', 'jdoqocy.com'),
+            'commissionjunction' => array('cj.com', 'commission-junction', 'dpbolvw.net', 'anrdoezrs.net', 'jdoqocy.com', 'kqzyfj.com', 'tkqlhce.com'),
             'shareasale' => array('shareasale.com'),
             'impact' => array('impact.com', 'impactradius.com', 'sjv.io'),
             'partnerize' => array('partnerize.com', 'performancehorizon.com', 'prf.hn'),
@@ -3265,6 +3266,27 @@ class MyFeeds_Feed_Manager {
         return trim((string) $value);
     }
     
+    /**
+     * Say so when an AWIN feed carries no tracked link.
+     *
+     * Create-a-Feed lets the publisher choose the columns. Leave out
+     * aw_deep_link and every row still has merchant_deep_link, the
+     * shop's own address: the import runs, the cards look right, each
+     * click reaches the shop - and none of them is a click AWIN ever
+     * sees. Nothing fails, so nothing is noticed until a month's
+     * commission is missing. The link is not ours to invent; this is
+     * the one moment the owner is looking at the feed.
+     *
+     * @param mixed $row The sample row a new feed was tested with.
+     * @return string Empty when there is nothing to say.
+     */
+    public static function untracked_awin_notice($row) {
+        if (!is_array($row) || !empty($row['aw_deep_link']) || empty($row['merchant_deep_link'])) {
+            return '';
+        }
+        return __(' Warning: this AWIN feed has no "aw_deep_link" column, so its links go straight to the shop and earn no commission. Add the deep link column in AWIN\'s Create-a-Feed and add the feed again.', 'myfeeds-affiliate-feed-manager');
+    }
+
     public function process_critical_fields(array $mapped, array $raw) {
 
         // ============================================================
@@ -3297,9 +3319,13 @@ class MyFeeds_Feed_Manager {
         } elseif (isset($raw['aw_image_url']) && $raw['aw_image_url'] !== '') {
             $mapped['image_url'] = $raw['aw_image_url'];
         }
+        // merchant_deep_link is the shop's own address and earns
+        // nothing. It stands in only where there is no other link at
+        // all; it used to overwrite whatever the mapping had chosen,
+        // tracked or not, whenever aw_deep_link was missing.
         if (isset($raw['aw_deep_link']) && $raw['aw_deep_link'] !== '') {
             $mapped['affiliate_link'] = $raw['aw_deep_link'];
-        } elseif (isset($raw['merchant_deep_link']) && $raw['merchant_deep_link'] !== '') {
+        } elseif (empty($mapped['affiliate_link']) && isset($raw['merchant_deep_link']) && $raw['merchant_deep_link'] !== '') {
             $mapped['affiliate_link'] = $raw['merchant_deep_link'];
         }
 
@@ -3447,9 +3473,12 @@ class MyFeeds_Feed_Manager {
         
         // SECTION 3b: Google Shopping price logic
         // In Google Shopping feeds: price = RRP, sale_price = current price
-        // Detect: If sale_price exists AND is LOWER than price, swap them
-        if (!empty($raw['sale_price']) && !empty($raw['price'])) {
-            $raw_sale = self::parse_price_value($raw['sale_price']);
+        // Detect: If sale_price exists AND is LOWER than price, swap them.
+        // Ascend/Pepperjam spells the same column price_sale; read under
+        // one name only, a discounted product kept its undiscounted price.
+        $sale_field = !empty($raw['sale_price']) ? 'sale_price' : (!empty($raw['price_sale']) ? 'price_sale' : '');
+        if ($sale_field !== '' && !empty($raw['price'])) {
+            $raw_sale = self::parse_price_value($raw[$sale_field]);
             $raw_price = self::parse_price_value($raw['price']);
             
             if ($raw_sale > 0 && $raw_price > 0 && $raw_sale < $raw_price) {

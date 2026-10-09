@@ -3753,7 +3753,7 @@ class MyFeeds_Batch_Importer {
         }
         if (isset($raw['aw_deep_link']) && $raw['aw_deep_link'] !== '') {
             $mapped['affiliate_link'] = $raw['aw_deep_link'];
-        } elseif (isset($raw['merchant_deep_link']) && $raw['merchant_deep_link'] !== '') {
+        } elseif (empty($mapped['affiliate_link']) && isset($raw['merchant_deep_link']) && $raw['merchant_deep_link'] !== '') {
             $mapped['affiliate_link'] = $raw['merchant_deep_link'];
         }
 
@@ -3829,9 +3829,11 @@ class MyFeeds_Batch_Importer {
             }
         }
         
-        // Google Shopping price swap: sale_price < price
-        if (!empty($raw['sale_price']) && !empty($raw['price'])) {
-            $raw_sale = floatval($raw['sale_price']);
+        // Google Shopping price swap: sale_price < price (price_sale
+        // is the same column in an Ascend/Pepperjam feed)
+        $sale_field = !empty($raw['sale_price']) ? 'sale_price' : (!empty($raw['price_sale']) ? 'price_sale' : '');
+        if ($sale_field !== '' && !empty($raw['price'])) {
+            $raw_sale = floatval($raw[$sale_field]);
             $raw_price = floatval($raw['price']);
             if ($raw_sale > 0 && $raw_price > 0 && $raw_sale < $raw_price) {
                 $mapped['price'] = $raw_sale;
