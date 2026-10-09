@@ -101,7 +101,7 @@ MyFeeds re-reads your feed every night and refreshes what is already in your pos
 
 = Which affiliate networks provide a product feed? =
 
-Most of the large ones do: AWIN, Tradedoubler, CJ Affiliate, Impact, Rakuten Advertising, Pepperjam, FlexOffers and Sovrn all publish product feeds, and so do many merchants directly. Look in your network's dashboard for a section called "Product feeds", "Datafeeds" or "Create a feed". MyFeeds reads the file whatever it is called.
+Most of the large ones do: AWIN, Tradedoubler, CJ Affiliate, Impact, Rakuten Advertising, Pepperjam and FlexOffers all offer product feeds, and so do many merchants directly. Some hand you a link, some a file to download. Look in your network's dashboard for a section called "Product feeds", "Datafeeds" or "Create a feed". MyFeeds takes either: paste the link or upload the file.
 
 = Can I build an affiliate store or shop page with this? =
 
@@ -137,25 +137,11 @@ Those are the ones we see most often, and their feeds import without manual work
 
 = Does the plugin make any external requests? =
 
-Yes. See **External Services** below. In short: when you add an AWIN feed, the plugin talks to the official AWIN Publisher API to confirm your credentials and look up feed URLs. No data leaves your site on the frontend.
+Yes. See **External Services** below. In short: the plugin downloads your product feed from the address you saved.
 
 == External Services ==
 
 This plugin connects to external services only when the site administrator chooses to configure a feed that uses them. No external services are contacted on the frontend or for visitors.
-
-= AWIN Publisher API =
-
-When you add an AWIN feed in the WordPress admin, the plugin calls the AWIN Publisher API on your behalf to verify your publisher credentials, look up your approved advertisers, and resolve their feed download URLs so the import job knows where to pull the product feed from.
-
-* **What data is sent:** your AWIN publisher ID, the advertiser ID, and your AWIN API key (passed as an HTTP header). No WordPress user data, no visitor data, and nothing from the frontend is transmitted.
-* **When it is sent:** only in the WordPress admin, when you open the AWIN feed setup dialog, verify credentials, or trigger a feed refresh. No frontend page view ever calls this API.
-* **Where it is sent:** `https://api.awin.com/`, AWIN's official publisher API endpoint.
-* **Why:** AWIN requires publishers to fetch feed download URLs via their API rather than hard-coding them, because the URLs are rotated and tied to your publisher account.
-
-AWIN's terms of service and privacy policy apply to this data exchange:
-
-* Terms of Service: <https://www.awin.com/gb/publisher-terms>
-* Privacy Policy: <https://www.awin.com/gb/legal/privacy-policy>
 
 = Configured product feed URL (your affiliate network) =
 
