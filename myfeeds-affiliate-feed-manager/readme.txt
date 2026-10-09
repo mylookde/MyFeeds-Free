@@ -137,23 +137,37 @@ Those are the ones we see most often, and their feeds import without manual work
 
 = Does the plugin make any external requests? =
 
-Yes. See **External Services** below. In short: the plugin downloads your product feed from the address you saved.
+Yes. See **External Services** below. In short: your site downloads your product feed from the address you saved and measures the file size of a few product pictures. The pictures themselves stay with the merchant, and your readers' browsers load them from there.
 
 == External Services ==
 
-This plugin connects to external services only when the site administrator chooses to configure a feed that uses them. No external services are contacted on the frontend or for visitors.
+MyFeeds keeps your products in your own WordPress database. It contacts other servers in two cases: your site fetches the product feed you configured, and it measures the file size of a few product pictures. The pictures themselves are not copied to your site, so your readers' browsers load them from the merchant. Each case is described below.
 
 = Configured product feed URL (your affiliate network) =
 
-To import products, the plugin downloads the feed file from the URL you save in the Feed Manager. The feed URL points to your affiliate network's product feed export, in CSV, TSV, XML, or JSON format.
+To import products, your site downloads the feed file from the URL you save in the Feed Manager. The URL points to your affiliate network's product feed export, in CSV, TSV, XML, or JSON format.
 
-* **What data is sent:** an HTTP GET request to the feed URL with a `User-Agent` header identifying the WordPress site and plugin version. No publisher credentials, user data, or visitor data are sent in the request body.
-* **When it is sent:** in the WordPress admin only, when you click "Reimport", and on the configured cron schedule (nightly quick sync and weekly full import). The frontend never calls the feed URL.
-* **Where it is sent:** to the host in the feed URL you configure. The plugin does not share that URL with any third party.
+* **What is sent:** an HTTP GET request to the feed URL. It carries WordPress's standard `User-Agent` header, which names your WordPress version and your site address. Anything your network put into the feed URL itself (for example a publisher ID or a key) travels with it. No visitor data is sent.
+* **When it is sent:** when you add, edit, test or reimport a feed in the WordPress admin, and on the plugin's schedule (a daily sync and a weekly full import). Showing a product card to a reader never calls the feed URL.
+* **Where it is sent:** to the host in the feed URL you saved. If that address redirects, the plugin follows the redirect. The plugin does not pass the URL on to anyone else.
 
-Because the feed URL itself is provided by an affiliate network, the privacy and terms of that download are governed by that network. Please refer to your network's terms of service and privacy policy for details on what they record about feed downloads.
+The feed is provided by your affiliate network, so that network's terms of service and privacy policy apply to the download.
 
-No data is sent to any other external service. The plugin stores imported products in your own WordPress database and serves them from there; the frontend never contacts an external host to render a product.
+= Product pictures (the merchant's image server) =
+
+A feed lists the web address of every product picture, on the merchant's own server or image CDN. MyFeeds shows the picture from that address and does not copy it to your site.
+
+* **In your readers' browsers:** when a reader opens a post with product cards, their browser requests each picture from the merchant's image server, as it does for any picture embedded from another website. That server receives what a browser always sends: the reader's IP address, browser details and, usually, the address of your site. The same happens in your own browser when you search and pick products in the block editor.
+* **From your server:** to keep your pages light, the plugin finds out whether a merchant's image server can deliver a smaller version of a picture. For this, your server asks for the first byte of a few sample pictures per image host and reads the file size from the reply. These requests carry WordPress's standard `User-Agent` header and no visitor data. The check starts after you have opened the WordPress admin, runs in the background, and does not ask a host again for at least a month once that host has answered.
+* **Where it is sent:** to the hosts named in the picture addresses of your feed.
+
+Which hosts these are depends on the feeds you import, and their terms and privacy policies apply. If your site uses an image optimisation or CDN plugin that rewrites picture addresses, pictures may be loaded through that service instead.
+
+= Links on a product card =
+
+Every product card links to the affiliate link from your feed. A request to your affiliate network or the merchant happens only when a reader clicks a card. Sample products, if you use them, link to a page on myfeeds.site.
+
+Apart from the above, the plugin sends nothing anywhere: it has no analytics, no tracking and no usage reporting. Links in the plugin's admin screens (to myfeeds.site, to the review page on WordPress.org, to the checkout of the paid plugins) open only when you click them.
 
 == Source Code ==
 
