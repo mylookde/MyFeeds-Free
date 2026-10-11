@@ -32,6 +32,13 @@
  * no outbound HTTP, a host that ignores Range, a CDN with no resizer —
  * ends in the same place: the URL is used exactly as the merchant wrote
  * it, which is what happened before this file existed.
+ *
+ * The addresses asked here are written by whoever writes the feed, not
+ * by the person who runs the site. So every request goes through the
+ * guarded door in myfeeds-http.php, which refuses an address on this
+ * machine or its private network - on the first hop and on every
+ * redirect after it. A host refused that way is not asked, and is
+ * rendered like any host nobody has measured.
  */
 
 if (!defined('ABSPATH')) {
@@ -144,6 +151,16 @@ class MyFeeds_Image_CDN_Probe {
                 // Range unsupported). Say nothing rather than something
                 // wrong; the next window asks again.
                 continue;
+            }
+            if (isset($verdict['reason']) && $verdict['reason'] === 'blocked' && function_exists('myfeeds_log')) {
+                // Once per host and month, here rather than at the door:
+                // nothing is broken, and the door's own line is about
+                // feed URLs.
+                myfeeds_log(
+                    'Image probe: ' . $host . ' was not asked how big its pictures are, because the address '
+                    . 'leads inside this server or its private network. Its pictures are shown as before.',
+                    'info'
+                );
             }
             $recipes[$host] = $verdict;
             $done++;
@@ -262,8 +279,13 @@ class MyFeeds_Image_CDN_Probe {
         // The biggest of the samples is the honest baseline: a feed
         // mixes a 40 KB packshot with a 16 MB master, and a grammar is
         // worth having because of the second one.
+        $refused = 0;
         foreach ((array) $urls as $url) {
-            $size = self::remote_size($url);
+            $measured = self::measure($url);
+            if ($measured['refused']) {
+                $refused++;
+            }
+            $size = $measured['size'];
             if ($size === null) {
                 continue;
             }
@@ -274,6 +296,25 @@ class MyFeeds_Image_CDN_Probe {
         }
 
         if ($sample === '' || $baseline <= 0) {
+            // Every sample was turned away at the door. That is not a
+            // host being down: it is a decision, and it comes out the
+            // same in twelve hours. Left open, the host would be looked
+            // up twice a day for good, and since a run takes its hosts
+            // from the front of the queue, three of these would keep
+            // every host behind them from ever being measured.
+            //
+            // No grammar is stored, on purpose. Nothing was measured, so
+            // the entry claims nothing: a seed still applies, and a URL
+            // without one stays as the merchant wrote it - exactly what
+            // an unmeasured host gets. pending_hosts() treats a missing
+            // grammar like a "no" and waits TTL_NONE before asking again.
+            if ($refused > 0 && $refused === count((array) $urls)) {
+                return array(
+                    'reason' => 'blocked',
+                    'source' => 'probe',
+                    'at'     => time(),
+                );
+            }
             return null;
         }
 
@@ -362,8 +403,27 @@ class MyFeeds_Image_CDN_Probe {
      * @return int|null Bytes, or null.
      */
     public static function remote_size($url) {
-        if (!function_exists('wp_remote_get') || !is_string($url) || $url === '') {
-            return null;
+        $measured = self::measure($url);
+        return $measured['size'];
+    }
+
+    /**
+     * remote_size(), and whether the door turned the address away.
+     *
+     * Both requests go through the guarded door. A refusal ends the
+     * measurement: the HEAD would be the same address, or the same
+     * redirect, meeting the same check.
+     *
+     * @param string $url URL to measure.
+     * @return array{size:int|null,refused:bool}
+     */
+    private static function measure($url) {
+        $unmeasured = array('size' => null, 'refused' => false);
+
+        if (!function_exists('myfeeds_remote_get') || !function_exists('myfeeds_remote_head')
+            || !is_string($url) || $url === ''
+        ) {
+            return $unmeasured;
         }
 
         $args = array(
@@ -381,36 +441,59 @@ class MyFeeds_Image_CDN_Probe {
             // The transfer still runs to its end or to the timeout:
             // this stops the storing, not the receiving.
             'limit_response_size' => 1,
+            // run() reports a refused host, once, in words about pictures.
+            'myfeeds_log_refusal' => false,
         );
-        $res = wp_remote_get($url, $args);
+        $res = myfeeds_remote_get($url, $args);
+        if (self::was_refused($res)) {
+            return array('size' => null, 'refused' => true);
+        }
         if (!is_wp_error($res)) {
             $code = (int) wp_remote_retrieve_response_code($res);
             if ($code === 206) {
                 $range = (string) wp_remote_retrieve_header($res, 'content-range');
                 if (preg_match('#/(\d+)\s*$#', $range, $m)) {
-                    return (int) $m[1];
+                    return array('size' => (int) $m[1], 'refused' => false);
                 }
             }
             if ($code === 200) {
                 $len = (string) wp_remote_retrieve_header($res, 'content-length');
                 if ($len !== '' && ctype_digit($len)) {
-                    return (int) $len;
+                    return array('size' => (int) $len, 'refused' => false);
                 }
             }
             if ($code >= 400) {
-                return null;
+                return $unmeasured;
             }
         }
 
-        $head = wp_remote_head($url, array('timeout' => 10, 'redirection' => 3));
+        $head = myfeeds_remote_head($url, array('timeout' => 10, 'redirection' => 3, 'myfeeds_log_refusal' => false));
+        if (self::was_refused($head)) {
+            return array('size' => null, 'refused' => true);
+        }
         if (is_wp_error($head)) {
-            return null;
+            return $unmeasured;
         }
         if ((int) wp_remote_retrieve_response_code($head) >= 400) {
-            return null;
+            return $unmeasured;
         }
         $len = (string) wp_remote_retrieve_header($head, 'content-length');
-        return ($len !== '' && ctype_digit($len)) ? (int) $len : null;
+        return ($len !== '' && ctype_digit($len))
+            ? array('size' => (int) $len, 'refused' => false)
+            : $unmeasured;
+    }
+
+    /**
+     * Did the door refuse this because of where the address points?
+     *
+     * Only that. A name that does not resolve, or one redirect too many,
+     * may be different tomorrow and stays an ordinary failure.
+     *
+     * @param mixed $response What the door returned.
+     * @return bool
+     */
+    private static function was_refused($response) {
+        return is_wp_error($response) && $response->get_error_code() === 'myfeeds_private_host';
     }
 
     /**
