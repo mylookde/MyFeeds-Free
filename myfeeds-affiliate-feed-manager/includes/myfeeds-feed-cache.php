@@ -200,6 +200,8 @@ function myfeeds_get_feed_content($feed_url, $feed_index, $run_id) {
         MyFeeds_Logger::info("FeedCache: MISS for feed_index={$feed_index}, downloading from {$feed_url}");
     }
     
+    // An uploaded feed comes back from the disk: myfeeds_remote_get()
+    // knows our own files and does not ask the web server for them.
     $response = myfeeds_remote_get($feed_url, array(
         'timeout' => 60,
         'headers' => array('Accept-Encoding' => 'gzip, deflate'),
@@ -327,8 +329,9 @@ function myfeeds_ensure_feed_cached($feed_url, $feed_index, $run_id) {
     }
     
     $temp_path = $cache_path . '.download';
-    
-    // Stream download directly to temp file — body never enters PHP memory
+
+    // Stream download directly to temp file — body never enters PHP memory.
+    // An uploaded feed is copied from the disk by myfeeds_remote_get().
     $response = myfeeds_remote_get($feed_url, array(
         'timeout' => 120,
         'stream'  => true,

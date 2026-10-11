@@ -1419,7 +1419,7 @@ class MyFeeds_Feed_Manager {
                 );
             }
 
-            $this->redirect_with_success($status_msg);
+            $this->redirect_with_success($status_msg . $this->upload_exposure_note($url, $uploaded));
 
         } catch (\Throwable $e) {
             MyFeeds_Affiliate_Product_Picker::log("FATAL ERROR in handle_save_feed: " . $e->getMessage());
@@ -1449,6 +1449,25 @@ class MyFeeds_Feed_Manager {
         }
 
         return __('uploaded file', 'myfeeds-affiliate-feed-manager');
+    }
+
+    /**
+     * What to tell the owner about a file that was just stored.
+     *
+     * Asked once, at the moment of the upload: the only time the owner
+     * is looking, and the only time the answer can have changed.
+     *
+     * @param string     $url      Resolved feed URL.
+     * @param array|null $uploaded Result of a fresh upload, if there was one.
+     * @return string Empty, or a sentence starting with a space.
+     */
+    private function upload_exposure_note($url, $uploaded) {
+        if (!is_array($uploaded) || !class_exists('MyFeeds_Feed_Upload')) {
+            return '';
+        }
+        return MyFeeds_Feed_Upload::reachability($url) === 'open'
+            ? MyFeeds_Feed_Upload::open_folder_notice()
+            : '';
     }
 
     /**
@@ -1674,6 +1693,7 @@ class MyFeeds_Feed_Manager {
                 $import_hint = $import_scheduled
                     ? __(' Importing products in the background...', 'myfeeds-affiliate-feed-manager')
                     : __(' The feed will be imported during the next "Update All Feeds".', 'myfeeds-affiliate-feed-manager');
+                $import_hint .= $this->upload_exposure_note($url, $uploaded);
 
                 wp_send_json_success(array(
                     'message' => sprintf(
@@ -1752,6 +1772,7 @@ class MyFeeds_Feed_Manager {
             $import_hint = $import_scheduled 
                 ? __(' Importing products in the background...', 'myfeeds-affiliate-feed-manager')
                 : '';
+            $import_hint .= $this->upload_exposure_note($url, $uploaded);
             
             wp_send_json_success(array(
                 'message' => sprintf(
