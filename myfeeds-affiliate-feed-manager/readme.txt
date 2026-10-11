@@ -101,7 +101,7 @@ MyFeeds re-reads your feed every night and refreshes what is already in your pos
 
 = Which affiliate networks provide a product feed? =
 
-Most of the large ones do: AWIN, Tradedoubler, CJ Affiliate, Impact, Rakuten Advertising, Pepperjam, FlexOffers and Sovrn all publish product feeds, and so do many merchants directly. Look in your network's dashboard for a section called "Product feeds", "Datafeeds" or "Create a feed". MyFeeds reads the file whatever it is called.
+Most of the large ones do: AWIN, Tradedoubler, CJ Affiliate, Impact, Rakuten Advertising, Pepperjam and FlexOffers all offer product feeds, and so do many merchants directly. Some hand you a link, some a file to download. Look in your network's dashboard for a section called "Product feeds", "Datafeeds" or "Create a feed". MyFeeds takes either: paste the link or upload the file.
 
 = Can I build an affiliate store or shop page with this? =
 
