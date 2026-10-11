@@ -974,9 +974,15 @@
                                 
                                 isSaving = false;
                             } else {
-                                // Normal reload for edits
+                                // Normal reload for edits. An edit that
+                                // changed the address or the file imports
+                                // nothing by itself; the reloaded page
+                                // offers it (offerReimport below).
+                                var offer = response.data.source_changed
+                                    ? '&myfeeds_offer_reimport=' + encodeURIComponent(response.data.feed_key)
+                                    : '';
                                 setTimeout(function() {
-                                    window.location.href = cfg.feedsPageUrl + '&myfeeds_success=' + encodeURIComponent(response.data.message);
+                                    window.location.href = cfg.feedsPageUrl + offer + '&myfeeds_success=' + encodeURIComponent(response.data.message);
                                 }, 800);
                             }
                         } else {
@@ -999,6 +1005,47 @@
                     });
             });
             
+            // ===================================================================
+            // AFTER AN EDIT THAT CHANGED THE SOURCE: offer the import
+            // The catalogue still holds the old feed's products. One line
+            // above the table says so and starts the import on a click; the
+            // click is the row's own Reimport button, so there is one way in.
+            // ===================================================================
+            (function offerReimport() {
+                var params = new URLSearchParams(window.location.search);
+                var key = params.get('myfeeds_offer_reimport');
+                if (key === null || key === '') return;
+
+                // Asked once: a reload must not bring the offer back.
+                params.delete('myfeeds_offer_reimport');
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', window.location.pathname + '?' + params.toString());
+                }
+
+                var $button = $('.myfeeds-reimport-btn').filter(function() {
+                    return String($(this).data('feed-key')) === String(key);
+                });
+                if (!$button.length || $button.prop('disabled')) return;
+
+                var $offer = $('<div class="notice notice-warning myfeeds-offer-reimport" style="padding:10px 12px;"></div>');
+                $offer.append($('<strong>').text($button.data('feed-name') + ': '));
+                $offer.append(document.createTextNode(i18n.sourceChanged + ' '));
+                $offer.append($('<button type="button" class="button button-primary" style="margin-left:6px;"></button>').text(i18n.importNow)
+                    .on('click', function() {
+                        $offer.remove();
+                        $button.trigger('click');
+                    }));
+                $offer.append($('<button type="button" class="button-link" style="margin-left:10px;"></button>').text(i18n.importLater)
+                    .on('click', function() {
+                        $offer.remove();
+                    }));
+
+                var $table = $('.myfeeds-feeds-table').first();
+                if ($table.length) {
+                    $table.before($offer);
+                }
+            })();
+
             // ===================================================================
             // AUTO-REFRESH POLLING: Check feed status after creation
             // Activated via URL parameter ?myfeeds_poll_feed=<key>

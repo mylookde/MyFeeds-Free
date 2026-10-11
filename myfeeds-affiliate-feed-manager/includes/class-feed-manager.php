@@ -176,6 +176,9 @@ class MyFeeds_Feed_Manager {
                     'addingFeed'          => __('Adding feed...', 'myfeeds-affiliate-feed-manager'),
                     'unknownError'        => __('An unknown error occurred.', 'myfeeds-affiliate-feed-manager'),
                     'serverError'         => __('Server error. Please try again.', 'myfeeds-affiliate-feed-manager'),
+                    'sourceChanged'       => __('This feed now comes from a new address or file. Your posts keep showing the products from the old one until it is imported again.', 'myfeeds-affiliate-feed-manager'),
+                    'importNow'           => __('Import now', 'myfeeds-affiliate-feed-manager'),
+                    'importLater'         => __('Later', 'myfeeds-affiliate-feed-manager'),
                 ),
             ));
         }
@@ -1452,6 +1455,29 @@ class MyFeeds_Feed_Manager {
     }
 
     /**
+     * Did an edit change where the feed comes from?
+     *
+     * Saving an edit stores the new address or file and imports
+     * nothing: the catalogue keeps the old feed's products until
+     * someone presses Reimport, and nothing on the screen said so. The
+     * browser is told, and offers the import (feed-manager.js). It is
+     * offered, not started: a reimport downloads the whole feed and
+     * works the field mapping out again, which is not what everyone who
+     * fixes a typo in an address wants in that moment.
+     *
+     * @param array      $existing The entry before the save; empty for a new feed.
+     * @param string     $url      The address being saved.
+     * @param array|null $uploaded Result of a fresh upload, if there was one.
+     * @return bool
+     */
+    public static function source_changed($existing, $url, $uploaded) {
+        if (!is_array($existing) || empty($existing['url'])) {
+            return false;
+        }
+        return is_array($uploaded) || (string) $existing['url'] !== (string) $url;
+    }
+
+    /**
      * What to tell the owner about a file that was just stored.
      *
      * Asked once, at the moment of the upload: the only time the owner
@@ -1612,6 +1638,7 @@ class MyFeeds_Feed_Manager {
             }
             $url = $source['url'];
             $uploaded = $source['upload'];
+            $source_changed = self::source_changed($existing, $url, $uploaded);
 
             if (empty($name) || empty($url)) {
                 wp_send_json_error(array('message' => __('Feed name and URL are required.', 'myfeeds-affiliate-feed-manager')));
@@ -1705,6 +1732,7 @@ class MyFeeds_Feed_Manager {
                     'status' => 'untested',
                     'import_scheduled' => $import_scheduled,
                     'feed_key' => 0,
+                    'source_changed' => $source_changed,
                     'detected_network' => $detected_network,
                     'source_label' => $this->source_label_for($url, $uploaded),
                     'source_label' => $this->source_label_for($url, $uploaded),
@@ -1786,6 +1814,7 @@ class MyFeeds_Feed_Manager {
                 'status' => 'active',
                 'import_scheduled' => $import_scheduled,
                 'feed_key' => 0,
+                'source_changed' => $source_changed,
                 'detected_network' => $detected_network,
                 'table_html' => $this->feeds_table_html(),
             ));
