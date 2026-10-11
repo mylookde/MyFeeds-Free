@@ -316,9 +316,15 @@ class MyFeeds_Smart_Mapper {
                 ]
             ],
             'tradedoubler' => [
-                'signature_fields' => ['TDProductId', 'TD_PROD_ID', 'TD_PRODUCT_URL', 'productUrl'],
+                // sourceProductId and programName are what a row of the
+                // Products API always carries (the feed reader lifts
+                // them out of offers[]). Without them an uploaded file,
+                // which has no Tradedoubler address to go by, scored
+                // lower than Google Shopping on `availability` and
+                // `condition` alone and was mapped by its rules.
+                'signature_fields' => ['TDProductId', 'TD_PROD_ID', 'TD_PRODUCT_URL', 'productUrl', 'sourceProductId', 'programName'],
                 'url_patterns' => ['tradedoubler.com', 'clkuk.tradedoubler'],
-                'field_prefixes' => ['TD_', 'td_'],
+                'field_prefixes' => ['TD_', 'td_', 'sourceProduct'],
                 'confidence_boost' => 20,
                 // TradeDoubler PAN feeds use mixed snake_case + UpperCamel
                 // across XML / CSV / Bulk Product Feed (BPF) variants. Each
