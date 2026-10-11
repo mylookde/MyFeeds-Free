@@ -371,6 +371,16 @@ class MyFeeds_Image_CDN_Probe {
             'redirection' => 3,
             'sslverify'   => true,
             'headers'     => array('Range' => 'bytes=0-0', 'Accept' => 'image/*,*/*'),
+            // A host is free to ignore Range and answer 200 with the
+            // whole image, and WordPress holds a body in memory unless
+            // it is told where to stop. cdn.shopify.com does exactly
+            // that for an address it is asked for the first time
+            // (measured 2026-10-11), which is every address this probe
+            // makes up. Only headers are read here, so one byte is all
+            // that is kept - not 0, which WordPress reads as no limit.
+            // The transfer still runs to its end or to the timeout:
+            // this stops the storing, not the receiving.
+            'limit_response_size' => 1,
         );
         $res = wp_remote_get($url, $args);
         if (!is_wp_error($res)) {
