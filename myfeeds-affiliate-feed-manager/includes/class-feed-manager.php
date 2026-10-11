@@ -2087,7 +2087,8 @@ class MyFeeds_Feed_Manager {
         $http_code = wp_remote_retrieve_response_code($response);
         
         if ($http_code !== 200) {
-            return new WP_Error('http_error', "HTTP Error $http_code when accessing feed");
+            $explained = myfeeds_feed_http_explained($http_code, $url);
+            return $explained ? $explained : new WP_Error('http_error', "HTTP Error $http_code when accessing feed");
         }
         
         if (empty($body)) {
@@ -2143,7 +2144,8 @@ class MyFeeds_Feed_Manager {
         
         $http_code = wp_remote_retrieve_response_code($response);
         if ($http_code !== 200 && $http_code !== 206) {
-            return new \WP_Error('http_error', "HTTP Error $http_code when accessing feed");
+            $explained = myfeeds_feed_http_explained($http_code, $url);
+            return $explained ? $explained : new \WP_Error('http_error', "HTTP Error $http_code when accessing feed");
         }
         
         $body = wp_remote_retrieve_body($response);
@@ -3271,28 +3273,7 @@ class MyFeeds_Feed_Manager {
      * Handles: "2.00", "2.00 EUR", "EUR 2.00", "2,00", "$19.99"
      */
     private static function parse_price_value($value) {
-        // Array safety (XML feeds may return arrays for repeated elements)
-        if (is_array($value)) {
-            $value = isset($value[0]) ? $value[0] : '';
-        }
-        if (is_numeric($value)) {
-            return floatval($value);
-        }
-        if (!is_string($value) || trim($value) === '') {
-            return 0;
-        }
-        // Character class, not byte class - see myfeeds-text.php.
-        $value = myfeeds_preg_replace_text('/[€$£¥₹]/u', '', $value);
-        $value = preg_replace('/\b(EUR|USD|GBP|CHF|AED|SAR|EGP|JPY|CNY|INR|AUD|CAD|SEK|NOK|DKK|PLN|CZK|HUF|RON|BGN|HRK|TRY|BRL|MXN|KRW)\b/i', '', $value);
-        $value = trim($value);
-        // Handle comma as decimal separator (European format: 2,00)
-        if (preg_match('/^\d+,\d{2}$/', $value)) {
-            $value = str_replace(',', '.', $value);
-        }
-        if (preg_match('/(\d+\.?\d*)/', $value, $matches)) {
-            return floatval($matches[1]);
-        }
-        return 0;
+        return myfeeds_parse_price($value);
     }
     
     /**

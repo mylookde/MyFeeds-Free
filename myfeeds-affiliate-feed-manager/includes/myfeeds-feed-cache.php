@@ -166,6 +166,72 @@ function myfeeds_extract_zip_feed($zip_path, $dest_path) {
 }
 
 /**
+ * How long a feed download may take, in seconds.
+ *
+ * Two minutes. A feed that is streamed to disk moves several megabytes
+ * a second, so this is rarely about size; it is about servers that
+ * build the file on request before sending the first byte. Raising it
+ * runs into PHP's own time limit on most shared hosts, which ends the
+ * import without a word instead of with a message.
+ *
+ * @param string $feed_url
+ * @return int
+ */
+function myfeeds_feed_download_timeout($feed_url = '') {
+    $seconds = (int) apply_filters('myfeeds_feed_download_timeout', 120, $feed_url);
+    return $seconds > 0 ? $seconds : 120;
+}
+
+/**
+ * A status code whose cause is worth naming.
+ *
+ * 429 is not a broken link: the network counted the downloads. For
+ * Tradedoubler that is a published rule and the usual way to meet it -
+ * adding a feed, testing it and the nightly sync are three downloads
+ * of the same file.
+ *
+ * @param int    $http_code
+ * @param string $feed_url
+ * @return WP_Error|null Null when the plain "HTTP n" says all there is.
+ */
+function myfeeds_feed_http_explained($http_code, $feed_url) {
+    if ((int) $http_code !== 429) {
+        return null;
+    }
+
+    $message = __('The feed\'s server refused the download because the feed was requested too often (HTTP 429). Nothing was changed; the next sync tries again.', 'myfeeds-affiliate-feed-manager');
+
+    if (stripos((string) wp_parse_url((string) $feed_url, PHP_URL_HOST), 'tradedoubler.') !== false) {
+        $message .= ' ' . __('Tradedoubler hands out the same version of a full feed three times in 24 hours and then waits until the feed has changed.', 'myfeeds-affiliate-feed-manager');
+    }
+
+    return new WP_Error('http_rate_limited', $message);
+}
+
+/**
+ * A download that ran out of time, in words instead of cURL's.
+ *
+ * @param mixed $error   What the HTTP layer returned.
+ * @param int   $seconds The limit the download ran under.
+ * @return WP_Error|null Null when the error is not a timeout.
+ */
+function myfeeds_feed_timeout_explained($error, $seconds) {
+    if (!is_wp_error($error)) {
+        return null;
+    }
+    $said = (string) $error->get_error_message();
+    if (stripos($said, 'timed out') === false && stripos($said, 'cURL error 28') === false) {
+        return null;
+    }
+
+    return new WP_Error('download_timeout', sprintf(
+        /* translators: %d: number of seconds */
+        __('The download had not finished after %d seconds and was stopped; nothing was imported. A very large feed, or one the network builds on request, can take longer than that. Try again in a few minutes, or download the file yourself and upload it.', 'myfeeds-affiliate-feed-manager'),
+        (int) $seconds
+    ));
+}
+
+/**
  * Get feed content — from cache if available, otherwise download and cache.
  * 
  * The cache is keyed by feed_index + run_id, ensuring each import run
@@ -208,12 +274,14 @@ function myfeeds_get_feed_content($feed_url, $feed_index, $run_id) {
     ));
     
     if (is_wp_error($response)) {
-        return $response;
+        $timed_out = myfeeds_feed_timeout_explained($response, 60);
+        return $timed_out ? $timed_out : $response;
     }
     
     $http_code = wp_remote_retrieve_response_code($response);
     if ($http_code !== 200) {
-        return new WP_Error('http_error', "Feed returned HTTP {$http_code}");
+        $explained = myfeeds_feed_http_explained($http_code, $feed_url);
+        return $explained ? $explained : new WP_Error('http_error', "Feed returned HTTP {$http_code}");
     }
     
     $body = wp_remote_retrieve_body($response);
@@ -332,21 +400,24 @@ function myfeeds_ensure_feed_cached($feed_url, $feed_index, $run_id) {
 
     // Stream download directly to temp file — body never enters PHP memory.
     // An uploaded feed is copied from the disk by myfeeds_remote_get().
+    $timeout = myfeeds_feed_download_timeout($feed_url);
     $response = myfeeds_remote_get($feed_url, array(
-        'timeout' => 120,
+        'timeout' => $timeout,
         'stream'  => true,
         'filename' => $temp_path,
     ));
     
     if (is_wp_error($response)) {
         @wp_delete_file($temp_path);
-        return $response;
+        $timed_out = myfeeds_feed_timeout_explained($response, $timeout);
+        return $timed_out ? $timed_out : $response;
     }
     
     $http_code = wp_remote_retrieve_response_code($response);
     if ($http_code !== 200) {
         @wp_delete_file($temp_path);
-        return new WP_Error('http_error', "Feed returned HTTP {$http_code}");
+        $explained = myfeeds_feed_http_explained($http_code, $feed_url);
+        return $explained ? $explained : new WP_Error('http_error', "Feed returned HTTP {$http_code}");
     }
     
     if (!file_exists($temp_path) || filesize($temp_path) === 0) {
