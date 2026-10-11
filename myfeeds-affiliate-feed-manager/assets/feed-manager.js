@@ -680,6 +680,19 @@
             var nonce = myfeedsAdmin.nonce;
             var isSaving = false;
             
+            // A feed can carry a hint the list no longer offers, or one a
+            // filter added. A select with no matching option submits
+            // nothing, and the next save would quietly drop the value.
+            function keepUnlistedHint(hint) {
+                var $select = $('#feed_network_hint');
+                $select.find('option[data-unlisted]').remove();
+                if (!hint) return;
+                var listed = $select.find('option').filter(function() { return this.value === hint; }).length;
+                if (!listed) {
+                    $select.append($('<option>').val(hint).text(hint).attr('data-unlisted', '1'));
+                }
+            }
+
             // Open modal for Add
             $(document).on('click', '#myfeeds-add-feed-btn', function(e) {
                 e.preventDefault();
@@ -689,6 +702,7 @@
                 $('#feed_name').val('');
                 $('#feed_url').val('');
                 $('#feed_format_hint').val('');
+                keepUnlistedHint('');
                 $('#feed_network_hint').val('');
                 $('#feed_file').val('');
                 $form.data('hasStoredUpload', false);
@@ -706,7 +720,7 @@
                 var name = $btn.data('feed-name');
                 var url = $btn.data('feed-url');
                 var formatHint = $btn.data('feed-format') || '';
-                var networkHint = $btn.data('feed-network') || 'awin';
+                var networkHint = $btn.data('feed-network') || '';
                 
                 $title.text(i18n.editFeed + ' ' + name);
                 $submitBtn.val(i18n.saveChanges);
@@ -714,6 +728,7 @@
                 $('#feed_name').val(name);
                 $('#feed_url').val(url);
                 $('#feed_format_hint').val(formatHint);
+                keepUnlistedHint(networkHint);
                 $('#feed_network_hint').val(networkHint);
 
                 var isUploaded = $btn.data('feed-uploaded') === 1 || $btn.data('feed-uploaded') === '1';
