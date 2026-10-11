@@ -54,6 +54,25 @@ function myfeeds_ip_is_private($ip) {
         return true; // Unparseable: treat as unsafe rather than guess.
     }
 
+    // An IPv6 address can carry an IPv4 one inside it, and the filter
+    // below judges only the outside. "::ffff:127.0.0.1" is this machine
+    // to the kernel and a public address to PHP (7.4 and 8.2, measured
+    // 2026-10-11) - so every range refused here could be written that
+    // way and walk through. The IPv4 part is judged on its own instead:
+    // IPv4-mapped (::ffff:0:0/96), the old IPv4-compatible form (::/96)
+    // and the NAT64 prefix (64:ff9b::/96), through which an IPv6-only
+    // server reaches IPv4 hosts - public ones, and private ones too.
+    $packed = inet_pton($ip);
+    if (is_string($packed) && strlen($packed) === 16) {
+        $prefix = substr($packed, 0, 12);
+        if ($prefix === str_repeat("\x00", 10) . "\xff\xff"
+            || $prefix === str_repeat("\x00", 12)
+            || $prefix === "\x00\x64\xff\x9b" . str_repeat("\x00", 8)
+        ) {
+            return myfeeds_ip_is_private((string) inet_ntop(substr($packed, 12)));
+        }
+    }
+
     // FILTER_FLAG_NO_RES_RANGE misses 100.64.0.0/10 and 0.0.0.0/8 on some
     // PHP builds, so the two explicit checks below stay.
     $public = filter_var(
