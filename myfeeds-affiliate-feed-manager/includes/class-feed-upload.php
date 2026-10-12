@@ -118,10 +118,15 @@ class MyFeeds_Feed_Upload {
      * that runs .txt through PHP, or a future extension added to the
      * list without thinking, both stop here.
      *
+     * The cache folder next door gets the same file from here
+     * (myfeeds_close_cache_dir()): it holds the copy of a feed an
+     * import is working through, and nothing fetches that over HTTP
+     * either.
+     *
      * @param string $dir Absolute path.
      * @return void
      */
-    private static function harden($dir) {
+    public static function harden($dir) {
         $index = trailingslashit($dir) . 'index.html';
         if (!file_exists($index)) {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
@@ -233,10 +238,14 @@ class MyFeeds_Feed_Upload {
      */
     public static function open_folder_notice() {
         $path = (string) wp_parse_url(self::url(), PHP_URL_PATH);
+        // The cache folder next door carries the same rule file on the
+        // same server: what was just measured for one holds for the
+        // other. Its name is the one myfeeds_get_cache_dir() uses.
         return ' ' . sprintf(
-            /* translators: %s: path of the folder that holds uploaded feed files */
-            __('Note: this server hands the uploaded file to anyone who has its address, because it does not apply the access rule MyFeeds wrote into the folder. The address cannot be guessed, but ask your host to block direct access to %s (on nginx: a location block with "deny all").', 'myfeeds-affiliate-feed-manager'),
-            trailingslashit($path)
+            /* translators: 1: path of the folder that holds uploaded feed files, 2: path of the folder that holds the copy of a feed during an import */
+            __('Note: this server hands the uploaded file to anyone who has its address, because it does not apply the access rule MyFeeds wrote into the folder. The address cannot be guessed, but ask your host to block direct access to %1$s and %2$s (on nginx: a location block with "deny all").', 'myfeeds-affiliate-feed-manager'),
+            trailingslashit($path),
+            trailingslashit(dirname($path)) . 'cache/'
         );
     }
 

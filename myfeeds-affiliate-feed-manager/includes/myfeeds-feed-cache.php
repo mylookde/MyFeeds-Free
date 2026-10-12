@@ -537,8 +537,7 @@ function myfeeds_cleanup_all_feed_caches($run_id) {
         return;
     }
     
-    $safe_run_id = preg_replace('/[^a-zA-Z0-9_.-]/', '', $run_id);
-    $pattern = $cache_dir . '/myfeeds_feed_*_' . $safe_run_id . '.csv';
+    $pattern = $cache_dir . '/myfeeds_feed_*_' . myfeeds_cache_run_token($run_id) . '.csv';
     $files = glob($pattern);
     
     if (!empty($files)) {
@@ -561,7 +560,9 @@ function myfeeds_cleanup_all_feed_caches($run_id) {
  * sat on one of Marlon's sites from March until 2026-08-16.
  */
 function myfeeds_cache_file_patterns() {
-    return array('myfeeds_feed_*.csv', 'myfeeds_content_*.txt');
+    // The third is a download that never finished: the half of a feed
+    // a crashed import left next to the name its copy would have had.
+    return array('myfeeds_feed_*.csv', 'myfeeds_content_*.txt', 'myfeeds_feed_*.csv.download');
 }
 
 /**
@@ -592,11 +593,18 @@ function myfeeds_stale_cache_files($cache_dir, $threshold) {
 /**
  * Remove orphaned cache files older than 24 hours.
  * Prevents disk space leaks from crashed imports that never completed.
+ *
+ * Runs when an import finishes and once a day with the housekeeping
+ * (MyFeeds_Maintenance): the copy the mapping editor reads belongs to
+ * no import, and on a site that imports nothing afterwards it used to
+ * lie in the folder for good.
+ *
+ * @return int Files removed.
  */
 function myfeeds_cleanup_orphaned_caches() {
     $cache_dir = myfeeds_get_cache_dir();
     if ($cache_dir === null || !is_dir($cache_dir)) {
-        return;
+        return 0;
     }
 
     $stale = myfeeds_stale_cache_files($cache_dir, time() - 86400);
@@ -608,6 +616,8 @@ function myfeeds_cleanup_orphaned_caches() {
     if ($cleaned > 0 && class_exists('MyFeeds_Logger')) {
         MyFeeds_Logger::info("FeedCache: Cleaned {$cleaned} orphaned cache files (>24h old)");
     }
+
+    return $cleaned;
 }
 
 // ─── Internal helpers (not part of public API) ───
@@ -626,8 +636,50 @@ function myfeeds_get_cache_path($feed_index, $run_id) {
         return null;
     }
     
-    $safe_run_id = preg_replace('/[^a-zA-Z0-9_.-]/', '', $run_id);
-    return $cache_dir . '/myfeeds_feed_' . intval($feed_index) . '_' . $safe_run_id . '.csv';
+    return $cache_dir . '/myfeeds_feed_' . intval($feed_index) . '_' . myfeeds_cache_run_token($run_id) . '.csv';
+}
+
+/**
+ * The part of a cache file's name that stands for its run.
+ *
+ * The copy of a feed lies under the uploads folder while an import
+ * works through it, and a feed is what a network gave this publisher
+ * and nobody else: tracking links with the publisher's id, on some
+ * networks the commission per product. The run used to be named in the
+ * clear - the md5 of the second an import started, and the plain word
+ * "mapping" for the copy the mapping editor reads, which made that one
+ * myfeeds_feed_0_mapping.csv on every site. The folder is closed
+ * (myfeeds_close_cache_dir()), but a web server that does not read the
+ * rule file hands out whatever is asked for by name. So the name is one
+ * only this site can build.
+ *
+ * It stays the same name for the same run on the same site: the batches
+ * of one import have to find the file the first batch downloaded.
+ *
+ * @param string $run_id
+ * @return string 32 hex characters
+ */
+function myfeeds_cache_run_token($run_id) {
+    $safe_run_id = preg_replace('/[^a-zA-Z0-9_.-]/', '', (string) $run_id);
+    return substr(hash_hmac('sha256', 'myfeeds_feed_cache|' . $safe_run_id, wp_salt('auth')), 0, 32);
+}
+
+/**
+ * Close the cache folder to the web, with the rule file the folder for
+ * uploaded feeds has.
+ *
+ * Nothing reads a cache copy over HTTP - the importer and the mapping
+ * editor open it from the disk - so nobody has a reason to fetch one.
+ * One writer for both folders: a second copy of the rules would be the
+ * one that misses the next correction.
+ *
+ * @param string $dir Absolute path of the cache folder.
+ * @return void
+ */
+function myfeeds_close_cache_dir($dir) {
+    if (class_exists('MyFeeds_Feed_Upload')) {
+        MyFeeds_Feed_Upload::harden($dir);
+    }
 }
 
 /**
@@ -647,6 +699,8 @@ function myfeeds_get_cache_dir() {
     if (function_exists('wp_upload_dir') && function_exists('myfeeds_uploads_dir')) {
         $candidate = myfeeds_uploads_dir() . '/cache';
         if (is_dir($candidate) || wp_mkdir_p($candidate)) {
+            // Only this one is under the web root; the temp folder below is not.
+            myfeeds_close_cache_dir($candidate);
             $cache_dir = $candidate;
             return $cache_dir;
         }

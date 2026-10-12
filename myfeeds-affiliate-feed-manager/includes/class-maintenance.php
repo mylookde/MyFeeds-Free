@@ -117,7 +117,32 @@ class MyFeeds_Maintenance {
             'transients' => self::drop_expired_transients(),
             'actions'    => self::drop_old_actions(),
             'orphans'    => self::drop_orphaned_products(),
+            'feed_copies' => self::drop_stale_feed_copies(),
         );
+    }
+
+    /**
+     * Copies of a feed that have been lying in the cache folder for
+     * more than a day.
+     *
+     * An import removes its copy when it finishes and takes along what
+     * a crashed one left - but only when an import finishes. The copy
+     * the mapping editor reads belongs to no import: on a site whose
+     * feed was deleted afterwards, or that imports nothing for a while,
+     * a whole feed lay under the uploads folder for good.
+     *
+     * A folder that was never made is not made for this.
+     *
+     * @return int files removed
+     */
+    private static function drop_stale_feed_copies() {
+        if (!function_exists('myfeeds_cleanup_orphaned_caches') || !function_exists('myfeeds_uploads_dir')) {
+            return 0;
+        }
+        if (!is_dir(myfeeds_uploads_dir() . '/cache')) {
+            return 0;
+        }
+        return (int) myfeeds_cleanup_orphaned_caches();
     }
 
     /**
