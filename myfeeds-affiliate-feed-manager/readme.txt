@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.47
+Stable tag: 1.0.48
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,24 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.48 =
+* Fixed: the mapping editor could not show a feed's fields. Loading them ended in a PHP error ("Call to undefined method") instead of the list of columns, in every version from 1.0.34 to 1.0.47. The fields load again.
+* Fixed: a feed from Tradedoubler's Products API imported no products. In that format the product number, price, stock and tracking link belong to the offer inside each product; they are now read from there, in JSON and in XML, the way Tradedoubler documents the format.
+* Fixed: an XML feed written without line breaks between its products lost every second product.
+* Fixed: a price with a thousands mark was read wrong: "1,299.00" became 1.00, and "1.299,00" became 1.299.
+* Fixed: a Rakuten catalogue file (fields separated by "|", no row of column names) opened as a feed without products. It is now read by position, as Rakuten documents it.
+* Fixed: Ascend's sale price is read, the column names of Impact's catalogue format are recognised, and in an AWIN feed the merchant's link without tracking no longer replaces the link you mapped. Adding an AWIN feed whose products carry no tracking link now says so.
+* Fixed: the feed dialog no longer chooses AWIN as the network for every feed. It opens on what is stored, or on "Auto-detect".
+* Improved: JSON feeds of any size are imported. The 50 MB limit is gone, because the file is now read product by product.
+* Improved: when a feed's server refuses a download because it was asked too often (HTTP 429), or a download has not finished after 120 seconds, the message says what happened.
+* Improved: after you change a feed's address or upload a new file, the Feeds screen offers to import it right away. Before, the old products stayed until the next reimport and nothing said so.
+* Fixed: the folder with uploaded feed files and the folder that holds a copy of a feed during an import could be read from the web by anyone who had a file's address. Both are closed now, and MyFeeds reads these files from the disk. A copy has a name that cannot be guessed, and copies older than a day are removed. Where a web server does not apply the access rule (nginx, for example), the Feeds screen says so after an upload and names the folders to block.
+* Fixed: the check that refuses a feed or picture address inside your own server or its private network now also recognises such an address written in IPv6 notation.
+* Improved: the background check that finds out whether a merchant's image server can deliver smaller pictures. When a server ignores the request for a single byte, one byte of the picture is kept in memory instead of the whole picture. An address that leads into your own server or its private network is not requested. And image servers that cannot be measured no longer keep the ones behind them waiting.
+* Fixed: after an update, the one-time step that groups the sizes of a product finishes in the background by itself. On a large catalogue it used to move on only when somebody opened the WordPress admin.
+* Changed: the "External Services" section of this readme is corrected. It described a call to AWIN's API that the plugin never made; the unused code behind that sentence is removed. It now also says where product pictures come from: your readers' browsers load them from the merchant, and your server asks image servers for the first byte of a few sample pictures.
+* Changed: the note about Amazon on the Feeds screen describes the paid plans as they are now.
 
 = 1.0.47 =
 * Fixed: a product card could show its grey placeholder instead of the picture on sites where an image optimisation or CDN plugin rewrites the addresses of pictures. Some shops turn such services away, and the card then had no picture, although the same picture loads in any browser. A card now goes back to the picture's own address at the shop, once, when the copy it was given does not load. Sites without such a plugin behave exactly as before, and Jetpack's image CDN already left product cards alone.
