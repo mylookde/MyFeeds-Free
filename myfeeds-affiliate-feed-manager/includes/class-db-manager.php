@@ -247,14 +247,14 @@ class MyFeeds_DB_Manager {
     }
 
     /**
-     * Queue the backfill unless it is already queued or finished.
+     * Queue the backfill unless a run is already waiting or it is finished.
      */
     public static function schedule_variant_key_backfill($delay = 5) {
         if (get_option(self::VARIANT_KEY_DONE_FLAG)) {
             return;
         }
         if (function_exists('as_schedule_single_action')) {
-            if (function_exists('as_has_scheduled_action') && as_has_scheduled_action(self::VARIANT_KEY_HOOK, array(), 'myfeeds')) {
+            if (self::variant_key_backfill_is_waiting()) {
                 return;
             }
             as_schedule_single_action(time() + max(1, (int) $delay), self::VARIANT_KEY_HOOK, array(), 'myfeeds', false);
@@ -266,10 +266,44 @@ class MyFeeds_DB_Manager {
     }
 
     /**
+     * Is a backfill run already waiting in Action Scheduler's queue?
+     *
+     * Waiting, not running. A run asks for its follow-up from inside
+     * the action it follows, and as_has_scheduled_action() answers yes
+     * for an action that is in progress: the follow-up looked like a
+     * duplicate of the run that was asking for it and was never queued.
+     * On a table too big for one run the rest waited for the next visit
+     * to the admin, fifteen seconds of work per visit. (The image probe
+     * and the source fetcher met the same thing.)
+     *
+     * @return bool
+     */
+    private static function variant_key_backfill_is_waiting() {
+        if (!function_exists('as_get_scheduled_actions')) {
+            return false;
+        }
+        $waiting = as_get_scheduled_actions(array(
+            'hook'     => self::VARIANT_KEY_HOOK,
+            'group'    => 'myfeeds',
+            'status'   => 'pending',
+            'per_page' => 1,
+        ), 'ids');
+        return !empty($waiting);
+    }
+
+    /**
      * The backfill: give every row without a key one, a thousand rows
      * per statement, about fifteen seconds per run, then come back.
      * last_updated stays untouched - the orphan check compares it with
      * the start of an import.
+     *
+     * A run queues its own follow-up only where the wait is known to
+     * end: rows were written and more are left, the storage job is
+     * copying the table, another run holds the lock. A run that got
+     * nothing done - the column cannot be added, the first write is
+     * refused - would find the same thing two minutes or three seconds
+     * later, for good; its next try belongs to the next visit to the
+     * admin (admin_init queues the backfill until it is finished).
      */
     public static function backfill_variant_keys() {
         global $wpdb;
@@ -281,7 +315,6 @@ class MyFeeds_DB_Manager {
             return;
         }
         if (!self::ensure_variant_key_column()) {
-            self::schedule_variant_key_backfill(120);
             return;
         }
         if (!class_exists('MyFeeds_Variants')) {
@@ -352,6 +385,9 @@ class MyFeeds_DB_Manager {
             if (class_exists('MyFeeds_Search_Engine') && method_exists('MyFeeds_Search_Engine', 'flush_query_caches')) {
                 MyFeeds_Search_Engine::flush_query_caches();
             }
+            return;
+        }
+        if ($done === 0) {
             return;
         }
         myfeeds_log("variant_key backfill: {$done} rows, more to do", 'debug');
