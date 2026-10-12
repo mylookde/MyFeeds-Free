@@ -791,11 +791,10 @@ class MyFeeds_Feed_Manager {
             __('Cards carry the timestamp and wording the Amazon Associates terms require.', 'myfeeds-affiliate-feed-manager'),
         );
 
-        // The button stands under the list of what Amazon's API does, so
-        // it starts Pro: a Starter checkout there would sell a plugin
-        // that cannot do what the list says. The way to Starter is the
-        // link to the plans beside it.
-        $cta = MyFeeds_Feature_Previews::CHECKOUT_PRO_URL
+        // The button starts Starter, where Amazon by link or ASIN begins,
+        // and stands under what Starter does. What only Amazon's API
+        // brings is listed below it, with its own link to the plans.
+        $cta = MyFeeds_Feature_Previews::CHECKOUT_STARTER_URL
             . '&utm_source=wp-plugin-free&utm_medium=amazon-modal&utm_term=amazon';
         $plans = 'https://myfeeds.site/?utm_source=wp-plugin-free&utm_medium=amazon-modal&utm_term=plans#pricing';
         ?>
@@ -818,6 +817,13 @@ class MyFeeds_Feed_Manager {
                         <?php endforeach; ?>
                     </ul>
 
+                    <p class="myfeeds-amazon-cta">
+                        <a class="button" id="myfeeds-amazon-cta" href="<?php echo esc_url($cta); ?>" target="_blank" rel="noopener">
+                            <?php esc_html_e('Start 7-day free trial of Starter', 'myfeeds-affiliate-feed-manager'); ?>
+                        </a>
+                        <span class="myfeeds-amazon-cta-note"><?php esc_html_e('Cancel anytime from your dashboard', 'myfeeds-affiliate-feed-manager'); ?></span>
+                    </p>
+
                     <p class="myfeeds-amazon-list-title"><?php esc_html_e('With Pro, through Amazon\'s API:', 'myfeeds-affiliate-feed-manager'); ?></p>
                     <ul class="myfeeds-amazon-benefits">
                         <?php foreach ($with_api as $benefit) : ?>
@@ -830,13 +836,10 @@ class MyFeeds_Feed_Manager {
                         <?php esc_html_e('Amazon only opens its product API to Associates accounts with 10 qualifying sales in the last 30 days. That is Amazon\'s rule, not ours, and it applies to every plugin that connects to them. Adding products by link or ASIN needs no API.', 'myfeeds-affiliate-feed-manager'); ?>
                     </p>
 
-                    <p class="myfeeds-amazon-cta">
-                        <a class="button" id="myfeeds-amazon-cta" href="<?php echo esc_url($cta); ?>" target="_blank" rel="noopener">
-                            <?php esc_html_e('Start 7-day free trial of Pro', 'myfeeds-affiliate-feed-manager'); ?>
-                        </a>
-                        <span class="myfeeds-amazon-cta-note"><?php esc_html_e('Cancel anytime from your dashboard', 'myfeeds-affiliate-feed-manager'); ?></span>
-                        <a class="myfeeds-amazon-cta-plans" href="<?php echo esc_url($plans); ?>" target="_blank" rel="noopener"><?php esc_html_e('Only need links? See the plans', 'myfeeds-affiliate-feed-manager'); ?></a>
+                    <p class="myfeeds-amazon-more">
+                        <a class="myfeeds-amazon-cta-plans" href="<?php echo esc_url($plans); ?>" target="_blank" rel="noopener"><?php esc_html_e('Want Amazon\'s picture and price? See Pro in the plans', 'myfeeds-affiliate-feed-manager'); ?></a>
                     </p>
+
                 </div>
             </div>
         </div>
@@ -941,7 +944,8 @@ class MyFeeds_Feed_Manager {
                 line-height: 1.55;
                 margin: 0 0 18px;
             }
-            .myfeeds-amazon-cta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0; }
+            .myfeeds-amazon-cta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 20px; }
+        .myfeeds-amazon-more { margin: 12px 0 0; }
             #myfeeds-amazon-cta {
                 background: linear-gradient(135deg, #EC8A12 0%, #CC6A00 100%) !important;
                 color: #fff !important;
