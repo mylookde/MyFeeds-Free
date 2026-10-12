@@ -267,7 +267,6 @@ function myfeeds_local_feed_response($url, $args) {
         'response'          => array('code' => 200, 'message' => 'OK'),
         'cookies'           => array(),
         'filename'          => null,
-        'myfeeds_final_url' => $url,
     );
     $unreadable = new WP_Error('read_error', __('The uploaded feed file could not be read.', 'myfeeds-affiliate-feed-manager'));
 
