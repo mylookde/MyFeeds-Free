@@ -192,7 +192,7 @@ class MyFeeds_Smart_Mapper {
         $this->network_signatures = [
             'awin' => [
                 'signature_fields' => ['aw_product_id', 'aw_deep_link', 'aw_image_url', 'merchant_product_id'],
-                'url_patterns' => ['awin.com', 'affiliate-window'],
+                'url_patterns' => ['awin.com', 'datafeed.api.productserve.com', 'affiliate-window'],
                 'field_prefixes' => ['aw_', 'awin_'],
                 'confidence_boost' => 20,
                 // AWIN-specific field mappings (hard-coded for accuracy)
@@ -391,29 +391,34 @@ class MyFeeds_Smart_Mapper {
                 'confidence_boost' => 15
             ],
             'impact' => [
-                'signature_fields' => ['impact_product_id', 'campaign_id', 'CampaignId', 'CatalogItemId'],
+                'signature_fields' => ['impact_product_id', 'campaign_id', 'CampaignId', 'CatalogItemId', 'Unique Merchant SKU', 'ProductBid'],
                 'url_patterns' => ['impact.com', 'impactradius.com', 'sjv.io'],
                 'field_prefixes' => [],
                 'confidence_boost' => 15,
-                // Impact Mediapartner catalog feeds expose two naming
-                // styles: the JSON Mediapartner Catalog (UpperCamel:
-                // Name, Price, ImageUrl) and the older CSV catalog
-                // export (lower_snake: name, price, image_url). Both
-                // covered, generic fallback last.
+                // Three naming styles: the Partner API's catalog item
+                // (UpperCamel: CatalogItemId, Name, Url, ImageUrl,
+                // CurrentPrice), an older CSV export (lower_snake), and
+                // the "Impact Format" download, whose help-centre field
+                // reference spells the fields as words: Unique Merchant
+                // SKU, Product Name, Product URL, Current Price, Image
+                // URL. Without that third set the generic scoring
+                // decided, and it took ProductBid - what the publisher
+                // is paid per sale - for the product id: every product
+                // on the same rate would have been one product.
                 'field_mappings' => [
-                    'id' => ['CatalogItemId', 'catalog_item_id', 'product_id', 'impact_product_id', 'sku', 'id'],
-                    'title' => ['Name', 'name', 'product_name', 'title'],
-                    'price' => ['Price', 'price', 'CurrentPrice', 'current_price', 'sale_price'],
-                    'old_price' => ['OriginalPrice', 'original_price', 'list_price', 'old_price'],
+                    'id' => ['CatalogItemId', 'Unique Merchant SKU', 'catalog_item_id', 'product_id', 'impact_product_id', 'sku', 'id'],
+                    'title' => ['Name', 'Product Name', 'name', 'product_name', 'title'],
+                    'price' => ['CurrentPrice', 'Current Price', 'Price', 'price', 'current_price', 'sale_price'],
+                    'old_price' => ['OriginalPrice', 'Original Price', 'original_price', 'list_price', 'old_price'],
                     'brand' => ['Manufacturer', 'manufacturer', 'brand', 'Brand'],
                     'merchant' => ['CampaignName', 'campaign_name', 'advertiser_name'],
-                    'image_url' => ['ImageUrl', 'image_url', 'image', 'image_link'],
-                    'affiliate_link' => ['TrackingUrl', 'tracking_url', 'link', 'product_url'],
-                    'description' => ['Description', 'description', 'long_description'],
+                    'image_url' => ['ImageUrl', 'Image URL', 'image_url', 'image', 'image_link'],
+                    'affiliate_link' => ['TrackingUrl', 'Url', 'Product URL', 'tracking_url', 'link', 'product_url'],
+                    'description' => ['Description', 'Product Description', 'description', 'long_description'],
                     'category' => ['Category', 'category', 'product_category'],
                     'currency' => ['Currency', 'currency'],
-                    'shipping' => ['Shipping', 'shipping', 'shipping_cost'],
-                    'availability' => ['Availability', 'availability', 'in_stock', 'stock_status'],
+                    'shipping' => ['Shipping', 'Shipping Rate', 'shipping', 'shipping_cost'],
+                    'availability' => ['StockAvailability', 'Stock Availability', 'Availability', 'availability', 'in_stock', 'stock_status'],
                     'attributes' => [
                         'color' => ['Color', 'color', 'colour'],
                         'size' => ['Size', 'size'],
@@ -464,19 +469,27 @@ class MyFeeds_Smart_Mapper {
                 'url_patterns' => ['pepperjamnetwork.com', 'pjtra.com', 'pjatr.com', 'pntra.com', 'pntrac.com', 'pntrack.com', 'gopjn.com', 'ascendpartner.com'],
                 'field_prefixes' => ['program_'],
                 'confidence_boost' => 18,
+                // The Product Creatives Resource names its fields
+                // price (selling price), price_sale (discount price),
+                // price_retail (list price), price_shipping,
+                // description_short / description_long and
+                // category_program / category_network. Those come
+                // first; the older guesses stay behind them. Which of
+                // price and price_sale the customer pays is decided per
+                // row at import, like sale_price everywhere else.
                 'field_mappings' => [
                     'id' => ['program_product_id', 'product_id', 'sku', 'id'],
                     'title' => ['name', 'product_name', 'title'],
-                    'price' => ['price', 'sale_price'],
-                    'old_price' => ['regular_price', 'retail_price', 'original_price', 'manufacturer_price'],
+                    'price' => ['price', 'price_sale', 'sale_price'],
+                    'old_price' => ['price_retail', 'regular_price', 'retail_price', 'original_price', 'manufacturer_price'],
                     'brand' => ['brand', 'manufacturer'],
                     'merchant' => ['program_name', 'advertiser_name'],
-                    'image_url' => ['image_url', 'thumbnail_url', 'image'],
+                    'image_url' => ['image_url', 'thumbnail_url', 'image_thumb_url', 'image'],
                     'affiliate_link' => ['buy_url', 'tracking_url', 'click_url', 'link'],
-                    'description' => ['description', 'product_description', 'short_description'],
-                    'category' => ['category_program_breadcrumb', 'category', 'product_category'],
+                    'description' => ['description_short', 'description_long', 'description', 'product_description', 'short_description'],
+                    'category' => ['category_program', 'category_network', 'category_program_breadcrumb', 'category', 'product_category'],
                     'currency' => ['currency'],
-                    'shipping' => ['shipping_cost', 'shipping'],
+                    'shipping' => ['price_shipping', 'shipping_cost', 'shipping'],
                     'availability' => ['in_stock', 'stock_availability', 'availability'],
                     'attributes' => [
                         'color' => ['color', 'colour'],

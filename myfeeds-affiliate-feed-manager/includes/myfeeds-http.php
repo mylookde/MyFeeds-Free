@@ -16,6 +16,12 @@
  * them calls myfeeds_remote_get(); AssetContractTest-style, FeedFetchTest
  * fails the build if a raw wp_remote_get for a feed URL reappears.
  *
+ * The feed is not the only address somebody else chooses. Every picture
+ * address inside a feed is written by whoever writes the feed, and the
+ * image probe asks those from the server too - by GET and, for a host
+ * that ignores Range, by HEAD. Hence the second entrance,
+ * myfeeds_remote_head(). Both lead into the same loop.
+ *
  * @package MyFeeds
  */
 
@@ -46,6 +52,25 @@ function myfeeds_url_scheme_allowed($url) {
 function myfeeds_ip_is_private($ip) {
     if (!filter_var($ip, FILTER_VALIDATE_IP)) {
         return true; // Unparseable: treat as unsafe rather than guess.
+    }
+
+    // An IPv6 address can carry an IPv4 one inside it, and the filter
+    // below judges only the outside. "::ffff:127.0.0.1" is this machine
+    // to the kernel and a public address to PHP (7.4 and 8.2, measured
+    // 2026-10-11) - so every range refused here could be written that
+    // way and walk through. The IPv4 part is judged on its own instead:
+    // IPv4-mapped (::ffff:0:0/96), the old IPv4-compatible form (::/96)
+    // and the NAT64 prefix (64:ff9b::/96), through which an IPv6-only
+    // server reaches IPv4 hosts - public ones, and private ones too.
+    $packed = inet_pton($ip);
+    if (is_string($packed) && strlen($packed) === 16) {
+        $prefix = substr($packed, 0, 12);
+        if ($prefix === str_repeat("\x00", 10) . "\xff\xff"
+            || $prefix === str_repeat("\x00", 12)
+            || $prefix === "\x00\x64\xff\x9b" . str_repeat("\x00", 8)
+        ) {
+            return myfeeds_ip_is_private((string) inet_ntop(substr($packed, 12)));
+        }
     }
 
     // FILTER_FLAG_NO_RES_RANGE misses 100.64.0.0/10 and 0.0.0.0/8 on some
@@ -215,7 +240,43 @@ function myfeeds_resolve_host($host) {
  * @return array|WP_Error
  */
 function myfeeds_remote_get($url, $args = array()) {
+    return myfeeds_guarded_request('GET', $url, $args);
+}
+
+/**
+ * Ask for the headers of an address somebody else chose.
+ *
+ * Same check, same hops, no body. WordPress's own HEAD follows no
+ * redirect unless it is told to, and then follows it unchecked.
+ *
+ * @param string $url  Address to ask.
+ * @param array  $args Passed through to wp_remote_head.
+ * @return array|WP_Error
+ */
+function myfeeds_remote_head($url, $args = array()) {
+    return myfeeds_guarded_request('HEAD', $url, $args);
+}
+
+/**
+ * The loop behind both entrances: check the address, ask, and check
+ * again wherever the answer points.
+ *
+ * One argument is read here and not passed on. 'myfeeds_log_refusal'
+ * => false is for a caller that is not fetching a feed and reports a
+ * refusal in its own words: the line written below tells the reader to
+ * use a public feed URL or upload the file, which is no help to someone
+ * whose feed merely lists a picture on such an address.
+ *
+ * @param string $method 'GET' or 'HEAD'.
+ * @param string $url    Address to ask.
+ * @param array  $args   Passed through to wp_remote_get / wp_remote_head.
+ * @return array|WP_Error
+ */
+function myfeeds_guarded_request($method, $url, $args = array()) {
     $args = wp_parse_args($args, array());
+
+    $log_refusal = !isset($args['myfeeds_log_refusal']) || $args['myfeeds_log_refusal'];
+    unset($args['myfeeds_log_refusal']);
 
     // Redirects are followed by hand, one hop at a time, because letting
     // cURL follow them would check only the address the operator typed.
@@ -231,13 +292,15 @@ function myfeeds_remote_get($url, $args = array()) {
     for ($hop = 0; $hop <= $max_hops; $hop++) {
         $allowed = myfeeds_feed_url_allowed($current);
         if (is_wp_error($allowed)) {
-            if (function_exists('myfeeds_log')) {
+            if ($log_refusal && function_exists('myfeeds_log')) {
                 myfeeds_log('Blocked feed fetch: ' . $allowed->get_error_message(), 'error');
             }
             return $allowed;
         }
 
-        $response = wp_remote_get($current, $args);
+        $response = $method === 'HEAD'
+            ? wp_remote_head($current, $args)
+            : wp_remote_get($current, $args);
         if (is_wp_error($response)) {
             return $response;
         }
@@ -255,9 +318,15 @@ function myfeeds_remote_get($url, $args = array()) {
             return $response;
         }
 
-        // A relative Location stays on a host we already cleared.
         $next = (string) $location;
-        if (wp_parse_url($next, PHP_URL_HOST) === null) {
+        if (strncmp($next, '//', 2) === 0) {
+            // "//host/path" names a new host and borrows the scheme the
+            // request came by. Spelled out here so the next round checks
+            // that host like any other, instead of refusing the redirect
+            // for having no scheme.
+            $next = strtolower((string) wp_parse_url($current, PHP_URL_SCHEME)) . ':' . $next;
+        } elseif (wp_parse_url($next, PHP_URL_HOST) === null) {
+            // A relative Location stays on a host we already cleared.
             $next = myfeeds_join_redirect_url($current, $next);
         }
 

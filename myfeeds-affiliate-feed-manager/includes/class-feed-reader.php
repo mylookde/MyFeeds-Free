@@ -34,6 +34,12 @@ class MyFeeds_Feed_Reader {
     /** @var int Total data rows (excluding header) */
     private $total_items = -1;
 
+    /** @var bool A Rakuten catalogue file: columns by position, no header row. */
+    private $positional = false;
+
+    /** @var string Advertiser name from a Rakuten catalogue's HDR record. */
+    private $positional_merchant = '';
+
     // -- XML state --
     /** @var XMLReader|null */
     private $xml_reader = null;
@@ -94,6 +100,13 @@ class MyFeeds_Feed_Reader {
         }
 
         $this->format = $this->detect_format($file_path, $format_hint);
+
+        // A Rakuten catalogue says what it is in its first four bytes.
+        // That beats a hint and the delimiter vote: an advertiser name
+        // with commas in it out-votes the three pipes of the HDR record.
+        if (self::starts_with_rakuten_header($file_path)) {
+            $this->format = 'psv';
+        }
 
         switch ($this->format) {
             case 'csv':
@@ -475,6 +488,129 @@ class MyFeeds_Feed_Reader {
     }
 
     // =========================================================================
+    // RAKUTEN PRODUCT CATALOGUE (pipe-delimited, columns by position)
+    // =========================================================================
+
+    /**
+     * Rakuten's catalogue file has no row of column names. It is
+     *
+     *   HDR|<advertiser id>|<advertiser name>|<mm/dd/yyyy hh:mm:ss>
+     *   one line per product, fields by position
+     *   TRL|<number of products>
+     *
+     * (Product Catalog Data Feed Implementation Guidelines, Appendix A
+     * and D, read 2026-10-09). Read like any other delimited file, the
+     * HDR record became a four-column header, every product line had a
+     * different field count and was skipped as "malformed", and the
+     * import ended with no products and no reason.
+     *
+     * @param array|false $first_row The file's first line, split on pipes.
+     */
+    private static function is_rakuten_header_record($first_row) {
+        return is_array($first_row)
+            && count($first_row) === 4
+            && trim((string) $first_row[0], "\xEF\xBB\xBF \t") === 'HDR'
+            && ctype_digit(trim((string) $first_row[1]));
+    }
+
+    private static function starts_with_rakuten_header($file_path) {
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Need raw read for format detection
+        $fh = @fopen($file_path, 'r');
+        if (!$fh) {
+            return false;
+        }
+        $line = fgets($fh, 2048);
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        fclose($fh);
+
+        return is_string($line) && self::is_rakuten_header_record(explode('|', rtrim($line, "\r\n")));
+    }
+
+    /**
+     * The 28 primary fields in the order Appendix A lists them, under
+     * names the mapper already understands. Three are not Rakuten's own
+     * words, on purpose:
+     *
+     * - `price` is "Retail Price" (required, before discounts) and
+     *   `sale_price` is "Sale Price" (optional, after them). That is the
+     *   pair every import path already reads the same way round.
+     * - `discount_value` is "Discount". Called `discount` it would be
+     *   read as a percentage, and it is an amount whenever
+     *   `discount_type` says so.
+     * - `cart_url` is "Buy URL", the shopping cart, so that it is never
+     *   taken for the product link.
+     *
+     * @return string[]
+     */
+    private static function rakuten_catalogue_columns() {
+        return array(
+            'product_id', 'product_name', 'sku', 'primary_category', 'secondary_category',
+            'product_url', 'product_image_url', 'cart_url', 'short_description', 'long_description',
+            'discount_value', 'discount_type', 'sale_price', 'price', 'begin_date', 'end_date',
+            'brand', 'shipping', 'keywords', 'manufacturer_part_number', 'manufacturer_name',
+            'shipping_information', 'availability', 'upc', 'class_id', 'currency', 'm1', 'pixel',
+        );
+    }
+
+    /** Appendix A: ten attribute fields close a record, 22 for credit cards. */
+    const RAKUTEN_ATTRIBUTES = 10;
+
+    /**
+     * @return string[] The header a Rakuten catalogue is read under.
+     */
+    private function rakuten_header() {
+        $header = self::rakuten_catalogue_columns();
+        for ($i = 1; $i <= self::RAKUTEN_ATTRIBUTES; $i++) {
+            $header[] = 'attribute_' . $i;
+        }
+        $header[] = 'merchant_name';
+        return $header;
+    }
+
+    /**
+     * One product line as a row, or null for a line that is not one.
+     *
+     * @param array $fields
+     * @return array|null
+     */
+    private function rakuten_row(array $fields) {
+        $primary = self::rakuten_catalogue_columns();
+        $n = count($fields);
+
+        if ($n <= 2 && isset($fields[0]) && trim((string) $fields[0]) === 'TRL') {
+            return null;
+        }
+        // Up to the two prices, or there is nothing to make a product of.
+        if ($n < 14) {
+            return null;
+        }
+
+        // A delta file ends every record with one more field, Modification
+        // (I, U or D): 39 fields, 51 for credit cards. A deleted product
+        // is not a product.
+        if (($n === 39 || $n === 51) && in_array($fields[$n - 1], array('I', 'U', 'D'), true)) {
+            if ($fields[$n - 1] === 'D') {
+                return null;
+            }
+            array_pop($fields);
+            $n--;
+        }
+
+        $row = array();
+        foreach ($primary as $i => $name) {
+            $row[$name] = isset($fields[$i]) ? $fields[$i] : '';
+        }
+        $attributes = max(self::RAKUTEN_ATTRIBUTES, $n - count($primary));
+        for ($i = 1; $i <= $attributes; $i++) {
+            $at = count($primary) + $i - 1;
+            $row['attribute_' . $i] = isset($fields[$at]) ? $fields[$at] : '';
+        }
+        $row['merchant_name'] = $this->positional_merchant;
+
+        return $row;
+    }
+
+    // =========================================================================
     // DELIMITED (CSV / TSV / SSV / PSV)
     // =========================================================================
 
@@ -504,6 +640,13 @@ class MyFeeds_Feed_Reader {
             return false;
         }
 
+        if ($this->delimiter === '|' && self::is_rakuten_header_record($header_row)) {
+            $this->positional = true;
+            $this->positional_merchant = trim((string) $header_row[2]);
+            $this->header = $this->rakuten_header();
+            return true;
+        }
+
         // Trim BOM and whitespace from header fields
         $this->header = array_map(function ($h) {
             return trim($h, "\xEF\xBB\xBF \t\n\r\0\x0B\"");
@@ -522,7 +665,10 @@ class MyFeeds_Feed_Reader {
 
         // Count remaining rows using fgetcsv (handles multiline fields!)
         $count = 0;
-        while (fgetcsv($this->fh, 0, $this->delimiter) !== false) {
+        while (($fields = fgetcsv($this->fh, 0, $this->delimiter)) !== false) {
+            if ($this->positional && $this->rakuten_row($fields) === null) {
+                continue;
+            }
             $count++;
         }
 
@@ -543,6 +689,14 @@ class MyFeeds_Feed_Reader {
             $fields = fgetcsv($this->fh, 0, $this->delimiter);
             if ($fields === false) {
                 return false; // EOF
+            }
+
+            if ($this->positional) {
+                $row = $this->rakuten_row($fields);
+                if ($row !== null) {
+                    return $row;
+                }
+                continue;
             }
 
             if (count($fields) === count($this->header)) {

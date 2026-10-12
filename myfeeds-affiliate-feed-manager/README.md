@@ -124,8 +124,7 @@ mylook-affiliate-product-picker/
 ├── includes/
 │   ├── class-feed-manager.php             # Feed management
 │   ├── class-product-picker.php           # Gutenberg block
-│   ├── class-smart-mapper.php             # Field mapping
-│   └── class-network-handlers.php         # Network integrations
+│   └── class-smart-mapper.php             # Field mapping
 ├── assets/                                # CSS and images
 ├── build/                                 # JavaScript build files
 └── README.md
