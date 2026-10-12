@@ -42,7 +42,7 @@ The block editor stays your block editor. The plugin works in the background.
 1. Paste in the **affiliate product feed URL** from your network.
 2. Every product is imported and stored locally in your WordPress database. The plugin figures out the column structure on its own.
 3. In any post or page, add the **MyFeeds Product Picker** block. Search by name, brand, or category. Click to insert.
-4. The published page renders a responsive product card with the current price, image, brand, shipping, and your affiliate link. All served direct from your database, with no external call on render.
+4. The published page renders a responsive product card with the current price, image, brand, shipping, and your affiliate link. The card is built from your own database, and your server contacts no external service to render it. The pictures load from the merchant.
 
 The next day the nightly sync refreshes what changed. The week after, a full import catches everything else. You don't think about it.
 
@@ -61,7 +61,7 @@ The next day the nightly sync refreshes what changed. The week after, a full imp
 = Good to know =
 
 * Everything happens inside WordPress, from the feed URL to the published card. There is nothing to download, upload or update by hand.
-* Self-hosted. The frontend never contacts an external service to render a product.
+* Self-hosted. Your server contacts no external service to render a product; the pictures come from the merchant's image server.
 * If your program publishes a feed file you can download, MyFeeds will almost certainly import it.
 
 = Get started =
