@@ -233,6 +233,64 @@ function myfeeds_resolve_host($host) {
 }
 
 /**
+ * Answer a request for one of our own uploaded feeds from the disk.
+ *
+ * An upload is stored as a URL so that every place that fetches a feed
+ * keeps working without knowing the difference. Fetching that URL over
+ * HTTP was the wrong way to read our own file twice over: behind a
+ * staging password it answers 401 about a file lying on the same disk,
+ * and it only works at all while the folder is open to everyone. The
+ * folder is closed now (MyFeeds_Feed_Upload::harden()), so the read has
+ * to happen here, in the one function every fetch goes through - not
+ * in the two download helpers that knew about it and the four callers
+ * that did not.
+ *
+ * The answer is shaped like wp_remote_get()'s, including `stream` and
+ * `limit_response_size`, so nothing after it needs a second code path.
+ *
+ * @param string $url  Feed URL.
+ * @param array  $args As given to myfeeds_remote_get().
+ * @return array|WP_Error|null Null when the URL is not a file of ours.
+ */
+function myfeeds_local_feed_response($url, $args) {
+    if (!class_exists('MyFeeds_Feed_Upload')) {
+        return null;
+    }
+    $path = MyFeeds_Feed_Upload::path_for_url($url);
+    if ($path === '') {
+        return null;
+    }
+
+    $response = array(
+        'headers'           => array(),
+        'body'              => '',
+        'response'          => array('code' => 200, 'message' => 'OK'),
+        'cookies'           => array(),
+        'filename'          => null,
+        'myfeeds_final_url' => $url,
+    );
+    $unreadable = new WP_Error('read_error', __('The uploaded feed file could not be read.', 'myfeeds-affiliate-feed-manager'));
+
+    if (!empty($args['stream']) && !empty($args['filename'])) {
+        if (!@copy($path, $args['filename'])) {
+            return $unreadable;
+        }
+        $response['filename'] = $args['filename'];
+        return $response;
+    }
+
+    $limit = isset($args['limit_response_size']) ? (int) $args['limit_response_size'] : 0;
+    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Our own file, read where it lies
+    $body = $limit > 0 ? @file_get_contents($path, false, null, 0, $limit) : @file_get_contents($path);
+    if ($body === false) {
+        return $unreadable;
+    }
+    $response['body'] = $body;
+
+    return $response;
+}
+
+/**
  * Fetch a feed URL. The only function in this plugin that may do so.
  *
  * @param string $url  Feed URL.
@@ -240,6 +298,16 @@ function myfeeds_resolve_host($host) {
  * @return array|WP_Error
  */
 function myfeeds_remote_get($url, $args = array()) {
+    $args = wp_parse_args($args, array());
+
+    // Asked at this entrance and not in the shared loop: only a GET ever
+    // wants one of our own uploads, and the loop would go on to fetch an
+    // address whose folder is closed to the web.
+    $local = myfeeds_local_feed_response((string) $url, $args);
+    if ($local !== null) {
+        return $local;
+    }
+
     return myfeeds_guarded_request('GET', $url, $args);
 }
 

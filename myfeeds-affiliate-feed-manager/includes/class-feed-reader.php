@@ -59,16 +59,43 @@ class MyFeeds_Feed_Reader {
     /** @var int Current index in xml_string_items */
     private $xml_string_index = 0;
 
+    /** @var bool The XMLReader stands on a node nothing has looked at yet. */
+    private $xml_on_unread_node = false;
+
+    /** @var string '' or 'tradedoubler': a feed whose rows need their own reading. */
+    private $xml_dialect = '';
+
 
     /** @var string Why the file could not be read, empty when it could. */
     private $unsupported_reason = '';
 
     // -- JSON state --
-    /** @var array All decoded items (JSON array mode) */
-    private $json_items = array();
+    // Reuses $fh. The file is walked, never loaded: one product is in
+    // memory at a time, whatever the size of the feed.
 
-    /** @var int Current index in json_items */
-    private $json_index = 0;
+    /** Keys a JSON feed puts its list of products under, best first. */
+    const JSON_LIST_KEYS = array('products', 'items', 'data', 'results', 'offers', 'entries');
+
+    /** Bytes read from the file per step. */
+    const JSON_CHUNK = 262144;
+
+    /** A file that is one object and no list is decoded whole, up to this size. */
+    const JSON_SINGLE_OBJECT_MAX = 8388608;
+
+    /** @var string Read-ahead of the JSON file */
+    private $json_buf = '';
+
+    /** @var int Position in $json_buf */
+    private $json_pos = 0;
+
+    /** @var int File offset of $json_buf[0] */
+    private $json_base = 0;
+
+    /** @var int File offset of the '[' that opens the list of products */
+    private $json_list_at = 0;
+
+    /** @var array|null The one row of a file that is a single object */
+    private $json_single = null;
 
     // -- JSON-Lines state --
     // Reuses $fh from delimited section.
@@ -221,8 +248,7 @@ class MyFeeds_Feed_Reader {
                 return $this->count_xml();
 
             case 'json':
-                $this->total_items = count($this->json_items);
-                return $this->total_items;
+                return $this->count_json();
 
             case 'json_lines':
                 return $this->count_json_lines();
@@ -268,7 +294,7 @@ class MyFeeds_Feed_Reader {
                 break;
 
             case 'json':
-                $this->json_index = min($offset, count($this->json_items));
+                $this->skip_json($offset);
                 break;
 
             case 'json_lines':
@@ -299,10 +325,12 @@ class MyFeeds_Feed_Reader {
                 return $this->read_next_xml_item();
 
             case 'json':
-                return $this->read_next_json();
+                $row = $this->read_next_json();
+                return $row === false ? false : self::flatten_offer_row($row);
 
             case 'json_lines':
-                return $this->read_next_json_lines();
+                $row = $this->read_next_json_lines();
+                return $row === false ? false : self::flatten_offer_row($row);
         }
 
         return false;
@@ -316,9 +344,9 @@ class MyFeeds_Feed_Reader {
      * measured at 1.9 seconds of a 5.6 second sync, with the bar frozen for
      * all of it. The read position needs no pass at all.
      *
-     * Only formats that stream off a file handle can answer; the JSON reader
-     * holds its items in memory and the XML one may be walking a string, so
-     * they return null and the caller falls back to counting.
+     * Only formats that stream off a file handle can answer; the XML reader
+     * has its own handle or may be walking a string, so it returns null and
+     * the caller falls back to counting.
      *
      * @return array|null array(bytes read, bytes total) or null
      */
@@ -353,11 +381,14 @@ class MyFeeds_Feed_Reader {
             $this->xml_reader = null;
         }
 
-        $this->json_items = array();
-        $this->json_index = 0;
+        $this->json_buf = '';
+        $this->json_pos = 0;
+        $this->json_base = 0;
+        $this->json_single = null;
 
         $this->xml_string_items = null;
         $this->xml_string_index = 0;
+        $this->xml_on_unread_node = false;
     }
 
     /**
@@ -723,6 +754,7 @@ class MyFeeds_Feed_Reader {
         myfeeds_log("Feed Reader: XML mode, item tag = <{$this->xml_item_tag}>", 'debug');
 
         // Try XMLReader first (fast, streaming, memory-efficient)
+        $this->xml_on_unread_node = false;
         $this->xml_reader = new XMLReader();
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- XMLReader requires direct file path
         if (!@$this->xml_reader->open($this->file_path)) {
@@ -749,6 +781,7 @@ class MyFeeds_Feed_Reader {
         // ALWAYS create a completely fresh XMLReader for the actual reading
         // This ensures no error state carries over from the header-reading phase
         $this->xml_reader->close();
+        $this->xml_on_unread_node = false;
         $this->xml_reader = new XMLReader();
         if (!@$this->xml_reader->open($this->file_path)) {
             myfeeds_log("Feed Reader: XMLReader cannot reopen, falling back to regex", 'info');
@@ -807,6 +840,15 @@ class MyFeeds_Feed_Reader {
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
         fclose($sniff_fh);
 
+        // Tradedoubler's Products API nests <offer> inside <product>. By
+        // the order below it would be read per offer: a link and a price
+        // per row, and the name left behind on the parent.
+        $this->xml_dialect = '';
+        if (strpos($head, 'urn:com:tradedoubler:pf:model:xml') !== false) {
+            $this->xml_dialect = 'tradedoubler';
+            return 'product';
+        }
+
         // Priority order — first match wins
         $candidates = array(
             'item',    // Google Shopping RSS, generic RSS
@@ -847,7 +889,7 @@ class MyFeeds_Feed_Reader {
             return false;
         }
 
-        while (@$this->xml_reader->read()) {
+        while ($this->xml_step()) {
             if (
                 $this->xml_reader->nodeType === XMLReader::ELEMENT
                 && $this->xml_reader->localName === $this->xml_item_tag
@@ -855,33 +897,68 @@ class MyFeeds_Feed_Reader {
                 $dom_node = @$this->xml_reader->expand();
 
                 if ($dom_node === false) {
-                    @$this->xml_reader->next();
+                    $this->xml_on_unread_node = @$this->xml_reader->next();
                     continue;
                 }
 
                 $doc = new DOMDocument();
                 $imported = @$doc->importNode($dom_node, true);
                 if (!$imported) {
-                    @$this->xml_reader->next();
+                    $this->xml_on_unread_node = @$this->xml_reader->next();
                     continue;
                 }
                 @$doc->appendChild($imported);
 
                 $node = @simplexml_import_dom($doc->documentElement);
                 if (!$node) {
-                    @$this->xml_reader->next();
+                    $this->xml_on_unread_node = @$this->xml_reader->next();
                     continue;
                 }
 
-                $item = $this->xml_node_to_array($node);
+                $item = $this->xml_item_to_row($node);
                 $this->xml_items_read++;
 
-                @$this->xml_reader->next();
+                $this->xml_on_unread_node = @$this->xml_reader->next();
                 return $item;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Move the XMLReader on by one node.
+     *
+     * next() steps over an item and lands on whatever follows it. In a
+     * feed written without whitespace between its items - what an API
+     * usually sends - that is the next item itself, and a read() on top
+     * of it steps inside and past it: every second product was missing,
+     * from the import and from the count alike.
+     *
+     * @return bool False at the end of the file.
+     */
+    private function xml_step() {
+        if ($this->xml_on_unread_node) {
+            $this->xml_on_unread_node = false;
+            return true;
+        }
+        return @$this->xml_reader->read();
+    }
+
+    /**
+     * One item element as a row.
+     *
+     * @param SimpleXMLElement $node
+     * @return array
+     */
+    private function xml_item_to_row($node) {
+        if ($this->xml_dialect === 'tradedoubler') {
+            $element = dom_import_simplexml($node);
+            if ($element) {
+                return self::flatten_offer_row(self::tradedoubler_product($element));
+            }
+        }
+        return $this->xml_node_to_array($node);
     }
 
     /**
@@ -918,7 +995,7 @@ class MyFeeds_Feed_Reader {
             }
             $item_node = count($children) > 0 ? $children[0] : $node;
 
-            $item = $this->xml_node_to_array($item_node);
+            $item = $this->xml_item_to_row($item_node);
             $this->xml_items_read++;
 
             if (!empty($item)) {
@@ -1076,15 +1153,20 @@ class MyFeeds_Feed_Reader {
             return 0;
         }
 
+        // Same walk as xml_step(): after next() the counter already stands
+        // on the following node.
         $count = 0;
-        while (@$counter->read()) {
+        $more = @$counter->read();
+        while ($more) {
             if (
                 $counter->nodeType === XMLReader::ELEMENT
                 && $counter->localName === $this->xml_item_tag
             ) {
                 $count++;
-                @$counter->next();
+                $more = @$counter->next();
+                continue;
             }
+            $more = @$counter->read();
         }
         @$counter->close();
 
@@ -1096,56 +1178,765 @@ class MyFeeds_Feed_Reader {
     // JSON (Array)
     // =========================================================================
 
+    /**
+     * Open a JSON feed without loading it.
+     *
+     * This used to be file_get_contents() and json_decode() over the
+     * whole file, refused above 50 MB. A decoded feed takes several
+     * times its size in memory, so the limit was never the safe side
+     * of anything - a 40 MB file could end the import with a fatal
+     * error, and a 60 MB one was turned away with a line in the log
+     * and "Cannot open cached feed file" on the screen.
+     *
+     * The file is now walked: find the list of products, then hand out
+     * one element at a time. A file cut off in the middle - the first
+     * 32 KB the feed test downloads - yields every product that is
+     * complete.
+     */
     private function open_json() {
-        $size = filesize($this->file_path);
-        if ($size > 50 * 1024 * 1024) { // 50 MB guard
-            myfeeds_log("Feed Reader: JSON file too large ({$size} bytes), aborting", 'error');
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Streaming required for large feed files
+        $this->fh = @fopen($this->file_path, 'rb');
+        if (!$this->fh) {
+            myfeeds_log("Feed Reader: Cannot open JSON file: {$this->file_path}", 'error');
             return false;
         }
 
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Need full JSON for decode
-        $raw = file_get_contents($this->file_path);
-        $data = json_decode($raw, true);
-        unset($raw);
+        $this->json_single = null;
+        $list = $this->json_find_list();
 
+        if ($list === false) {
+            myfeeds_log('Feed Reader: JSON file does not start with an object or a list', 'error');
+            return false;
+        }
+
+        if ($list === null) {
+            return $this->open_json_single_object();
+        }
+
+        $this->json_list_at = $list['at'];
+        $this->total_items  = $list['count'];
+
+        $this->json_rewind();
+        $first = $this->read_next_json();
+        if (is_array($first)) {
+            $this->header = array_keys(self::flatten_offer_row($first));
+        }
+        $this->json_rewind();
+
+        return true;
+    }
+
+    /**
+     * A JSON file that is one object and holds no list we know: the
+     * object is the one row, as it always was.
+     */
+    private function open_json_single_object() {
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        fclose($this->fh);
+        $this->fh = null;
+
+        $size = (int) @filesize($this->file_path);
+        if ($size > self::JSON_SINGLE_OBJECT_MAX) {
+            $this->unsupported_reason = 'This JSON feed has no list of products MyFeeds recognises. It looks for one named '
+                . implode(', ', self::JSON_LIST_KEYS) . '.';
+            myfeeds_log("Feed Reader: {$this->unsupported_reason}", 'error');
+            return false;
+        }
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Small file, decoded whole
+        $data = json_decode((string) @file_get_contents($this->file_path), true);
         if (!is_array($data)) {
             myfeeds_log('Feed Reader: JSON decode failed or not an array', 'error');
             return false;
         }
 
-        // If it's a JSON object with a nested array, try common keys
-        if (!isset($data[0])) {
-            foreach (array('products', 'items', 'data', 'results', 'offers', 'entries') as $key) {
-                if (isset($data[$key]) && is_array($data[$key]) && isset($data[$key][0])) {
-                    $data = $data[$key];
-                    break;
-                }
-            }
-        }
-
-        if (!isset($data[0])) {
-            // Single object — wrap it
-            $data = array($data);
-        }
-
-        $this->json_items = $data;
-        $this->json_index = 0;
-        $this->total_items = count($data);
-
-        // Build header from first item
-        if (!empty($data[0]) && is_array($data[0])) {
-            $this->header = array_keys($data[0]);
-        }
+        $this->json_single = array($data);
+        $this->total_items = 1;
+        $this->header      = array_keys(self::flatten_offer_row($data));
 
         return true;
     }
 
-    private function read_next_json() {
-        if ($this->json_index >= count($this->json_items)) {
+    /**
+     * Where the list of products starts.
+     *
+     * A file that is a list is that list. A file that is an object is
+     * searched for the keys feeds use, in the order of JSON_LIST_KEYS -
+     * the order they were tried in when the file was still decoded
+     * whole - and the first that holds a non-empty list wins.
+     *
+     * @return array{at:int,count:int}|null|false Null: an object without
+     *         such a list. False: not JSON we can read. A count of -1
+     *         means "not counted yet".
+     */
+    private function json_find_list() {
+        $this->json_seek(0);
+        $c = $this->json_peek();
+
+        if ($c === '[') {
+            return array('at' => $this->json_offset(), 'count' => -1);
+        }
+        if ($c !== '{') {
             return false;
         }
 
-        return $this->json_items[$this->json_index++];
+        $this->json_pos++;
+        $found = array();
+
+        while (true) {
+            $c = $this->json_peek();
+            if ($c === ',') {
+                $this->json_pos++;
+                continue;
+            }
+            if ($c !== '"') {
+                break;
+            }
+            $raw_key = $this->json_take_value(true);
+            $key = $raw_key === null ? null : json_decode($raw_key);
+            if (!is_string($key) || $this->json_peek() !== ':') {
+                break;
+            }
+            $this->json_pos++;
+
+            if ($this->json_peek() === '[' && in_array($key, self::JSON_LIST_KEYS, true) && !isset($found[$key])) {
+                $at    = $this->json_offset();
+                $count = $this->json_count_list();
+                if ($count > 0) {
+                    $found[$key] = array('at' => $at, 'count' => $count);
+                    if ($key === self::JSON_LIST_KEYS[0]) {
+                        break;
+                    }
+                }
+                continue;
+            }
+
+            if ($this->json_take_value(false) === null) {
+                break;
+            }
+        }
+
+        foreach (self::JSON_LIST_KEYS as $key) {
+            if (isset($found[$key])) {
+                return $found[$key];
+            }
+        }
+        return null;
+    }
+
+    private function count_json() {
+        if ($this->total_items >= 0) {
+            return $this->total_items;
+        }
+        if (!$this->fh) {
+            return 0;
+        }
+
+        $back_to = $this->json_offset();
+        $this->json_seek($this->json_list_at);
+        $this->json_peek();
+        $this->total_items = $this->json_count_list();
+        $this->json_seek($back_to);
+
+        return $this->total_items;
+    }
+
+    private function skip_json($offset) {
+        if ($this->json_single !== null) {
+            if ($offset > 0) {
+                $this->json_single = array();
+            }
+            return;
+        }
+        if (!$this->fh) {
+            return;
+        }
+        for ($i = 0; $i < $offset; $i++) {
+            $c = $this->json_next_element_start();
+            if ($c === '' || $this->json_take_value(false) === null) {
+                break;
+            }
+        }
+    }
+
+    private function read_next_json() {
+        if ($this->json_single !== null) {
+            $row = array_shift($this->json_single);
+            return $row === null ? false : $row;
+        }
+        if (!$this->fh) {
+            return false;
+        }
+
+        while (true) {
+            if ($this->json_next_element_start() === '') {
+                return false;
+            }
+            $raw = $this->json_take_value(true);
+            if ($raw === null) {
+                return false; // cut off inside this element
+            }
+            $item = json_decode($raw, true);
+            if (is_array($item)) {
+                return $item;
+            }
+            // A bare value in a list of products is not a product.
+        }
+    }
+
+    /** Put the read position on the first element of the list. */
+    private function json_rewind() {
+        $this->json_seek($this->json_list_at);
+        if ($this->json_peek() === '[') {
+            $this->json_pos++;
+        }
+    }
+
+    /**
+     * Step over separators to the start of the next element.
+     *
+     * @return string Its first byte, or '' when the list has ended. The
+     *                closing bracket is not consumed, so the answer
+     *                stays the same however often it is asked.
+     */
+    private function json_next_element_start() {
+        while (true) {
+            $c = $this->json_peek();
+            if ($c === ',') {
+                $this->json_pos++;
+                continue;
+            }
+            return ($c === ']') ? '' : $c;
+        }
+    }
+
+    /**
+     * Count the elements of the list the read position stands on, and
+     * leave the position behind it. An element the file ends inside of
+     * is not counted.
+     */
+    private function json_count_list() {
+        $this->json_pos++;
+        $count = 0;
+        while (true) {
+            $c = $this->json_peek();
+            if ($c === ',') {
+                $this->json_pos++;
+                continue;
+            }
+            if ($c === ']') {
+                $this->json_pos++;
+                break;
+            }
+            if ($c === '' || $this->json_take_value(false) === null) {
+                break;
+            }
+            $count++;
+        }
+        return $count;
+    }
+
+    private function json_seek($offset) {
+        fseek($this->fh, $offset);
+        $this->json_buf  = '';
+        $this->json_pos  = 0;
+        $this->json_base = $offset;
+    }
+
+    private function json_offset() {
+        return $this->json_base + $this->json_pos;
+    }
+
+    private function json_more() {
+        if (!$this->fh || feof($this->fh)) {
+            return false;
+        }
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Streaming required for large feed files
+        $chunk = fread($this->fh, self::JSON_CHUNK);
+        if ($chunk === false || $chunk === '') {
+            return false;
+        }
+        $this->json_buf .= $chunk;
+        return true;
+    }
+
+    /**
+     * Skip whitespace and a byte-order mark.
+     *
+     * The only place the buffer is cut: between two values, where no
+     * one holds a position inside it.
+     *
+     * @return string The next byte, not consumed; '' at the end of the file.
+     */
+    private function json_peek() {
+        while (true) {
+            if ($this->json_pos > 65536) {
+                $this->json_buf  = (string) substr($this->json_buf, $this->json_pos);
+                $this->json_base += $this->json_pos;
+                $this->json_pos  = 0;
+            }
+            $this->json_pos += strspn($this->json_buf, " \t\r\n\xEF\xBB\xBF", $this->json_pos);
+            if (isset($this->json_buf[$this->json_pos])) {
+                return $this->json_buf[$this->json_pos];
+            }
+            if (!$this->json_more()) {
+                return '';
+            }
+        }
+    }
+
+    /**
+     * Read one JSON value - object, list, string or bare word - off the
+     * file and move behind it.
+     *
+     * Only quotes and brackets are looked at; everything between them
+     * is skipped by strcspn(), so walking a feed costs about as much as
+     * reading it.
+     *
+     * @param bool $capture Return the value's text. Counting and
+     *                      skipping do not need it.
+     * @return string|null Null when the file ends inside the value.
+     */
+    private function json_take_value($capture) {
+        $c = $this->json_peek();
+        if ($c === '') {
+            return null;
+        }
+        $start = $this->json_pos;
+
+        if ($c === '"') {
+            if (!$this->json_skip_string()) {
+                return null;
+            }
+        } elseif ($c === '{' || $c === '[') {
+            $depth = 0;
+            while (true) {
+                $this->json_pos += strcspn($this->json_buf, '"{}[]', $this->json_pos);
+                if (!isset($this->json_buf[$this->json_pos])) {
+                    if (!$this->json_more()) {
+                        return null;
+                    }
+                    continue;
+                }
+                $ch = $this->json_buf[$this->json_pos];
+                if ($ch === '"') {
+                    if (!$this->json_skip_string()) {
+                        return null;
+                    }
+                    continue;
+                }
+                $this->json_pos++;
+                if ($ch === '{' || $ch === '[') {
+                    $depth++;
+                } elseif (--$depth === 0) {
+                    break;
+                }
+            }
+        } else {
+            while (true) {
+                $this->json_pos += strcspn($this->json_buf, ",]}: \t\r\n", $this->json_pos);
+                if (isset($this->json_buf[$this->json_pos]) || !$this->json_more()) {
+                    break;
+                }
+            }
+            if ($this->json_pos === $start) {
+                return null;
+            }
+        }
+
+        return $capture ? substr($this->json_buf, $start, $this->json_pos - $start) : '';
+    }
+
+    /**
+     * Move behind the string the read position stands on. A quote is
+     * the end of it unless an odd number of backslashes come before.
+     */
+    private function json_skip_string() {
+        $open = $this->json_pos;
+        $from = $open + 1;
+        while (true) {
+            $quote = strpos($this->json_buf, '"', $from);
+            if ($quote === false) {
+                $from = strlen($this->json_buf);
+                if (!$this->json_more()) {
+                    return false;
+                }
+                continue;
+            }
+            $slashes = 0;
+            for ($k = $quote - 1; $k > $open && $this->json_buf[$k] === '\\'; $k--) {
+                $slashes++;
+            }
+            if ($slashes % 2 === 0) {
+                $this->json_pos = $quote + 1;
+                return true;
+            }
+            $from = $quote + 1;
+        }
+    }
+
+    // =========================================================================
+    // PRODUCTS THAT KEEP THEIR OFFERS ONE LEVEL DOWN (Tradedoubler)
+    // =========================================================================
+
+    /**
+     * Turn a product with nested offers into the flat row everything
+     * after the reader expects.
+     *
+     * Tradedoubler's Products API answers with a product - name,
+     * picture, description - and puts what a card is made of under
+     * offers[]: the id, the tracked link, the price as a history of
+     * changes, the stock. The importer looks for an id on the top level
+     * of a row and skipped every product for not having one.
+     *
+     * One offer is chosen (pick_offer) and its values are lifted to the
+     * top; id, price and link always come from the same offer. Nothing
+     * nested is left behind, because nothing downstream reads below the
+     * top level.
+     *
+     * A row is only touched when it has offers that carry `productUrl`.
+     * Every other row passes through as it came.
+     *
+     * @param mixed $row
+     * @return mixed
+     */
+    public static function flatten_offer_row($row) {
+        if (!is_array($row) || empty($row['offers']) || !is_array($row['offers'])) {
+            return $row;
+        }
+
+        $offers = array();
+        foreach ($row['offers'] as $offer) {
+            if (is_array($offer) && !empty($offer['productUrl']) && is_string($offer['productUrl'])) {
+                $offers[] = $offer;
+            }
+        }
+        if (empty($offers)) {
+            return $row;
+        }
+
+        $offer = self::pick_offer($offers);
+        $flat  = array();
+
+        foreach ($row as $key => $value) {
+            if (is_scalar($value)) {
+                $flat[$key] = $value;
+            }
+        }
+        foreach ($offer as $key => $value) {
+            if (is_scalar($value)) {
+                $flat[$key] = $value;
+            }
+        }
+
+        $price = self::offer_price($offer);
+        unset($flat['price'], $flat['previousPrice']);
+        if ($price['value'] !== null) {
+            $flat['price'] = $price['value'];
+        }
+        if ($price['currency'] !== '') {
+            $flat['currency'] = $price['currency'];
+        }
+        if ($price['previous'] !== null) {
+            $flat['previousPrice'] = $price['previous'];
+        }
+
+        if (isset($row['productImage']['url']) && is_string($row['productImage']['url'])) {
+            $flat['productImage'] = $row['productImage']['url'];
+        }
+
+        if (!empty($row['categories']) && is_array($row['categories'])) {
+            foreach (array('name', 'tdCategoryName') as $part) {
+                foreach ($row['categories'] as $category) {
+                    if (is_array($category) && !empty($category[$part]) && is_scalar($category[$part])) {
+                        if (!isset($flat['category'])) {
+                            $flat['category'] = (string) $category[$part];
+                        }
+                        if ($part === 'tdCategoryName' && !isset($flat['tdCategoryName'])) {
+                            $flat['tdCategoryName'] = (string) $category[$part];
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!empty($row['identifiers']) && is_array($row['identifiers'])) {
+            foreach ($row['identifiers'] as $key => $value) {
+                if (is_scalar($value) && !isset($flat[$key])) {
+                    $flat[$key] = $value;
+                }
+            }
+        }
+
+        // fields[] is whatever the advertiser called its extras. Lifted
+        // under their own names, one called store_price or
+        // merchant_deep_link would be taken for the price or the link.
+        if (!empty($row['fields']) && is_array($row['fields'])) {
+            $attributes = array('color', 'colour', 'size', 'gender', 'material');
+            foreach ($row['fields'] as $field) {
+                if (!is_array($field) || !isset($field['name'], $field['value']) || !is_scalar($field['name']) || !is_scalar($field['value'])) {
+                    continue;
+                }
+                $name  = trim((string) $field['name']);
+                $lower = strtolower($name);
+                if ($name === '') {
+                    continue;
+                }
+                if (in_array($lower, $attributes, true)) {
+                    if (!isset($flat[$lower])) {
+                        $flat[$lower] = $field['value'];
+                    }
+                    continue;
+                }
+                $flat['field_' . $name] = $field['value'];
+            }
+        }
+
+        return $flat;
+    }
+
+    /**
+     * The offer a card shows: one that can be bought before one that
+     * cannot, then the cheapest, then the first in the feed. An offer
+     * without a price comes last.
+     *
+     * With `fid` in the address a product has one offer and there is
+     * nothing to choose. Several appear when Tradedoubler groups the
+     * same product across advertisers.
+     *
+     * @param array $offers Non-empty list of offers.
+     * @return array
+     */
+    private static function pick_offer(array $offers) {
+        $best = null;
+        $best_rank = null;
+        foreach (array_values($offers) as $position => $offer) {
+            $price  = self::offer_price($offer);
+            $amount = is_numeric($price['value']) ? (float) $price['value'] : 0.0;
+            $rank   = array(
+                self::offer_in_stock($offer) ? 0 : 1,
+                $amount > 0 ? 0 : 1,
+                $amount,
+                $position,
+            );
+            if ($best_rank === null || $rank < $best_rank) {
+                $best = $offer;
+                $best_rank = $rank;
+            }
+        }
+        return $best;
+    }
+
+    /**
+     * Can this offer be bought? Unknown counts as yes, as it does for
+     * every other feed.
+     */
+    private static function offer_in_stock(array $offer) {
+        if (isset($offer['inStock']) && is_numeric($offer['inStock'])) {
+            return ((float) $offer['inStock']) > 0;
+        }
+        $said = (isset($offer['availability']) && is_scalar($offer['availability']))
+            ? strtolower(trim((string) $offer['availability']))
+            : '';
+        if ($said === '') {
+            return true;
+        }
+        if (in_array($said, array('no', 'n', 'false', '0'), true)) {
+            return false;
+        }
+        return !preg_match('/out|sold|unavail|not avail|discontinu|pre-?order|back-?order|ausverkauft|nicht/', $said);
+    }
+
+    /**
+     * An offer's price, its currency, and the price to strike through.
+     *
+     * The documentation lists a `price` field; its example response
+     * has only priceHistory, "all price changes during the life of the
+     * product". Both are read. The latest change is the current price.
+     *
+     * The price to strike through is the lowest one that applied in the
+     * thirty days before that change, and only if it was higher - the
+     * reference a shop in the EU must use itself when it announces a
+     * reduction. 49.90, then 79.90, then 54.90 inside a month is not
+     * "was 79.90". Without dates there is no telling, and no old price.
+     *
+     * @param array $offer
+     * @return array{value:mixed,currency:string,previous:mixed}
+     */
+    private static function offer_price(array $offer) {
+        $out = array('value' => null, 'currency' => '', 'previous' => null);
+
+        $history = array();
+        $dated   = true;
+        if (!empty($offer['priceHistory']) && is_array($offer['priceHistory'])) {
+            foreach ($offer['priceHistory'] as $entry) {
+                if (!is_array($entry) || !isset($entry['price'])) {
+                    continue;
+                }
+                $raw      = is_array($entry['price']) ? (isset($entry['price']['value']) ? $entry['price']['value'] : null) : $entry['price'];
+                $currency = is_array($entry['price']) && isset($entry['price']['currency']) ? $entry['price']['currency']
+                          : (isset($entry['currency']) ? $entry['currency'] : '');
+                if (!is_numeric($raw)) {
+                    continue;
+                }
+                $time = self::offer_time(isset($entry['date']) ? $entry['date'] : null);
+                if ($time === null) {
+                    $dated = false;
+                }
+                $history[] = array('raw' => $raw, 'amount' => (float) $raw, 'currency' => is_scalar($currency) ? (string) $currency : '', 'time' => $time);
+            }
+        }
+        if ($dated && count($history) > 1) {
+            usort($history, function ($a, $b) {
+                return $a['time'] <=> $b['time'];
+            });
+        }
+        $latest = empty($history) ? null : $history[count($history) - 1];
+
+        if (isset($offer['price'])) {
+            if (is_array($offer['price'])) {
+                if (isset($offer['price']['value']) && is_numeric($offer['price']['value'])) {
+                    $out['value'] = $offer['price']['value'];
+                }
+                if (isset($offer['price']['currency']) && is_scalar($offer['price']['currency'])) {
+                    $out['currency'] = (string) $offer['price']['currency'];
+                }
+            } elseif (is_numeric($offer['price'])) {
+                $out['value'] = $offer['price'];
+            }
+        }
+        if ($out['value'] === null && $latest !== null) {
+            $out['value'] = $latest['raw'];
+        }
+        if ($out['currency'] === '' && $latest !== null) {
+            $out['currency'] = $latest['currency'];
+        }
+        if ($out['currency'] === '' && isset($offer['currency']) && is_scalar($offer['currency'])) {
+            $out['currency'] = (string) $offer['currency'];
+        }
+
+        if ($dated && count($history) > 1 && is_numeric($out['value'])) {
+            $window_opens = $latest['time'] - 30 * 86400;
+            $lowest = null;
+            for ($i = count($history) - 2; $i >= 0; $i--) {
+                if ($lowest === null || $history[$i]['amount'] < $lowest['amount']) {
+                    $lowest = $history[$i];
+                }
+                if ($history[$i]['time'] <= $window_opens) {
+                    break;
+                }
+            }
+            if ($lowest !== null && $lowest['amount'] > (float) $out['value']) {
+                $out['previous'] = $lowest['raw'];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * A date from the API as a Unix time. Milliseconds since 1970 by
+     * default, ISO 8601 when the address asks for it.
+     *
+     * @param mixed $date
+     * @return int|null
+     */
+    private static function offer_time($date) {
+        if (is_numeric($date)) {
+            $n = (float) $date;
+            return (int) ($n > 100000000000 ? $n / 1000 : $n);
+        }
+        if (is_string($date) && $date !== '') {
+            $time = strtotime($date);
+            return $time === false ? null : $time;
+        }
+        return null;
+    }
+
+    /**
+     * A <product> of Tradedoubler's XML in the shape of its JSON.
+     *
+     * The same data, laid out differently: identifiers are plain
+     * children, a category's name and an offer's id are attributes, a
+     * price is an element whose date and currency are attributes. Once
+     * it has the JSON's shape, one function flattens both.
+     *
+     * @param DOMElement $product
+     * @return array
+     */
+    private static function tradedoubler_product($product) {
+        $row = self::dom_attributes($product);
+
+        foreach (self::dom_elements($product) as $child) {
+            switch ($child->localName) {
+                case 'offers':
+                    $row['offers'] = array();
+                    foreach (self::dom_elements($child) as $offer_el) {
+                        $offer = self::dom_attributes($offer_el);
+                        if (isset($offer['modifiedDate'])) {
+                            $offer['modified'] = $offer['modifiedDate'];
+                        }
+                        foreach (self::dom_elements($offer_el) as $part) {
+                            if ($part->localName !== 'priceHistory') {
+                                $offer[$part->localName] = trim($part->textContent);
+                                continue;
+                            }
+                            foreach (self::dom_elements($part) as $price) {
+                                $offer['priceHistory'][] = array(
+                                    'price' => array(
+                                        'value'    => trim($price->textContent),
+                                        'currency' => $price->getAttribute('currency'),
+                                    ),
+                                    'date'  => $price->getAttribute('date'),
+                                );
+                            }
+                        }
+                        $row['offers'][] = $offer;
+                    }
+                    break;
+
+                case 'categories':
+                    foreach (self::dom_elements($child) as $category) {
+                        $row['categories'][] = self::dom_attributes($category);
+                    }
+                    break;
+
+                case 'fields':
+                    foreach (self::dom_elements($child) as $field) {
+                        $row['fields'][] = array(
+                            'name'  => $field->getAttribute('name'),
+                            'value' => trim($field->textContent),
+                        );
+                    }
+                    break;
+
+                default:
+                    $row[$child->localName] = trim($child->textContent);
+            }
+        }
+
+        return $row;
+    }
+
+    private static function dom_attributes($element) {
+        $out = array();
+        if ($element->hasAttributes()) {
+            foreach ($element->attributes as $attribute) {
+                $out[$attribute->localName] = $attribute->value;
+            }
+        }
+        return $out;
+    }
+
+    private static function dom_elements($element) {
+        $out = array();
+        foreach ($element->childNodes as $node) {
+            if ($node->nodeType === XML_ELEMENT_NODE) {
+                $out[] = $node;
+            }
+        }
+        return $out;
     }
 
     // =========================================================================

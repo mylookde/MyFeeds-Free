@@ -176,6 +176,9 @@ class MyFeeds_Feed_Manager {
                     'addingFeed'          => __('Adding feed...', 'myfeeds-affiliate-feed-manager'),
                     'unknownError'        => __('An unknown error occurred.', 'myfeeds-affiliate-feed-manager'),
                     'serverError'         => __('Server error. Please try again.', 'myfeeds-affiliate-feed-manager'),
+                    'sourceChanged'       => __('This feed now comes from a new address or file. Your posts keep showing the products from the old one until it is imported again.', 'myfeeds-affiliate-feed-manager'),
+                    'importNow'           => __('Import now', 'myfeeds-affiliate-feed-manager'),
+                    'importLater'         => __('Later', 'myfeeds-affiliate-feed-manager'),
                 ),
             ));
         }
@@ -567,9 +570,9 @@ class MyFeeds_Feed_Manager {
                                             <option value="shareasale"><?php esc_html_e('ShareASale', 'myfeeds-affiliate-feed-manager'); ?></option>
                                             <option value="impact"><?php esc_html_e('Impact.com', 'myfeeds-affiliate-feed-manager'); ?></option>
                                             <option value="partnerize"><?php esc_html_e('Partnerize', 'myfeeds-affiliate-feed-manager'); ?></option>
+                                            <option value="pepperjam"><?php esc_html_e('Pepperjam (Ascend)', 'myfeeds-affiliate-feed-manager'); ?></option>
                                             <option value="rakuten"><?php esc_html_e('Rakuten Advertising', 'myfeeds-affiliate-feed-manager'); ?></option>
                                             <option value="flexoffers"><?php esc_html_e('FlexOffers', 'myfeeds-affiliate-feed-manager'); ?></option>
-                                            <option value="sovrn"><?php esc_html_e('Sovrn Commerce', 'myfeeds-affiliate-feed-manager'); ?></option>
                                             <option value="other"><?php esc_html_e('Other', 'myfeeds-affiliate-feed-manager'); ?></option>
                                         </select>
                                     </td>
@@ -1233,7 +1236,7 @@ class MyFeeds_Feed_Manager {
                                     data-feed-url="<?php echo esc_attr($feed['url']); ?>"
                                     data-feed-uploaded="<?php echo (class_exists('MyFeeds_Feed_Upload') && MyFeeds_Feed_Upload::is_uploaded_url($feed['url'])) ? '1' : '0'; ?>"
                                     data-feed-format="<?php echo esc_attr($feed['format_hint'] ?? ''); ?>"
-                                    data-feed-network="<?php echo esc_attr($feed['network_hint'] ?? 'awin'); ?>"
+                                    data-feed-network="<?php echo esc_attr(self::network_hint_for_dialog($feed)); ?>"
                                     data-testid="edit-feed-<?php echo esc_attr($key); ?>">
                                     <?php esc_html_e('Edit', 'myfeeds-affiliate-feed-manager'); ?>
                                 </button>
@@ -1365,6 +1368,7 @@ class MyFeeds_Feed_Manager {
                 'url' => $url,
                 'format_hint' => $format_hint,
                 'network_hint' => $network_hint,
+                'network_hint_chosen' => $network_hint !== '' ? 1 : 0,
                 'detected_network' => $detected_network,
                 'last_updated' => current_time('mysql'),
             );
@@ -1418,7 +1422,7 @@ class MyFeeds_Feed_Manager {
                 );
             }
 
-            $this->redirect_with_success($status_msg);
+            $this->redirect_with_success($status_msg . $this->upload_exposure_note($url, $uploaded));
 
         } catch (\Throwable $e) {
             MyFeeds_Affiliate_Product_Picker::log("FATAL ERROR in handle_save_feed: " . $e->getMessage());
@@ -1448,6 +1452,67 @@ class MyFeeds_Feed_Manager {
         }
 
         return __('uploaded file', 'myfeeds-affiliate-feed-manager');
+    }
+
+    /**
+     * Did an edit change where the feed comes from?
+     *
+     * Saving an edit stores the new address or file and imports
+     * nothing: the catalogue keeps the old feed's products until
+     * someone presses Reimport, and nothing on the screen said so. The
+     * browser is told, and offers the import (feed-manager.js). It is
+     * offered, not started: a reimport downloads the whole feed and
+     * works the field mapping out again, which is not what everyone who
+     * fixes a typo in an address wants in that moment.
+     *
+     * @param array      $existing The entry before the save; empty for a new feed.
+     * @param string     $url      The address being saved.
+     * @param array|null $uploaded Result of a fresh upload, if there was one.
+     * @return bool
+     */
+    public static function source_changed($existing, $url, $uploaded) {
+        if (!is_array($existing) || empty($existing['url'])) {
+            return false;
+        }
+        return is_array($uploaded) || (string) $existing['url'] !== (string) $url;
+    }
+
+    /**
+     * What to tell the owner about a file that was just stored.
+     *
+     * Asked once, at the moment of the upload: the only time the owner
+     * is looking, and the only time the answer can have changed.
+     *
+     * @param string     $url      Resolved feed URL.
+     * @param array|null $uploaded Result of a fresh upload, if there was one.
+     * @return string Empty, or a sentence starting with a space.
+     */
+    private function upload_exposure_note($url, $uploaded) {
+        if (!is_array($uploaded) || !class_exists('MyFeeds_Feed_Upload')) {
+            return '';
+        }
+        return MyFeeds_Feed_Upload::reachability($url) === 'open'
+            ? MyFeeds_Feed_Upload::open_folder_notice()
+            : '';
+    }
+
+    /**
+     * The network hint the edit dialog opens on.
+     *
+     * The dialog used to open on AWIN for every feed without a hint and
+     * save it. Where the feed itself names another network, such a
+     * stored `awin` is shown as "Auto-detect", so the next save clears
+     * it. The rule is the click tracker's and lives with the detector;
+     * without one (Free) the stored value is shown as it is.
+     *
+     * @param array $feed
+     * @return string
+     */
+    private static function network_hint_for_dialog($feed) {
+        if (class_exists('MyFeeds_Network_Detector')) {
+            return MyFeeds_Network_Detector::believed_hint($feed);
+        }
+        return (is_array($feed) && isset($feed['network_hint'])) ? (string) $feed['network_hint'] : '';
     }
 
     /**
@@ -1573,6 +1638,7 @@ class MyFeeds_Feed_Manager {
             }
             $url = $source['url'];
             $uploaded = $source['upload'];
+            $source_changed = self::source_changed($existing, $url, $uploaded);
 
             if (empty($name) || empty($url)) {
                 wp_send_json_error(array('message' => __('Feed name and URL are required.', 'myfeeds-affiliate-feed-manager')));
@@ -1610,6 +1676,7 @@ class MyFeeds_Feed_Manager {
                 'url' => $url,
                 'format_hint' => $format_hint,
                 'network_hint' => $network_hint,
+                'network_hint_chosen' => $network_hint !== '' ? 1 : 0,
                 'detected_network' => $detected_network,
                 'last_updated' => current_time('mysql'),
             );
@@ -1653,6 +1720,7 @@ class MyFeeds_Feed_Manager {
                 $import_hint = $import_scheduled
                     ? __(' Importing products in the background...', 'myfeeds-affiliate-feed-manager')
                     : __(' The feed will be imported during the next "Update All Feeds".', 'myfeeds-affiliate-feed-manager');
+                $import_hint .= $this->upload_exposure_note($url, $uploaded);
 
                 wp_send_json_success(array(
                     'message' => sprintf(
@@ -1664,6 +1732,7 @@ class MyFeeds_Feed_Manager {
                     'status' => 'untested',
                     'import_scheduled' => $import_scheduled,
                     'feed_key' => 0,
+                    'source_changed' => $source_changed,
                     'detected_network' => $detected_network,
                     'source_label' => $this->source_label_for($url, $uploaded),
                     'source_label' => $this->source_label_for($url, $uploaded),
@@ -1732,6 +1801,7 @@ class MyFeeds_Feed_Manager {
             $import_hint = $import_scheduled 
                 ? __(' Importing products in the background...', 'myfeeds-affiliate-feed-manager')
                 : '';
+            $import_hint .= $this->upload_exposure_note($url, $uploaded);
             
             wp_send_json_success(array(
                 'message' => sprintf(
@@ -1745,6 +1815,7 @@ class MyFeeds_Feed_Manager {
                 'status' => 'active',
                 'import_scheduled' => $import_scheduled,
                 'feed_key' => 0,
+                'source_changed' => $source_changed,
                 'detected_network' => $detected_network,
                 'table_html' => $this->feeds_table_html(),
             ));
@@ -2046,7 +2117,8 @@ class MyFeeds_Feed_Manager {
         $http_code = wp_remote_retrieve_response_code($response);
         
         if ($http_code !== 200) {
-            return new WP_Error('http_error', "HTTP Error $http_code when accessing feed");
+            $explained = myfeeds_feed_http_explained($http_code, $url);
+            return $explained ? $explained : new WP_Error('http_error', "HTTP Error $http_code when accessing feed");
         }
         
         if (empty($body)) {
@@ -2102,7 +2174,8 @@ class MyFeeds_Feed_Manager {
         
         $http_code = wp_remote_retrieve_response_code($response);
         if ($http_code !== 200 && $http_code !== 206) {
-            return new \WP_Error('http_error', "HTTP Error $http_code when accessing feed");
+            $explained = myfeeds_feed_http_explained($http_code, $url);
+            return $explained ? $explained : new \WP_Error('http_error', "HTTP Error $http_code when accessing feed");
         }
         
         $body = wp_remote_retrieve_body($response);
@@ -3230,28 +3303,7 @@ class MyFeeds_Feed_Manager {
      * Handles: "2.00", "2.00 EUR", "EUR 2.00", "2,00", "$19.99"
      */
     private static function parse_price_value($value) {
-        // Array safety (XML feeds may return arrays for repeated elements)
-        if (is_array($value)) {
-            $value = isset($value[0]) ? $value[0] : '';
-        }
-        if (is_numeric($value)) {
-            return floatval($value);
-        }
-        if (!is_string($value) || trim($value) === '') {
-            return 0;
-        }
-        // Character class, not byte class - see myfeeds-text.php.
-        $value = myfeeds_preg_replace_text('/[€$£¥₹]/u', '', $value);
-        $value = preg_replace('/\b(EUR|USD|GBP|CHF|AED|SAR|EGP|JPY|CNY|INR|AUD|CAD|SEK|NOK|DKK|PLN|CZK|HUF|RON|BGN|HRK|TRY|BRL|MXN|KRW)\b/i', '', $value);
-        $value = trim($value);
-        // Handle comma as decimal separator (European format: 2,00)
-        if (preg_match('/^\d+,\d{2}$/', $value)) {
-            $value = str_replace(',', '.', $value);
-        }
-        if (preg_match('/(\d+\.?\d*)/', $value, $matches)) {
-            return floatval($matches[1]);
-        }
-        return 0;
+        return myfeeds_parse_price($value);
     }
     
     /**

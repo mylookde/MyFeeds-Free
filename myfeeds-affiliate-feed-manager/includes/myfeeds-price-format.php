@@ -706,6 +706,78 @@ if (!function_exists('myfeeds_shipping_amount')) {
     }
 }
 
+if (!function_exists('myfeeds_parse_price')) {
+    /**
+     * A price as a feed wrote it, as a number.
+     *
+     * Feeds do not agree on how to write one. "15.00 GBP" and "GBP 15.00"
+     * (Google's format, used by Webgains), "1,299.00" (a thousands comma),
+     * "1.299,00" and "1 299,00" (the continental way), "1'299.00" (Swiss),
+     * "12,99". The old reading took the first run of digits, so every price
+     * with a thousands mark came out as its first group: a 1,299.00 coat
+     * cost 1.00 on the card.
+     *
+     * Where a comma and a point both occur, the last one is the decimal
+     * mark. A lone comma is a decimal mark unless it groups digits in
+     * threes. A lone point is left as a decimal point, as before: "1.299"
+     * could be either, and a price that was right must stay right.
+     *
+     * @param mixed $value
+     * @return float 0.0 when there is no number in it.
+     */
+    function myfeeds_parse_price($value) {
+        if (is_array($value)) {
+            $value = isset($value[0]) ? $value[0] : '';
+        }
+        if (is_int($value) || is_float($value)) {
+            return (float) $value;
+        }
+        if (!is_string($value)) {
+            return 0.0;
+        }
+        $text = trim($value);
+        if ($text === '') {
+            return 0.0;
+        }
+        if (is_numeric($text)) {
+            return (float) $text;
+        }
+
+        // Digits grouped in threes by a space or an apostrophe, or a plain
+        // run of digits, points and commas. `u` for the no-break spaces; a
+        // string that is not valid UTF-8 is read again without them.
+        $found = @preg_match('/\d{1,3}(?:[ \x{00A0}\x{202F}\x{2009}\']\d{3})+(?:[.,]\d+)?|\d[\d.,]*/u', $text, $m);
+        if ($found !== 1) {
+            $found = preg_match('/\d{1,3}(?:[ \']\d{3})+(?:[.,]\d+)?|\d[\d.,]*/', $text, $m);
+        }
+        if ($found !== 1) {
+            return 0.0;
+        }
+
+        $number = (string) preg_replace('/[^\d.,]/', '', $m[0]);
+        $number = rtrim($number, '.,');
+
+        $comma = strrpos($number, ',');
+        $point = strrpos($number, '.');
+
+        if ($comma !== false && $point !== false) {
+            if ($comma > $point) {
+                $number = str_replace(',', '.', str_replace('.', '', $number));
+            } else {
+                $number = str_replace(',', '', $number);
+            }
+        } elseif ($comma !== false) {
+            $number = preg_match('/^\d{1,3}(,\d{3})+$/', $number)
+                ? str_replace(',', '', $number)
+                : str_replace(',', '.', $number);
+        } elseif ($point !== false && substr_count($number, '.') > 1 && preg_match('/^\d{1,3}(\.\d{3})+$/', $number)) {
+            $number = str_replace('.', '', $number);
+        }
+
+        return (float) $number;
+    }
+}
+
 if (!function_exists('myfeeds_price_format_script')) {
     /**
      * Registers assets/price-format.js with the site's payload in front of it

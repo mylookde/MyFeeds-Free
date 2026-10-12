@@ -31,7 +31,7 @@ class MyFeeds_Feed_Upload {
     const SUBDIR = 'uploaded';
 
     /** Bumped when the rules below change, so an older file gets replaced. */
-    const HTACCESS_MARKER = '# MyFeeds upload guard v2';
+    const HTACCESS_MARKER = '# MyFeeds upload guard v3';
 
     /** Hard ceiling, independent of php.ini, so the error is ours and readable. */
     const MAX_BYTES = 524288000; // 500 MB
@@ -97,11 +97,25 @@ class MyFeeds_Feed_Upload {
     }
 
     /**
-     * Stop the folder from ever executing anything and from listing itself.
+     * Close the folder: nothing in it is handed out, executed or listed.
      *
-     * The files in here are feeds, not code, and the extension whitelist
-     * already keeps .php out. This is the second lock: a misconfigured
-     * host that runs .txt through PHP, or a future extension added to the
+     * A feed file holds what a network gave this publisher and nobody
+     * else - Impact's catalogue carries the commission per product,
+     * AWIN's links the publisher's id. The random file name keeps it
+     * from being guessed; it does not keep it from being fetched by
+     * whoever sees the address in a screenshot or a log. The plugin
+     * itself reads these files from the disk (myfeeds_remote_get() asks
+     * path_for_url() before it asks the network), so nobody has a
+     * reason to fetch one over HTTP.
+     *
+     * Both spellings of "deny" are written, each inside the module that
+     * understands it: Apache 2.4 and LiteSpeed read the first, Apache
+     * 2.2 the second. nginx reads neither - reachability() finds that
+     * out by asking, and the feeds screen says so.
+     *
+     * Second lock, as before: the files are feeds, not code, and the
+     * extension whitelist already keeps .php out. A misconfigured host
+     * that runs .txt through PHP, or a future extension added to the
      * list without thinking, both stop here.
      *
      * @param string $dir Absolute path.
@@ -134,6 +148,13 @@ class MyFeeds_Feed_Upload {
         // with 500 rather than ignoring the line. Hardening that can
         // take a customer's feeds offline is not hardening.
         $rules = self::HTACCESS_MARKER . "\n"
+               . "<IfModule mod_authz_core.c>\n"
+               . "  Require all denied\n"
+               . "</IfModule>\n"
+               . "<IfModule !mod_authz_core.c>\n"
+               . "  Order allow,deny\n"
+               . "  Deny from all\n"
+               . "</IfModule>\n"
                . "<IfModule mod_autoindex.c>\n"
                . "  Options -Indexes\n"
                . "</IfModule>\n"
@@ -156,6 +177,70 @@ class MyFeeds_Feed_Upload {
     }
 
     /**
+     * Can a stored file be fetched from outside?
+     *
+     * The rules above close the folder where a web server reads them.
+     * nginx does not, and a host that serves static files from in front
+     * of Apache may not either. Going by the server's name would be
+     * wrong in both directions, so the file is asked for once, the way
+     * a stranger would ask.
+     *
+     * The address is our own: built by handle() from the uploads folder
+     * and a file name we chose, never something an operator typed.
+     *
+     * @param string $url URL of a stored upload.
+     * @return string 'open', 'closed', or 'unknown' when the request
+     *                itself did not get through.
+     */
+    public static function reachability($url) {
+        if (!self::is_uploaded_url($url) || !function_exists('wp_remote_get')) {
+            return 'unknown';
+        }
+        $response = wp_remote_get($url, array(
+            'timeout'             => 5,
+            'redirection'         => 0,
+            'limit_response_size' => 1024,
+            'headers'             => array('Range' => 'bytes=0-0'),
+        ));
+        if (is_wp_error($response)) {
+            return 'unknown';
+        }
+        return self::reachability_from_status((int) wp_remote_retrieve_response_code($response));
+    }
+
+    /**
+     * What a status code says about the folder. Only an answer that
+     * hands the file over counts as open, and only a refusal as closed;
+     * a redirect, a server error or a challenge page says nothing.
+     *
+     * @param int $code HTTP status of a request for a stored file.
+     * @return string
+     */
+    public static function reachability_from_status($code) {
+        if ($code === 200 || $code === 206) {
+            return 'open';
+        }
+        if (in_array($code, array(401, 403, 404, 410, 451), true)) {
+            return 'closed';
+        }
+        return 'unknown';
+    }
+
+    /**
+     * The sentence for the owner of a server that left the folder open.
+     *
+     * @return string Starts with a space; appended to a save message.
+     */
+    public static function open_folder_notice() {
+        $path = (string) wp_parse_url(self::url(), PHP_URL_PATH);
+        return ' ' . sprintf(
+            /* translators: %s: path of the folder that holds uploaded feed files */
+            __('Note: this server hands the uploaded file to anyone who has its address, because it does not apply the access rule MyFeeds wrote into the folder. The address cannot be guessed, but ask your host to block direct access to %s (on nginx: a location block with "deny all").', 'myfeeds-affiliate-feed-manager'),
+            trailingslashit($path)
+        );
+    }
+
+    /**
      * Is this feed URL one of our own uploads?
      *
      * @param string $url Feed URL.
@@ -166,6 +251,43 @@ class MyFeeds_Feed_Upload {
             return false;
         }
         return strpos($url, '/myfeeds/' . self::SUBDIR . '/') !== false;
+    }
+
+    /**
+     * The file on disk behind one of our own upload URLs.
+     *
+     * An uploaded feed is given a real URL so the rest of the plugin can
+     * treat it like any other feed. Fetching it over HTTP turned out to
+     * be the wrong way to read our own file: on a site behind a password
+     * - a staging copy, a shop not open yet - the request comes back
+     * 401 and the import reports "Feed returned HTTP 401" about a file
+     * sitting right there on the disk. A firewall or a redirect does the
+     * same thing.
+     *
+     * @param string $url
+     * @return string Absolute path, or '' when the URL is not one of ours
+     *                or the file is missing.
+     */
+    public static function path_for_url($url) {
+        if (!self::is_uploaded_url($url)) {
+            return '';
+        }
+
+        $name = basename((string) wp_parse_url($url, PHP_URL_PATH));
+        if ($name === '' || strpos($name, '..') !== false) {
+            return '';
+        }
+
+        $path = trailingslashit(self::dir()) . $name;
+
+        // Confirm it really sits inside our folder before handing it out.
+        $real = realpath($path);
+        $base = realpath(self::dir());
+        if ($real === false || $base === false || strpos($real, $base) !== 0) {
+            return '';
+        }
+
+        return is_readable($real) ? $real : '';
     }
 
     /**

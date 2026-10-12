@@ -680,6 +680,19 @@
             var nonce = myfeedsAdmin.nonce;
             var isSaving = false;
             
+            // A feed can carry a hint the list no longer offers, or one a
+            // filter added. A select with no matching option submits
+            // nothing, and the next save would quietly drop the value.
+            function keepUnlistedHint(hint) {
+                var $select = $('#feed_network_hint');
+                $select.find('option[data-unlisted]').remove();
+                if (!hint) return;
+                var listed = $select.find('option').filter(function() { return this.value === hint; }).length;
+                if (!listed) {
+                    $select.append($('<option>').val(hint).text(hint).attr('data-unlisted', '1'));
+                }
+            }
+
             // Open modal for Add
             $(document).on('click', '#myfeeds-add-feed-btn', function(e) {
                 e.preventDefault();
@@ -689,6 +702,7 @@
                 $('#feed_name').val('');
                 $('#feed_url').val('');
                 $('#feed_format_hint').val('');
+                keepUnlistedHint('');
                 $('#feed_network_hint').val('');
                 $('#feed_file').val('');
                 $form.data('hasStoredUpload', false);
@@ -706,7 +720,7 @@
                 var name = $btn.data('feed-name');
                 var url = $btn.data('feed-url');
                 var formatHint = $btn.data('feed-format') || '';
-                var networkHint = $btn.data('feed-network') || 'awin';
+                var networkHint = $btn.data('feed-network') || '';
                 
                 $title.text(i18n.editFeed + ' ' + name);
                 $submitBtn.val(i18n.saveChanges);
@@ -714,6 +728,7 @@
                 $('#feed_name').val(name);
                 $('#feed_url').val(url);
                 $('#feed_format_hint').val(formatHint);
+                keepUnlistedHint(networkHint);
                 $('#feed_network_hint').val(networkHint);
 
                 var isUploaded = $btn.data('feed-uploaded') === 1 || $btn.data('feed-uploaded') === '1';
@@ -959,9 +974,15 @@
                                 
                                 isSaving = false;
                             } else {
-                                // Normal reload for edits
+                                // Normal reload for edits. An edit that
+                                // changed the address or the file imports
+                                // nothing by itself; the reloaded page
+                                // offers it (offerReimport below).
+                                var offer = response.data.source_changed
+                                    ? '&myfeeds_offer_reimport=' + encodeURIComponent(response.data.feed_key)
+                                    : '';
                                 setTimeout(function() {
-                                    window.location.href = cfg.feedsPageUrl + '&myfeeds_success=' + encodeURIComponent(response.data.message);
+                                    window.location.href = cfg.feedsPageUrl + offer + '&myfeeds_success=' + encodeURIComponent(response.data.message);
                                 }, 800);
                             }
                         } else {
@@ -984,6 +1005,47 @@
                     });
             });
             
+            // ===================================================================
+            // AFTER AN EDIT THAT CHANGED THE SOURCE: offer the import
+            // The catalogue still holds the old feed's products. One line
+            // above the table says so and starts the import on a click; the
+            // click is the row's own Reimport button, so there is one way in.
+            // ===================================================================
+            (function offerReimport() {
+                var params = new URLSearchParams(window.location.search);
+                var key = params.get('myfeeds_offer_reimport');
+                if (key === null || key === '') return;
+
+                // Asked once: a reload must not bring the offer back.
+                params.delete('myfeeds_offer_reimport');
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', window.location.pathname + '?' + params.toString());
+                }
+
+                var $button = $('.myfeeds-reimport-btn').filter(function() {
+                    return String($(this).data('feed-key')) === String(key);
+                });
+                if (!$button.length || $button.prop('disabled')) return;
+
+                var $offer = $('<div class="notice notice-warning myfeeds-offer-reimport" style="padding:10px 12px;"></div>');
+                $offer.append($('<strong>').text($button.data('feed-name') + ': '));
+                $offer.append(document.createTextNode(i18n.sourceChanged + ' '));
+                $offer.append($('<button type="button" class="button button-primary" style="margin-left:6px;"></button>').text(i18n.importNow)
+                    .on('click', function() {
+                        $offer.remove();
+                        $button.trigger('click');
+                    }));
+                $offer.append($('<button type="button" class="button-link" style="margin-left:10px;"></button>').text(i18n.importLater)
+                    .on('click', function() {
+                        $offer.remove();
+                    }));
+
+                var $table = $('.myfeeds-feeds-table').first();
+                if ($table.length) {
+                    $table.before($offer);
+                }
+            })();
+
             // ===================================================================
             // AUTO-REFRESH POLLING: Check feed status after creation
             // Activated via URL parameter ?myfeeds_poll_feed=<key>
