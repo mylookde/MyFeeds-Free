@@ -749,39 +749,55 @@ class MyFeeds_Feed_Manager {
      * Render simplified feeds table
      */
     /**
-     * Signpost for the Amazon source, which lives in the paid Pro
-     * plugin. Opens a dialog describing the feature rather than leading
-     * to a submenu of its own: one entry point, and the feeds screen is
-     * where a source would be added.
+     * Signpost for Amazon, which lives in the paid plugins. Opens a
+     * dialog describing the feature rather than leading to a submenu of
+     * its own: one entry point, and the feeds screen is where a source
+     * would be added.
      *
-     * wp.org guideline 5: what the dialog holds is marketing copy and a
-     * checkout link, the same substance the other preview pages carry.
-     * No Amazon code ships in this plugin and nothing here is a locked
-     * control.
+     * Amazon comes with two of the paid plugins (2026-10-12), and the
+     * dialog says which part comes with which: products by link or ASIN
+     * with MyFeeds Starter, Amazon's own picture and price through
+     * Amazon's API with MyFeeds Pro. The wording is the one the paid
+     * plugin's own teaser uses (class-amazon-teaser.php there).
+     *
+     * wp.org guideline 5: what the dialog holds is marketing copy, a
+     * checkout link and a link to the plans, the same substance the
+     * other preview pages carry. No Amazon code ships in this plugin and
+     * nothing here is a locked control.
      */
     private function render_amazon_teaser_button() {
         ?>
         <button type="button" id="myfeeds-add-amazon-btn" class="button"><?php
             esc_html_e('+ Add Amazon', 'myfeeds-affiliate-feed-manager');
         ?><span class="myfeeds-amazon-tip" aria-hidden="true"><?php
-            esc_html_e('Available from Pro', 'myfeeds-affiliate-feed-manager');
+            esc_html_e('Available from Starter', 'myfeeds-affiliate-feed-manager');
         ?></span></button>
         <?php
         $this->print_amazon_styles();
     }
 
     private function render_amazon_modal() {
-        $benefits = array(
+        // Two lists, because two plans: what holds for every Amazon
+        // product, and what only Amazon's API brings. One list under one
+        // plan's name would put a line under the wrong plan.
+        $always = array(
+            __('Works alongside your feeds. Amazon products and feed products sit in the same block.', 'myfeeds-affiliate-feed-manager'),
+            __('Choose your Amazon site and partner tag per country.', 'myfeeds-affiliate-feed-manager'),
+        );
+        $with_api = array(
             __('Search the Amazon catalogue without leaving the editor.', 'myfeeds-affiliate-feed-manager'),
             __('Filter by category, brand, price and rating, and sort by what sells.', 'myfeeds-affiliate-feed-manager'),
             __('Prices and availability refresh themselves, so your posts stop going stale.', 'myfeeds-affiliate-feed-manager'),
             __('Cards carry the timestamp and wording the Amazon Associates terms require.', 'myfeeds-affiliate-feed-manager'),
-            __('Works alongside your feeds. Amazon products and feed products sit in the same block.', 'myfeeds-affiliate-feed-manager'),
-            __('Choose your Amazon site and partner tag per country.', 'myfeeds-affiliate-feed-manager'),
         );
 
+        // The button stands under the list of what Amazon's API does, so
+        // it starts Pro: a Starter checkout there would sell a plugin
+        // that cannot do what the list says. The way to Starter is the
+        // link to the plans beside it.
         $cta = MyFeeds_Feature_Previews::CHECKOUT_PRO_URL
             . '&utm_source=wp-plugin-free&utm_medium=amazon-modal&utm_term=amazon';
+        $plans = 'https://myfeeds.site/?utm_source=wp-plugin-free&utm_medium=amazon-modal&utm_term=plans#pricing';
         ?>
         <div id="myfeeds-amazon-modal" class="myfeeds-modal-overlay" style="display:none;">
             <div class="myfeeds-modal-content myfeeds-amazon-modal-content">
@@ -790,28 +806,36 @@ class MyFeeds_Feed_Manager {
                     <button type="button" class="myfeeds-modal-close" id="myfeeds-amazon-modal-close">&times;</button>
                 </div>
                 <div class="myfeeds-modal-body">
-                    <span class="myfeeds-amazon-badge"><?php esc_html_e('Pro feature', 'myfeeds-affiliate-feed-manager'); ?></span>
+                    <span class="myfeeds-amazon-badge"><?php esc_html_e('From Starter', 'myfeeds-affiliate-feed-manager'); ?></span>
                     <h2 class="myfeeds-amazon-title"><?php esc_html_e('Put Amazon products in your posts.', 'myfeeds-affiliate-feed-manager'); ?></h2>
                     <p class="myfeeds-amazon-lede">
-                        <?php esc_html_e('Search the Amazon catalogue from inside the editor and drop products straight into a post. Prices and stock refresh themselves, and every card carries the timestamp and wording Amazon asks for.', 'myfeeds-affiliate-feed-manager'); ?>
+                        <?php esc_html_e('With Starter you add Amazon products by link or ASIN: the card shows the name you give it and links to Amazon with your own partner tag. With Pro, Amazon\'s API adds Amazon\'s picture and price, and you search the Amazon catalogue from inside the editor.', 'myfeeds-affiliate-feed-manager'); ?>
                     </p>
 
                     <ul class="myfeeds-amazon-benefits">
-                        <?php foreach ($benefits as $benefit) : ?>
+                        <?php foreach ($always as $benefit) : ?>
+                            <li><?php echo esc_html($benefit); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+
+                    <p class="myfeeds-amazon-list-title"><?php esc_html_e('With Pro, through Amazon\'s API:', 'myfeeds-affiliate-feed-manager'); ?></p>
+                    <ul class="myfeeds-amazon-benefits">
+                        <?php foreach ($with_api as $benefit) : ?>
                             <li><?php echo esc_html($benefit); ?></li>
                         <?php endforeach; ?>
                     </ul>
 
                     <p class="myfeeds-amazon-note">
                         <strong><?php esc_html_e('Worth knowing before you buy:', 'myfeeds-affiliate-feed-manager'); ?></strong>
-                        <?php esc_html_e('Amazon only opens its product API to Associates accounts with 10 qualifying sales in the last 30 days. That is Amazon\'s rule, not ours, and it applies to every plugin that connects to them.', 'myfeeds-affiliate-feed-manager'); ?>
+                        <?php esc_html_e('Amazon only opens its product API to Associates accounts with 10 qualifying sales in the last 30 days. That is Amazon\'s rule, not ours, and it applies to every plugin that connects to them. Adding products by link or ASIN needs no API.', 'myfeeds-affiliate-feed-manager'); ?>
                     </p>
 
                     <p class="myfeeds-amazon-cta">
                         <a class="button" id="myfeeds-amazon-cta" href="<?php echo esc_url($cta); ?>" target="_blank" rel="noopener">
-                            <?php esc_html_e('Start 7-day free trial', 'myfeeds-affiliate-feed-manager'); ?>
+                            <?php esc_html_e('Start 7-day free trial of Pro', 'myfeeds-affiliate-feed-manager'); ?>
                         </a>
                         <span class="myfeeds-amazon-cta-note"><?php esc_html_e('Cancel anytime from your dashboard', 'myfeeds-affiliate-feed-manager'); ?></span>
+                        <a class="myfeeds-amazon-cta-plans" href="<?php echo esc_url($plans); ?>" target="_blank" rel="noopener"><?php esc_html_e('Only need links? See the plans', 'myfeeds-affiliate-feed-manager'); ?></a>
                     </p>
                 </div>
             </div>
@@ -887,6 +911,7 @@ class MyFeeds_Feed_Manager {
             }
             .myfeeds-amazon-title { margin: 12px 0 6px; font-size: 21px; line-height: 1.25; }
             .myfeeds-amazon-lede { margin: 0 0 16px; color: #50575e; font-size: 14px; line-height: 1.6; }
+            .myfeeds-amazon-list-title { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
             .myfeeds-amazon-benefits { margin: 0 0 16px; padding: 0; list-style: none; }
             .myfeeds-amazon-benefits li {
                 position: relative;
@@ -934,6 +959,7 @@ class MyFeeds_Feed_Manager {
                 box-shadow: 0 4px 12px rgba(222, 122, 0, 0.35) !important;
             }
             .myfeeds-amazon-cta-note { font-size: 12px; color: #646970; }
+            .myfeeds-amazon-cta-plans { flex: 0 0 100%; font-size: 13px; }
         </style>
         <?php
     }
