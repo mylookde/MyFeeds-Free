@@ -193,7 +193,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 = 1.0.48 =
 * Fixed: the mapping editor could not show a feed's fields. Loading them ended in a PHP error ("Call to undefined method") instead of the list of columns, in every version from 1.0.34 to 1.0.47. The fields load again.
-* Fixed: a feed from Tradedoubler's Products API imported no products. In that format the product number, price, stock and tracking link belong to the offer inside each product; they are now read from there, in JSON and in XML, the way Tradedoubler documents the format.
+* Fixed: a feed in the format Tradedoubler documents for its Products API imported no products. In that format the product number, price, stock and tracking link belong to the offer inside each product; they are now read from there, in JSON and in XML.
 * Fixed: an XML feed written without line breaks between its products lost every second product.
 * Fixed: a price with a thousands mark was read wrong: "1,299.00" became 1.00, and "1.299,00" became 1.299.
 * Fixed: a Rakuten catalogue file (fields separated by "|", no row of column names) opened as a feed without products. It is now read by position, as Rakuten documents it.
