@@ -133,7 +133,7 @@ If your affiliate program hands you a product feed URL you can download, MyFeeds
 
 = Does it work with my network's feed: Awin, CJ, Impact, Tradedoubler, Rakuten? =
 
-Those are the ones we see most often, and their feeds import without manual work. The plugin isn't built around any single network though: it reads the file your program hands you, whatever the network is called. CSV, TSV, XML and JSON all work, compressed or not. If a column is named something the plugin has never seen, the mapping editor lets you point it at the right field yourself.
+The automatic mapping is written for the feed formats these networks document. The plugin isn't built around any single network though: it reads the file your program hands you, whatever the network is called. CSV, TSV, XML and JSON all work, compressed or not. If a column is named something the plugin has never seen, the mapping editor lets you point it at the right field yourself.
 
 = Does the plugin make any external requests? =
 
