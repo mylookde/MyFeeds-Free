@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.48
+Stable tag: 1.0.49
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -190,6 +190,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.49 =
+* Changed: the one-time review request now comes after a week of working product cards instead of two, and first asks one question: how did you find MyFeeds? Each answer is a link that opens a short thank-you page on myfeeds.site; the plugin itself sends nothing.
 
 = 1.0.48 =
 * Fixed: the mapping editor shows a feed's fields again. Loading them ended in a PHP error.
