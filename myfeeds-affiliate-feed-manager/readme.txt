@@ -24,7 +24,7 @@ You get to stay where the value is. Writing. Instead of pasting URLs at midnight
 
 = Who is this for =
 
-MyFeeds is for bloggers, niche site owners and small publishers in affiliate marketing: anyone who earns a commission when a reader clicks a product and buys it. They use it to turn the product feed their affiliate network provides (some networks call it a datafeed) into product cards inside their posts, instead of pasting single affiliate links by hand.
+MyFeeds is for anyone in affiliate marketing who earns a commission by promoting other companies' products: solo bloggers and niche sites as well as large publishers, magazines and deal sites. They use it to turn the product feed their affiliate network provides (some networks call it a datafeed) into product cards inside their posts, instead of pasting single affiliate links by hand. Larger sites with many merchants can add the paid plugins below, with unlimited feeds and, on E-commerce, a full shop with its own categories and filters.
 
 Whatever you cover, from clothing and gear to books, beauty, supplements, tools, baby, garden, hobbies, niche electronics, or deals: if there's an affiliate program for it, there's a product feed somewhere, and MyFeeds can read it.
 
@@ -91,7 +91,7 @@ Sign up with an affiliate network (such as AWIN, CJ Affiliate, Rakuten, or Impac
 
 = Who is MyFeeds for? =
 
-Bloggers, niche site owners and small publishers in affiliate marketing who promote products from an affiliate network. They use MyFeeds to show those products as cards inside their posts, with an image, the price and their affiliate link, and the cards keep themselves current. If your network gives you a product feed or a datafeed, MyFeeds can import it.
+Anyone in affiliate marketing who promotes other companies' products and earns a commission on the sale, from solo bloggers and niche sites to large publishers, magazines and deal sites. They use MyFeeds to show those products as cards inside their posts, with an image, the price and their affiliate link, and the cards keep themselves current. If your network gives you a product feed or a datafeed, MyFeeds can import it.
 
 = How do I upload a merchant product feed to WordPress? =
 
