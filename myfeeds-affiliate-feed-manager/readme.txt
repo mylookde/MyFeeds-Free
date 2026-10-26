@@ -24,7 +24,9 @@ You get to stay where the value is. Writing. Instead of pasting URLs at midnight
 
 = Who is this for =
 
-Anyone earning a cut when readers click and buy. Whatever you cover, from clothing and gear to books, beauty, supplements, tools, baby, garden, hobbies, niche electronics, or deals: if there's an affiliate program for it, there's a product feed somewhere, and MyFeeds can read it.
+MyFeeds is for bloggers, niche site owners and small publishers in affiliate marketing: anyone who earns a commission when a reader clicks a product and buys it. They use it to turn the product feed their affiliate network provides (some networks call it a datafeed) into product cards inside their posts, instead of pasting single affiliate links by hand.
+
+Whatever you cover, from clothing and gear to books, beauty, supplements, tools, baby, garden, hobbies, niche electronics, or deals: if there's an affiliate program for it, there's a product feed somewhere, and MyFeeds can read it.
 
 The block editor stays your block editor. The plugin works in the background.
 
@@ -40,7 +42,7 @@ The block editor stays your block editor. The plugin works in the background.
 = How it works =
 
 1. Paste in the **affiliate product feed URL** from your network.
-2. Every product is imported and stored locally in your WordPress database. The plugin figures out the column structure on its own.
+2. The product import stores every product locally in your WordPress database. The plugin figures out the column structure on its own.
 3. In any post or page, add the **MyFeeds Product Picker** block. Search by name, brand, or category. Click to insert.
 4. The published page renders a responsive product card with the current price, image, brand, shipping, and your affiliate link. The card is built from your own database, and your server contacts no external service to render it. The pictures load from the merchant.
 
@@ -86,6 +88,10 @@ This plugin is fully functional on its own. Separate, independent paid plugins c
 Sign up with an affiliate network (such as AWIN, CJ Affiliate, Rakuten, or Impact), navigate to the product feed section (usually labelled "Create a feed" or "Product feeds"), and copy the feed URL.
 
 == Frequently Asked Questions ==
+
+= Who is MyFeeds for? =
+
+Bloggers, niche site owners and small publishers in affiliate marketing who promote products from an affiliate network. They use MyFeeds to show those products as cards inside their posts, with an image, the price and their affiliate link, and the cards keep themselves current. If your network gives you a product feed or a datafeed, MyFeeds can import it.
 
 = How do I upload a merchant product feed to WordPress? =
 
