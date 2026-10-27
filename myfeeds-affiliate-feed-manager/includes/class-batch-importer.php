@@ -555,55 +555,83 @@ class MyFeeds_Batch_Importer {
         
         MyFeeds_Logger::info('=== DISCOVERY START ===');
         MyFeeds_Logger::debug('Discovery: include_index_ids=' . ($include_index_ids ? 'true' : 'false'));
-        
-        // =====================================================================
-        // STEP 1: Count total publish posts (diagnostic)
-        // =====================================================================
-        $total_publish = $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ('post', 'page')"
-        );
-        MyFeeds_Logger::debug("Discovery: Total publish posts/pages in DB: {$total_publish}");
-        
-        // =====================================================================
-        // STEP 2: Search for content with MyFeeds markers
-        // DIAGNOSTIC: Log which LIKE patterns matched
-        // =====================================================================
-        $posts = $wpdb->get_results(
-            "SELECT ID, post_content FROM {$wpdb->posts} 
-             WHERE post_status = 'publish'
-             AND post_type IN ('post', 'page')
-             AND post_content != ''
-             AND (
-                 post_content LIKE '%wp:myfeeds%' 
-                 OR post_content LIKE '%[myfeeds%'
-                 OR post_content LIKE '%wp:product-picker%'
-             )"
-        );
-        
+
+        // Every post type a block can be published in, not only posts and
+        // pages (myfeeds-content-sources.php). The same one query as
+        // before, with a longer IN list.
+        $types_sql = function_exists('myfeeds_discovery_post_types_sql')
+            ? myfeeds_discovery_post_types_sql()
+            : "'post', 'page'";
+        MyFeeds_Logger::debug("Discovery: post types [{$types_sql}]");
+
+        $posts = array();
+        if ($types_sql !== '') {
+            // =====================================================================
+            // STEP 1: Count total publish posts (diagnostic)
+            // =====================================================================
+            $total_publish = $wpdb->get_var(
+                "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ({$types_sql})"
+            );
+            MyFeeds_Logger::debug("Discovery: Total published posts in DB: {$total_publish}");
+
+            // =====================================================================
+            // STEP 2: Search for content with MyFeeds markers
+            // DIAGNOSTIC: Log which LIKE patterns matched
+            // =====================================================================
+            $posts = $wpdb->get_results(
+                "SELECT ID, post_content FROM {$wpdb->posts}
+                 WHERE post_status = 'publish'
+                 AND post_type IN ({$types_sql})
+                 AND post_content != ''
+                 AND (
+                     post_content LIKE '%wp:myfeeds%'
+                     OR post_content LIKE '%[myfeeds%'
+                     OR post_content LIKE '%wp:product-picker%'
+                 )"
+            );
+            $posts = is_array($posts) ? $posts : array();
+
+            // =====================================================================
+            // DIAGNOSTIC: Also check what we're MISSING - posts with other patterns
+            // This helps identify if block names differ from expected
+            // =====================================================================
+            $posts_with_any_block = $wpdb->get_var(
+                "SELECT COUNT(*) FROM {$wpdb->posts}
+                 WHERE post_status = 'publish'
+                 AND post_type IN ({$types_sql})
+                 AND post_content LIKE '%<!-- wp:%'"
+            );
+            MyFeeds_Logger::debug("Discovery: Posts with ANY Gutenberg blocks: {$posts_with_any_block}");
+
+            // Check for myfeeds/product-picker pattern specifically (diagnostic)
+            $posts_with_my_product_picker = $wpdb->get_var(
+                "SELECT COUNT(*) FROM {$wpdb->posts}
+                 WHERE post_status = 'publish'
+                 AND post_type IN ({$types_sql})
+                 AND (post_content LIKE '%myfeeds/product-picker%' OR post_content LIKE '%my-product-picker%')"
+            );
+            MyFeeds_Logger::debug("Discovery DIAGNOSTIC: Posts with 'myfeeds' block in content: {$posts_with_my_product_picker}");
+        }
+
+        // Block widgets are not posts: they live in one option. Read with
+        // the same three markers as the query above, then through the same
+        // resolvers - an id in the log says which widget it was.
+        $widget_count = 0;
+        if (function_exists('myfeeds_block_widget_contents')) {
+            foreach (myfeeds_block_widget_contents() as $widget_id => $content) {
+                if (strpos($content, 'wp:myfeeds') === false
+                    && strpos($content, '[myfeeds') === false
+                    && strpos($content, 'wp:product-picker') === false) {
+                    continue;
+                }
+                $posts[] = (object) array('ID' => $widget_id, 'post_content' => $content);
+                $widget_count++;
+            }
+        }
+
         $discovery_stats['posts_scanned'] = count($posts);
-        MyFeeds_Logger::debug("Discovery SQL: Found " . count($posts) . " posts matching LIKE patterns (wp:myfeeds, [myfeeds, wp:product-picker)");
-        
-        // =====================================================================
-        // DIAGNOSTIC: Also check what we're MISSING - posts with other patterns
-        // This helps identify if block names differ from expected
-        // =====================================================================
-        $posts_with_any_block = $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->posts} 
-             WHERE post_status = 'publish'
-             AND post_type IN ('post', 'page')
-             AND post_content LIKE '%<!-- wp:%'"
-        );
-        MyFeeds_Logger::debug("Discovery: Posts with ANY Gutenberg blocks: {$posts_with_any_block}");
-        
-        // Check for myfeeds/product-picker pattern specifically (diagnostic)
-        $posts_with_my_product_picker = $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->posts} 
-             WHERE post_status = 'publish'
-             AND post_type IN ('post', 'page')
-             AND (post_content LIKE '%myfeeds/product-picker%' OR post_content LIKE '%my-product-picker%')"
-        );
-        MyFeeds_Logger::debug("Discovery DIAGNOSTIC: Posts with 'myfeeds' block in content: {$posts_with_my_product_picker}");
-        
+        MyFeeds_Logger::debug("Discovery SQL: Found " . (count($posts) - $widget_count) . " posts and {$widget_count} block widgets matching LIKE patterns (wp:myfeeds, [myfeeds, wp:product-picker)");
+
         if (!empty($posts)) {
             foreach ($posts as $post) {
                 $post_ids_before = count($product_ids);
@@ -695,7 +723,10 @@ class MyFeeds_Batch_Importer {
         
         // Convert to indexed array
         $result = array_keys($product_ids);
-        
+
+        // Products a theme or plugin shows without a MyFeeds block.
+        $result = $this->add_announced_product_ids($result, $include_index_ids);
+
         // =====================================================================
         // DIAGNOSTIC SUMMARY
         // =====================================================================
@@ -721,6 +752,94 @@ class MyFeeds_Batch_Importer {
         return $result;
     }
     
+    /**
+     * The most ids the filter below may add. 187 on mylook (a theme's
+     * Looks); far above anything a site shows, and far below what would
+     * strain the option Quick Sync parks the list in.
+     */
+    const MAX_ANNOUNCED_IDS = 50000;
+
+    /**
+     * Products a theme or plugin shows without a MyFeeds block - its own
+     * table, a template module, a post type that keeps them in meta - are
+     * announced through the filter myfeeds_active_product_ids, and the
+     * nightly Quick Sync keeps their price and stock current like those in
+     * posts:
+     *
+     *   add_filter('myfeeds_active_product_ids', function ($ids) {
+     *       return array_merge($ids, my_shown_external_ids());
+     *   });
+     *
+     * The list holds external_id values from the products table, as
+     * strings. The same list is Quick Sync's, the full import's priority
+     * pass, and the one that decides whether a removed feed's products are
+     * archived (still shown) or deleted.
+     *
+     * The filter can only add. A callback that returns just its own ids -
+     * an easy slip - would otherwise drop every product the site's blocks
+     * hold from all three. What the content holds stays in, whatever comes
+     * back.
+     *
+     * What comes back is cleaned like an id read from content: strings or
+     * whole numbers, trimmed, is_valid_product_id(), each once, at most
+     * MAX_ANNOUNCED_IDS new ones. A callback that throws, or returns
+     * something that is not a list, changes nothing.
+     *
+     * @param array $found Ids from content, as discovery built them.
+     * @param bool  $include_index_ids Passed on for the callback's information.
+     * @return array<int,string>
+     */
+    private function add_announced_product_ids(array $found, $include_index_ids) {
+        $found = array_map('strval', $found);
+        if (!function_exists('apply_filters')) {
+            return $found;
+        }
+
+        try {
+            $announced = apply_filters('myfeeds_active_product_ids', $found, (bool) $include_index_ids);
+        } catch (\Throwable $e) {
+            MyFeeds_Logger::error('Discovery: a myfeeds_active_product_ids callback failed, keeping the ids from content: ' . $e->getMessage());
+            return $found;
+        }
+
+        if (!is_array($announced)) {
+            MyFeeds_Logger::error('Discovery: myfeeds_active_product_ids returned ' . gettype($announced) . ' instead of a list, keeping the ids from content');
+            return $found;
+        }
+
+        $ids = array_fill_keys($found, true);
+        $added = 0;
+        $over = 0;
+        foreach ($announced as $id) {
+            if (is_int($id)) {
+                $id = (string) $id;
+            }
+            if (!is_string($id)) {
+                continue;
+            }
+            $id = trim($id);
+            if (!$this->is_valid_product_id($id) || isset($ids[$id])) {
+                continue;
+            }
+            if ($added >= self::MAX_ANNOUNCED_IDS) {
+                $over++;
+                continue;
+            }
+            $ids[$id] = true;
+            $added++;
+        }
+
+        if ($added > 0) {
+            MyFeeds_Logger::info("Discovery: IDs announced through myfeeds_active_product_ids: {$added} new");
+        }
+        if ($over > 0) {
+            MyFeeds_Logger::error("Discovery: myfeeds_active_product_ids announced {$over} more ids than the " . self::MAX_ANNOUNCED_IDS . ' this run takes; they are left out');
+        }
+
+        // PHP turns a numeric string key into an int: back to strings.
+        return array_map('strval', array_keys($ids));
+    }
+
     /**
      * DIAGNOSTIC ONLY: Collect all block names recursively for analysis
      * This helps identify if block names differ from expected patterns

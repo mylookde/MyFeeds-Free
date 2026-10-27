@@ -4,6 +4,10 @@ Full changelog
 The most recent releases are also listed on the plugin page on WordPress.org.
 That listing has a length limit, so the complete history lives here.
 
+= 1.0.50 =
+* Fixed: the nightly sync refreshed only products placed in posts and pages. Products in other post types, synced patterns, block widgets and block-theme templates kept their old price and stock until the weekly full import. They are now refreshed every night too.
+* New: themes and plugins that show products without a MyFeeds block can announce them with the `myfeeds_active_product_ids` filter, and the nightly sync keeps them current.
+
 = 1.0.49 =
 * Changed: the one-time review request now comes after a week of working product cards instead of two, and first asks one question: how did you find MyFeeds? Each answer is a link that opens a short thank-you page on myfeeds.site; the plugin itself sends nothing.
 

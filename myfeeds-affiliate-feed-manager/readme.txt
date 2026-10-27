@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.49
+Stable tag: 1.0.50
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -141,6 +141,10 @@ If your affiliate program hands you a product feed URL you can download, MyFeeds
 
 The automatic mapping is written for the feed formats these networks document. The plugin isn't built around any single network though: it reads the file your program hands you, whatever the network is called. CSV, TSV, XML and JSON all work, compressed or not. If a column is named something the plugin has never seen, the mapping editor lets you point it at the right field yourself.
 
+= My theme or plugin shows products without a MyFeeds block. Can the nightly sync keep them current? =
+
+Yes. The nightly sync refreshes every product it finds on the site: MyFeeds blocks in posts, pages and any public post type, in synced patterns, in block widgets and in block-theme templates. Products a theme or plugin shows by itself (its own table, a template, a post type that keeps them in custom fields) can be announced with the `myfeeds_active_product_ids` filter: return the list you were given plus the `external_id` of each product you show, and the nightly sync keeps their price and stock current. The filter can only add products, never remove the ones your blocks hold. The `myfeeds_discovery_post_types` filter narrows or widens the post types that are read.
+
 = Does the plugin make any external requests? =
 
 Yes. See **External Services** below. In short: your site downloads your product feed from the address you saved and measures the file size of a few product pictures. The pictures themselves stay with the merchant, and your readers' browsers load them from there.
@@ -196,6 +200,10 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.50 =
+* Fixed: the nightly sync refreshed only products placed in posts and pages. Products in other post types, synced patterns, block widgets and block-theme templates kept their old price and stock until the weekly full import. They are now refreshed every night too.
+* New: themes and plugins that show products without a MyFeeds block can announce them with the `myfeeds_active_product_ids` filter, and the nightly sync keeps them current.
 
 = 1.0.49 =
 * Changed: the one-time review request now comes after a week of working product cards instead of two, and first asks one question: how did you find MyFeeds? Each answer is a link that opens a short thank-you page on myfeeds.site; the plugin itself sends nothing.
