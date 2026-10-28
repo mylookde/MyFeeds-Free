@@ -296,6 +296,22 @@
   //   onCancel()                  the Cancel button.
   //   onClose()                   the window's x; onCancel when not given.
   //   confirmLabel(n)             the "Use ..." button's text.
+  //   sources                     other places to search besides the
+  //                               site's own feeds (Pro adds Amazon), see
+  //                               below. Without them the window is what
+  //                               it always was.
+  //   source, lockSource          the source the window opens on; with
+  //                               lockSource it stays there and draws no
+  //                               switch.
+  //   feedsLabel                  the switch's name for the site's feeds.
+  //
+  // A source: { id, label, accent, gradient, search(query), sorts,
+  // defaultSort, options, firstPages, emptyText, note, detail, shipping }.
+  // search({ term, page, sort, options }) answers a promise of
+  // { products, total, more } with products shaped like the feed's, or
+  // rejects with an Error whose message the window shows. The feeds'
+  // filters, word matching and suggestions belong to the feeds and are
+  // not drawn for a source; its own sorts and options are.
   function ProductSearchModal(props) {
     const searchTerm = props.term || "";
     const setSearchTerm = props.onTermChange;
@@ -304,6 +320,15 @@
     const single = !!props.single;
     const confirmLabel = props.confirmLabel || labelUseProducts;
     const closeWindow = props.onClose || props.onCancel;
+    const sources = (Array.isArray(props.sources) ? props.sources : []).filter(function (src) {
+      return src && src.id && src.id !== 'feeds' && typeof src.search === 'function';
+    });
+    const sourceById = function (id) { return sources.filter(function (src) { return src.id === id; })[0] || null; };
+    const [sourceId, setSourceId] = useState(sourceById(props.source) ? props.source : 'feeds');
+    const ext = sourceById(sourceId);
+    const [extSort, setExtSort] = useState(ext && ext.defaultSort !== undefined ? ext.defaultSort : '');
+    const [extOptions, setExtOptions] = useState({});
+    const [extPage, setExtPage] = useState(0);
     const [results, setResults] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -559,6 +584,41 @@
       fetchRef.gen += 1;
       var myGen = fetchRef.gen;
 
+      if (ext) {
+        var page = loadMore ? extPage + 1 : 1;
+        try {
+          var answer = await ext.search({ term: searchTerm, page: page, sort: extSort, options: extOptions });
+          if (myGen !== fetchRef.gen) return;
+          var found = (answer && Array.isArray(answer.products)) ? answer.products : [];
+          if (loadMore) {
+            setResults(function (prev) {
+              var seen = {};
+              prev.forEach(function (p) { seen[String(p.id)] = true; });
+              return prev.concat(found.filter(function (p) { return !seen[String(p.id)]; }));
+            });
+          } else {
+            setResults(found);
+            setTotalResults((answer && typeof answer.total === 'number') ? answer.total : found.length);
+            if (found.length === 0) {
+              setError('No products found for "' + searchTerm + '" on ' + ext.label + '. Try other keywords.');
+            }
+          }
+          setExtPage(page);
+          setHasMoreResults(!!(answer && answer.more));
+        } catch (e) {
+          if (myGen !== fetchRef.gen) return;
+          setError((e && e.message) || (ext.label + ' did not answer.'));
+          if (!loadMore) setResults([]);
+          setHasMoreResults(false);
+        } finally {
+          if (myGen === fetchRef.gen) {
+            setIsLoading(false);
+            setIsLoadingMore(false);
+          }
+        }
+        return;
+      }
+
       try {
         var offset = loadMore ? searchOffset + 50 : 0;
         // Only fetch facets on the first page — facets are query-scoped not
@@ -638,17 +698,22 @@
     // or changing filters/sort, refetch after a short debounce so the
     // result list updates without making them hit Enter every time. Its
     // first run is the opening, which the effect below answers at once.
+    // A switch of source searches at once (below) and is not a pause in
+    // typing: the sort it resets must not search a second time.
     const typedSinceOpen = useRef(false);
+    const typedSource = useRef(sourceId);
     useEffect(function () {
       if (!typedSinceOpen.current) { typedSinceOpen.current = true; return undefined; }
+      if (typedSource.current !== sourceId) { typedSource.current = sourceId; return undefined; }
       if (!searchTerm || searchTerm.length < 2) return undefined;
       var t = setTimeout(function () { fetchProducts(false); }, 280);
       return function () { clearTimeout(t); };
-    }, [searchTerm, sortMode, filterBrand, filterColour, filterCategory, filterMinPrice, filterMaxPrice, filterOnSale, filterInStock, looseMatch]);
+    }, [searchTerm, sortMode, filterBrand, filterColour, filterCategory, filterMinPrice, filterMaxPrice, filterOnSale, filterInStock, looseMatch, sourceId, extSort, JSON.stringify(extOptions)]);
 
     // Opening the window searches at once, and so does every later press
     // of the button that opened it (props.searchKey moves): Pro's Rakuten
-    // line presses it again after an import.
+    // line presses it again after an import. A switch of source too, with
+    // the words already typed.
     useEffect(function () {
       if (!searchTerm || searchTerm.length < 2) {
         // Empty search: show selected products or prompt message
@@ -657,12 +722,34 @@
           setError(null);
         } else {
           setResults([]);
-          setError("Enter a search term to find products in your feeds.");
+          setError(ext
+            ? (ext.emptyText || 'Type what you are looking for on ' + ext.label + '.')
+            : "Enter a search term to find products in your feeds.");
         }
       } else {
         fetchProducts(false);
       }
-    }, [props.searchKey]);
+    }, [props.searchKey, sourceId]);
+
+    // A source that answers in small pages (Amazon gives ten at a time)
+    // fetches its first few on its own, so the window opens full.
+    useEffect(function () {
+      if (!ext || !hasMoreResults || isLoading || isLoadingMore) return;
+      if (extPage >= 1 && extPage < (ext.firstPages || 1)) fetchProducts(true);
+    }, [sourceId, extPage, hasMoreResults, isLoading, isLoadingMore]);
+
+    const switchSource = function (id) {
+      if (id === sourceId) return;
+      var next = sourceById(id);
+      setExtSort(next && next.defaultSort !== undefined ? next.defaultSort : '');
+      setExtOptions({});
+      setExtPage(0);
+      setHasMoreResults(false);
+      setTotalResults(0);
+      setResults([]);
+      setError(null);
+      setSourceId(next ? id : 'feeds');
+    };
 
     const clearAllFilters = function () {
       setFilterBrand([]);
@@ -864,7 +951,7 @@
       return React.createElement("div", { key: 'result-' + String(product.id || product.aw_product_id) + '-' + index, style: { border: isSelected ? "2px solid #667eea" : "1px solid #e5e7eb", borderRadius: "8px", background: "#fff", cursor: "pointer", overflow: "hidden", transition: "box-shadow .2s", boxShadow: isSelected ? "0 0 0 2px rgba(102,126,234,0.15)" : "0 1px 2px rgba(0,0,0,0.06)" }, onClick: function(){ toggleProduct(product); } },
         React.createElement("div", { style: { position: "relative", height: "160px", background: "#fff", overflow: "hidden" } },
           React.createElement("img", { src: product.image_url || product.merchant_image_url || product.large_image || product.aw_image_url || product.image || product.picture || PLACEHOLDER_IMG, alt: product.title || product.product_name || 'Product', style: { width: "100%", height: "100%", objectFit: "contain" } }),
-          infoButton(function(e){ 
+          (ext && ext.detail === false) ? null : infoButton(function(e){ 
             e.stopPropagation(); 
             
             // Initialize variant state when opening detail view
@@ -885,7 +972,7 @@
           React.createElement("div", { style: { fontSize: "13px", color: "#222", fontWeight: 600, lineHeight: 1.35, marginBottom: "4px", minHeight: "36px", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } }, product.title || product.product_name || product.name || ''),
           priceBlock(product),
           (function(){ var n = parseInt(product.variant_count, 10); return n > 1 ? React.createElement("div", { style: { fontSize: "11px", color: "#667eea", marginBottom: "4px", fontWeight: 600 } }, n + " sizes") : null; })(),
-          (function(){ const s=formatShipping(product); return s ? React.createElement("div", { style: { fontSize: "12px", color: "#555", marginBottom: "4px" } }, s) : null; })(),
+          (ext && ext.shipping === false) ? null : (function(){ const s=formatShipping(product); return s ? React.createElement("div", { style: { fontSize: "12px", color: "#555", marginBottom: "4px" } }, s) : null; })(),
           (shopName && !looksLikeSku(shopName)) && React.createElement("div", { style: { fontSize: "12px", color: "#666" } }, shopName)
         )
       );
@@ -1192,12 +1279,26 @@
         React.createElement("div", { className: "myfeeds-modal-content", ref: restoreResultsScroll },
           // Search within modal - sticky at top
           React.createElement("div", { className: "myfeeds-search-controls" },
+            // Where to search: the site's feeds, or a source the caller
+            // handed in. The words typed stay; switching searches at once.
+            sources.length > 0 && !props.lockSource && React.createElement("div", { className: "myfeeds-source-switch", role: "group", "aria-label": "Search in", style: { display: "inline-flex", gap: "4px", padding: "4px", marginBottom: "10px", background: "rgba(102,126,234,.06)", borderRadius: "999px" } },
+              [{ id: 'feeds', label: props.feedsLabel || 'Your products', gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', accent: '#5b5673' }].concat(sources).map(function (src) {
+                var on = src.id === sourceId;
+                return React.createElement("button", {
+                  key: 'source-' + src.id,
+                  type: "button",
+                  "aria-pressed": on,
+                  onClick: function () { switchSource(src.id); },
+                  style: { padding: "8px 18px", border: "none", borderRadius: "999px", cursor: "pointer", fontSize: "13px", fontWeight: 600, letterSpacing: ".01em", background: on ? (src.gradient || src.accent || '#667eea') : "transparent", color: on ? "#fff" : (src.accent || '#5b5673'), boxShadow: on ? "0 2px 10px rgba(0,0,0,.12)" : "none" }
+                }, src.label);
+              })
+            ),
             React.createElement("div", { style: { display: "flex", gap: "10px", alignItems: "end" } },
               React.createElement("div", { style: { flex: 1 } }, React.createElement(TextControl, { label: "Search", value: searchTerm, onChange: setSearchTerm, onKeyDown: function (e) { if (e.key === "Enter" || e.key === "NumpadEnter") { e.preventDefault(); fetchProducts(false); } }, style: { width: "100%" } })),
               React.createElement("div", null, React.createElement(Button, { isPrimary: true, onClick: function(){ fetchProducts(false); }, disabled: isLoading || !searchTerm || searchTerm.length < 2, style: { height: "36px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, isLoading ? "Searching..." : "Search"))
             ),
             // Hint: phrases / price / sale auto-extracted from the query
-            parsedHint && (parsedHint.max_price || parsedHint.min_price || parsedHint.on_sale) && React.createElement("div", {
+            !ext && parsedHint && (parsedHint.max_price || parsedHint.min_price || parsedHint.on_sale) && React.createElement("div", {
               style: { marginTop: "8px", padding: "8px 12px", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: "6px", color: "#3730a3", fontSize: "13px" }
             },
               "Smart filter from your query: ",
@@ -1206,7 +1307,7 @@
               parsedHint.on_sale ? React.createElement("strong", null, "on sale ") : null
             ),
             // Did-you-mean banner: only renders when backend offered a correction
-            suggestion && React.createElement("div", {
+            !ext && suggestion && React.createElement("div", {
               style: { marginTop: "8px", padding: "10px 12px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "6px", color: "#9a3412", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }
             },
               React.createElement("div", null,
@@ -1223,7 +1324,7 @@
               // Beside the count, not under it. On its own line it cost a
               // row of whitespace inside a modal whose whole job is to
               // show products.
-              !isLoading && React.createElement("div", {
+              !isLoading && !ext && React.createElement("div", {
                 style: { display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#6b7280", flexWrap: "wrap" }
               },
                 React.createElement("span", null, answeredLoosely
@@ -1235,8 +1336,29 @@
                   style: { padding: 0, fontSize: "12px", color: "#667eea", textDecoration: "underline" }
                 }, looseMatch ? "Whole words only" : "Show partial matches too")
               ),
+              !isLoading && ext && ext.note ? React.createElement("div", { style: { fontSize: "12px", color: "#6b7280" } }, ext.note) : null,
               React.createElement("div", { style: { flex: 1 } }),
-              React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#374151" } },
+              // A source's own options (Amazon: its category) and sorts.
+              ext && (ext.options || []).map(function (opt) {
+                var current = extOptions[opt.key] !== undefined ? extOptions[opt.key] : (opt.value !== undefined ? opt.value : '');
+                return React.createElement("label", { key: 'opt-' + opt.key, style: { display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#374151" } },
+                  opt.label + ":",
+                  React.createElement("select", {
+                    value: current,
+                    onChange: function (e) { var v = e.target.value; setExtOptions(function (o) { var n = Object.assign({}, o); n[opt.key] = v; return n; }); },
+                    style: { padding: "6px 8px", borderRadius: "6px", border: "1px solid #d1d5db", background: "#fff", fontSize: "13px", maxWidth: "220px" }
+                  }, (opt.values || []).map(function (v) { return React.createElement("option", { key: 'o-' + opt.key + '-' + v.value, value: v.value }, v.label); }))
+                );
+              }),
+              ext ? React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#374151" } },
+                "Sort:",
+                React.createElement("select", {
+                  value: extSort,
+                  onChange: function (e) { setExtSort(e.target.value); },
+                  style: { padding: "6px 8px", borderRadius: "6px", border: "1px solid #d1d5db", background: "#fff", fontSize: "13px" }
+                }, (ext.sorts || []).map(function (o) { return React.createElement("option", { key: 'sort-' + o.value, value: o.value }, o.label); }))
+              ) : null,
+              !ext && React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#374151" } },
                 "Sort:",
                 React.createElement("select", {
                   value: sortMode,
@@ -1250,14 +1372,14 @@
                   React.createElement("option", { value: "newest" }, "Newest")
                 )
               ),
-              React.createElement(Button, {
+              !ext && React.createElement(Button, {
                 isSecondary: true,
                 onClick: function () { setShowFilters(!showFilters); },
                 style: { padding: "6px 12px", fontSize: "13px", background: showFilters ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "#fff", color: showFilters ? "#fff" : "#667eea", border: "1px solid #667eea", borderRadius: "6px" }
               }, showFilters ? "Hide filters" : ("Filters" + (activeFilterCount > 0 ? " (" + activeFilterCount + ")" : "")))
             ),
             // Active filter chips
-            activeFilterCount > 0 && React.createElement("div", { style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" } },
+            !ext && activeFilterCount > 0 && React.createElement("div", { style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" } },
               filterBrand.map(function (b) {
                 return React.createElement("span", { key: "fbchip-" + b, style: { background: "#eef2ff", border: "1px solid #c7d2fe", color: "#3730a3", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
                   "Brand: " + b,
@@ -1293,7 +1415,7 @@
             // Filter panel — collapsible. Each section caps height at ~220px
             // with a hidden scrollbar so the panel itself stays compact even
             // when the facet has many values.
-            showFilters && searchTerm && searchTerm.length >= 2 && React.createElement(Fragment, null,
+            !ext && showFilters && searchTerm && searchTerm.length >= 2 && React.createElement(Fragment, null,
               // One-off styles for the panel — scrollbar hiding, swatch chip,
               // facet row hover. Kept inline so the bundle stays self-contained.
               React.createElement("style", null,
@@ -1423,7 +1545,7 @@
             ),
             // Recents row — only shown before the user has typed anything, so it
             // doesn't compete with live results for screen space.
-            (!searchTerm || searchTerm.length < 2) && recents && recents.length > 0 && React.createElement("div", { style: { marginTop: "12px" } },
+            !ext && (!searchTerm || searchTerm.length < 2) && recents && recents.length > 0 && React.createElement("div", { style: { marginTop: "12px" } },
               React.createElement("div", { style: { fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" } }, "Recently used"),
               React.createElement("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap" } },
                 recents.slice(0, 10).map(function (r, idx) {
