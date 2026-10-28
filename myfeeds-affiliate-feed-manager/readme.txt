@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.50
+Stable tag: 1.0.51
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -200,6 +200,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.51 =
+* Improved: opening the product search in the Product Picker block sends one search instead of two. The search window is now a part of the editor of its own, which changes nothing in how it looks or works.
 
 = 1.0.50 =
 * Fixed: the nightly sync refreshed only products placed in posts and pages. Products in other post types, synced patterns, block widgets and block-theme templates kept their old price and stock until the weekly full import. They are now refreshed every night too.

@@ -4,6 +4,9 @@ Full changelog
 The most recent releases are also listed on the plugin page on WordPress.org.
 That listing has a length limit, so the complete history lives here.
 
+= 1.0.51 =
+* Improved: opening the product search in the Product Picker block sends one search instead of two. The search window is now a part of the editor of its own, which changes nothing in how it looks or works.
+
 = 1.0.50 =
 * Fixed: the nightly sync refreshed only products placed in posts and pages. Products in other post types, synced patterns, block widgets and block-theme templates kept their old price and stock until the weekly full import. They are now refreshed every night too.
 * New: themes and plugins that show products without a MyFeeds block can announce them with the `myfeeds_active_product_ids` filter, and the nightly sync keeps them current.

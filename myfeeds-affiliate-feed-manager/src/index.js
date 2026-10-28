@@ -276,6 +276,1516 @@
     return m ? parseFloat(m[1].replace(',', '.')) : null;
   }
 
+  // The picker's search window as a component of its own: the search
+  // field, filters, results, the detail view and the "Use ..." bar. The
+  // picker opens it to choose many products; Pro's Look block opens it to
+  // choose one (assets/look-block.js). One window for both, so a change to
+  // the search reaches every place that searches - a second copy would
+  // drift from the first.
+  //
+  // props:
+  //   term, onTermChange          the search words. The caller keeps them,
+  //                               so its own field and this one agree.
+  //   selected, onSelectedChange  the working selection, as the picker
+  //                               stores products. onSelectedChange takes a
+  //                               value or an updater, like a state setter.
+  //   single                      at most one product: picking another
+  //                               replaces the first.
+  //   searchKey                   a number; a new one searches again.
+  //   onConfirm(selected)         the "Use ..." button.
+  //   onCancel()                  the Cancel button.
+  //   onClose()                   the window's x; onCancel when not given.
+  //   confirmLabel(n)             the "Use ..." button's text.
+  function ProductSearchModal(props) {
+    const searchTerm = props.term || "";
+    const setSearchTerm = props.onTermChange;
+    const selected = props.selected || [];
+    const setSelected = props.onSelectedChange;
+    const single = !!props.single;
+    const confirmLabel = props.confirmLabel || labelUseProducts;
+    const closeWindow = props.onClose || props.onCancel;
+    const [results, setResults] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [showProductDetail, setShowProductDetail] = useState(null);
+    // Where the results were scrolled to when a detail view opened.
+    // The search modal is unmounted while the detail view is up and
+    // comes back at the top; without this, "Back to search" and "Add
+    // to selection" both dropped the author at the first row again,
+    // and the product they had been looking at was three screens
+    // down. Read once on the way back, then forgotten, so a freshly
+    // opened modal starts at the top like it should.
+    const resultsScrollMemory = useRef(0);
+    const rememberResultsScroll = function () {
+      var el = document.querySelector('.myfeeds-modal-content');
+      resultsScrollMemory.current = el ? el.scrollTop : 0;
+    };
+    const restoreResultsScroll = function (el) {
+      if (!el || !resultsScrollMemory.current) return;
+      var y = resultsScrollMemory.current;
+      resultsScrollMemory.current = 0;
+      el.scrollTop = y;
+      // The grid may still be laying out when the ref fires; one
+      // frame later the height is final and the position sticks.
+      if (window.requestAnimationFrame) {
+        window.requestAnimationFrame(function () { el.scrollTop = y; });
+      }
+    };
+    // Which of the product's images the big frame is showing. Reset
+    // whenever another product opens, so the new one starts on its
+    // own main image rather than on the one clicked in the last.
+    const [detailImage, setDetailImage] = useState(null);
+    useEffect(function () {
+      setDetailImage(null);
+    }, [showProductDetail && (showProductDetail.id || showProductDetail.external_id)]);
+    const [searchOffset, setSearchOffset] = useState(0);
+    const [hasMoreResults, setHasMoreResults] = useState(false);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [currentVariant, setCurrentVariant] = useState({ color: '', size: '' });
+    const [detailSizes, setDetailSizes] = useState([]);
+    // The rows behind those sizes. A size label is enough to look at;
+    // to link to a size we need its own id, price and affiliate link.
+    const [sizeVariants, setSizeVariants] = useState([]);
+    // DB-backed colour siblings for the currently open detail product.
+    // Empty array means: no DB siblings (single-colour product or
+    // colour data unavailable) — fall back to the local-parse pills.
+    const [colorSiblings, setColorSiblings] = useState([]);
+
+    // Search-meta state: did-you-mean suggestion, structured filters,
+    // sort mode, OR-faceted aggregates, smart-parser extracted hint.
+    const [suggestion, setSuggestion] = useState(null);
+    const [filterBrand, setFilterBrand] = useState([]);
+    const [filterColour, setFilterColour] = useState([]);
+    const [filterCategory, setFilterCategory] = useState([]);
+    const [filterMinPrice, setFilterMinPrice] = useState('');
+    const [filterMaxPrice, setFilterMaxPrice] = useState('');
+    const [filterOnSale, setFilterOnSale] = useState(false);
+    const [filterInStock, setFilterInStock] = useState(false);
+    const [sortMode, setSortMode] = useState('relevance');
+    const [facets, setFacets] = useState(null);
+    const [parsedHint, setParsedHint] = useState(null);
+    const [totalResults, setTotalResults] = useState(0);
+    const [showFilters, setShowFilters] = useState(false);
+    // Whole-word matching is the default. A search word has to START a
+    // word, the way the full-text index has always treated long words.
+    // Switching this on also accepts the word inside a longer one, for
+    // the compounds a word start cannot reach: Sweatshirt for "shirt",
+    // Trenchcoat for "coat", and most German nouns.
+    const [looseMatch, setLooseMatch] = useState(false);
+    const [answeredLoosely, setAnsweredLoosely] = useState(false);
+    const [recents, setRecents] = useState([]);
+
+    // Body class while modal open (for scoped CSS) + live-measure the
+    // wp-admin sidebar width so the modal can offset against it (otherwise
+    // the modal frame and the dark overlay center on the full viewport
+    // and cover the sidebar, which looks shifted).
+    //
+    // The block editor mounts inside an iframe since WP 5.9, so
+    // #adminmenuwrap is in the PARENT document, not the iframe's. We
+    // resolve to whichever document has it. Cross-origin parents (rare on
+    // wp-admin same-origin) safely fall through to the default 160px.
+    useEffect(function() {
+      var modalOpen = true;
+
+      var resolveAdminMenuRoot = function () {
+        // Walk up window.parent until we find the admin doc with the menu,
+        // or we hit a cross-origin barrier.
+        var win = window;
+        for (var i = 0; i < 5; i++) {
+          try {
+            var doc = win.document;
+            if (doc && doc.getElementById && doc.getElementById('adminmenuwrap')) {
+              return doc;
+            }
+            if (win.parent && win.parent !== win) {
+              win = win.parent;
+              continue;
+            }
+          } catch (e) {
+            // cross-origin — give up
+            break;
+          }
+          break;
+        }
+        return null;
+      };
+
+      var syncSidebarWidth = function () {
+        var sidebarWidth = 0;
+        var doc = resolveAdminMenuRoot();
+        if (doc) {
+          var menu = doc.getElementById('adminmenuwrap');
+          if (menu) {
+            var rect = menu.getBoundingClientRect();
+            // rect.right gives us the right edge of the sidebar relative to
+            // its own document's viewport. Mobile off-canvas pushes the
+            // menu off the left edge so rect.right goes to ~0 or negative.
+            sidebarWidth = Math.max(0, rect.right);
+          }
+        }
+        document.body.style.setProperty('--myfeeds-sidebar-width', sidebarWidth + 'px');
+      };
+
+      if (modalOpen) {
+        document.body.classList.add('myfeeds-modal-open');
+        syncSidebarWidth();
+        window.addEventListener('resize', syncSidebarWidth);
+      } else {
+        document.body.classList.remove('myfeeds-modal-open');
+      }
+
+      return function cleanup() {
+        document.body.classList.remove('myfeeds-modal-open');
+        window.removeEventListener('resize', syncSidebarWidth);
+      };
+    }, []);
+
+    // Fetch available sizes + colour-sibling variants when the detail
+    // view opens. Both are read-only lookups and don't touch the
+    // search result-set or any dedup count.
+    useEffect(function() {
+      if (showProductDetail) {
+        var productName = showProductDetail.title || showProductDetail.product_name || '';
+        var colourVal = showProductDetail.colour || showProductDetail.color || '';
+        if (!colourVal && showProductDetail.attributes) {
+          var attrC = showProductDetail.attributes.colour || showProductDetail.attributes.color;
+          colourVal = Array.isArray(attrC) ? (attrC[0] || '') : (typeof attrC === 'string' ? attrC : '');
+        }
+        // The id has to be known BEFORE the size-variants request. It
+        // used to be declared below with var, which hoists the name
+        // but not the value: the request went out as id=undefined and
+        // the size click never had a row to switch to.
+        var productId = showProductDetail.id || showProductDetail.aw_product_id || showProductDetail.external_id || '';
+        if (productId && apiUrl) {
+          // The rows behind each size - id, price, link - grouped by
+          // the same key the search and the shop use. The label-only
+          // product-sizes request is no longer needed: labels come
+          // with the rows.
+          fetch(apiUrl + 'product-size-variants?id=' + encodeURIComponent(String(productId)), {
+            credentials: 'include',
+            headers: { 'X-WP-Nonce': nonce }
+          })
+          .then(function(r) { return r.json(); })
+          .then(function(rows) {
+            rows = Array.isArray(rows) ? rows : [];
+            setSizeVariants(rows);
+            setDetailSizes(rows.map(function (v) { return v.size; }));
+          })
+          .catch(function() { setSizeVariants([]); setDetailSizes([]); });
+        } else if (productName && apiUrl) {
+          fetch(apiUrl + 'product-sizes?name=' + encodeURIComponent(productName) + '&colour=' + encodeURIComponent(colourVal), {
+            credentials: 'include',
+            headers: { 'X-WP-Nonce': nonce }
+          })
+          .then(function(r) { return r.json(); })
+          .then(function(sizes) { if (Array.isArray(sizes)) setDetailSizes(sizes); })
+          .catch(function() { setDetailSizes([]); });
+        }
+
+        // Colour-siblings: backend returns an array only when there
+        // are at least two distinct colours for this product family;
+        // otherwise it returns []. Either way we set state without
+        // breaking the local-parse fallback.
+        if (productId && apiUrl) {
+          fetch(apiUrl + 'product-color-siblings?id=' + encodeURIComponent(String(productId)), {
+            credentials: 'include',
+            headers: { 'X-WP-Nonce': nonce }
+          })
+          .then(function(r) { return r.json(); })
+          .then(function(siblings) {
+            setColorSiblings(Array.isArray(siblings) ? siblings : []);
+          })
+          .catch(function() { setColorSiblings([]); });
+        } else {
+          setColorSiblings([]);
+        }
+      } else {
+        setDetailSizes([]);
+        setSizeVariants([]);
+        setColorSiblings([]);
+      }
+      // Keyed on the product's identity, not the object. Picking a size
+      // replaces showProductDetail with that size's row, and hanging
+      // this on the object would re-fetch the same sizes and colours on
+      // every click. Name and colour are what actually decide the size
+      // run - a colour switch does need a fresh fetch.
+    }, [
+      showProductDetail && (showProductDetail.title || showProductDetail.product_name || ''),
+      showProductDetail && (showProductDetail.colour || showProductDetail.color || '')
+    ]);
+
+    const buildSearchUrl = function (offset, withFacets) {
+      var u = apiUrl + 'products?q=' + encodeURIComponent(searchTerm) + '&offset=' + offset + '&with_meta=1';
+      if (withFacets) u += '&include_facets=1';
+      if (sortMode && sortMode !== 'relevance') u += '&sort=' + encodeURIComponent(sortMode);
+      (filterBrand || []).forEach(function (b) { u += '&brand[]=' + encodeURIComponent(b); });
+      (filterColour || []).forEach(function (c) { u += '&colour[]=' + encodeURIComponent(c); });
+      (filterCategory || []).forEach(function (c) { u += '&category[]=' + encodeURIComponent(c); });
+      if (filterMinPrice !== '' && filterMinPrice !== null) u += '&min_price=' + encodeURIComponent(filterMinPrice);
+      if (filterMaxPrice !== '' && filterMaxPrice !== null) u += '&max_price=' + encodeURIComponent(filterMaxPrice);
+      if (filterOnSale) u += '&on_sale=1';
+      if (filterInStock) u += '&in_stock=1';
+      if (looseMatch) u += '&loose=1';
+      return u;
+    };
+
+    // AbortController + generation guard so a slow in-flight request can't
+    // overwrite the result of a newer one when the user is typing fast or
+    // toggling filters quickly.
+    const fetchRef = (function () {
+      if (!window.__myfeedsFetchRef) window.__myfeedsFetchRef = { ctrl: null, gen: 0 };
+      return window.__myfeedsFetchRef;
+    })();
+
+    const fetchProducts = async function (loadMore) {
+      if (!searchTerm || searchTerm.length < 2) {
+        setError("Please enter at least 2 characters for search");
+        return;
+      }
+      if (loadMore) {
+        setIsLoadingMore(true);
+      } else {
+        setIsLoading(true);
+        setSearchOffset(0);
+      }
+      setError(null);
+
+      // Cancel any in-flight request and stamp this one with a generation
+      // so a slow response from a previous keystroke can't overwrite a
+      // newer one when it arrives out of order.
+      if (fetchRef.ctrl) { try { fetchRef.ctrl.abort(); } catch (e) { /* ignore */ } }
+      var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      fetchRef.ctrl = ctrl;
+      fetchRef.gen += 1;
+      var myGen = fetchRef.gen;
+
+      try {
+        var offset = loadMore ? searchOffset + 50 : 0;
+        // Only fetch facets on the first page — facets are query-scoped not
+        // page-scoped, so requesting them on every load-more is waste.
+        const fetchOpts = {
+          credentials: 'include',
+          headers: { 'X-WP-Nonce': nonce }
+        };
+        if (ctrl) fetchOpts.signal = ctrl.signal;
+        const response = await fetch(buildSearchUrl(offset, !loadMore), fetchOpts);
+
+        // Stale response guard — newer request has started, drop this one.
+        if (myGen !== fetchRef.gen) return;
+
+        if (response.ok) {
+          const payload = await response.json();
+          if (myGen !== fetchRef.gen) return;
+          var newProducts = (payload && Array.isArray(payload.products)) ? payload.products : [];
+          if (loadMore) {
+            setResults(function(prev) {
+              var existingIds = {};
+              prev.forEach(function(p) { existingIds[String(p.id || p.aw_product_id)] = true; });
+              var unique = newProducts.filter(function(p) { return !existingIds[String(p.id || p.aw_product_id)]; });
+              return prev.concat(unique);
+            });
+          } else {
+            setResults(newProducts);
+            setSuggestion((payload && payload.suggestion) ? payload.suggestion : null);
+            setFacets((payload && payload.facets) ? payload.facets : null);
+            setParsedHint((payload && payload.parsed) ? payload.parsed : null);
+            // What the server actually answered. It can be wider than
+            // what was asked: when the whole-word pass finds nothing,
+            // a substring rescue runs instead. The note below the
+            // toolbar reads this, so it never describes a list it is
+            // not showing.
+            setAnsweredLoosely(!!(payload && payload.loose));
+            setTotalResults((payload && typeof payload.total === 'number') ? payload.total : newProducts.length);
+            if (newProducts.length === 0 && !(payload && payload.suggestion)) {
+              // Distinguish "typo / no products" from "filters too narrow"
+              var hasFilters = (filterBrand.length + filterColour.length + filterCategory.length) > 0
+                || filterMinPrice !== '' || filterMaxPrice !== ''
+                || filterOnSale || filterInStock;
+              setError(hasFilters
+                ? 'No products match these filters. Try removing one of the active filters.'
+                : 'No products found for "' + searchTerm + '". Try other keywords.');
+            }
+          }
+          setSearchOffset(offset);
+          setHasMoreResults(newProducts.length >= 50);
+        } else {
+          setError('Search failed.');
+          if (!loadMore) setResults([]);
+        }
+      } catch (e) {
+        // AbortError is expected when superseded — silently ignore.
+        if (e && (e.name === 'AbortError' || (e.message || '').toLowerCase().indexOf('abort') !== -1)) {
+          return;
+        }
+        setError('Search failed. Please check your feeds configuration.');
+        if (!loadMore) setResults([]);
+      } finally {
+        if (myGen === fetchRef.gen) {
+          setIsLoading(false);
+          setIsLoadingMore(false);
+        }
+      }
+    };
+
+    // "Show partial matches" was turned on for one particular word.
+    // Type a different one and it closes again, otherwise the next
+    // search silently starts wide.
+    useEffect(function () {
+      setLooseMatch(false);
+    }, [searchTerm]);
+
+    // Search-as-you-type: while the window is open and the user is typing
+    // or changing filters/sort, refetch after a short debounce so the
+    // result list updates without making them hit Enter every time. Its
+    // first run is the opening, which the effect below answers at once.
+    const typedSinceOpen = useRef(false);
+    useEffect(function () {
+      if (!typedSinceOpen.current) { typedSinceOpen.current = true; return undefined; }
+      if (!searchTerm || searchTerm.length < 2) return undefined;
+      var t = setTimeout(function () { fetchProducts(false); }, 280);
+      return function () { clearTimeout(t); };
+    }, [searchTerm, sortMode, filterBrand, filterColour, filterCategory, filterMinPrice, filterMaxPrice, filterOnSale, filterInStock, looseMatch]);
+
+    // Opening the window searches at once, and so does every later press
+    // of the button that opened it (props.searchKey moves): Pro's Rakuten
+    // line presses it again after an import.
+    useEffect(function () {
+      if (!searchTerm || searchTerm.length < 2) {
+        // Empty search: show selected products or prompt message
+        if (selected.length > 0) {
+          setResults(selected);
+          setError(null);
+        } else {
+          setResults([]);
+          setError("Enter a search term to find products in your feeds.");
+        }
+      } else {
+        fetchProducts(false);
+      }
+    }, [props.searchKey]);
+
+    const clearAllFilters = function () {
+      setFilterBrand([]);
+      setFilterColour([]);
+      setFilterCategory([]);
+      setFilterMinPrice('');
+      setFilterMaxPrice('');
+      setFilterOnSale(false);
+      setFilterInStock(false);
+      setSortMode('relevance');
+    };
+
+    const activeFilterCount = filterBrand.length + filterColour.length + filterCategory.length
+      + (filterOnSale ? 1 : 0) + (filterInStock ? 1 : 0)
+      + (filterMinPrice !== '' ? 1 : 0) + (filterMaxPrice !== '' ? 1 : 0);
+
+    const toggleArrayItem = function (arr, value) {
+      var v = String(value);
+      var has = arr.some(function (x) { return String(x) === v; });
+      return has ? arr.filter(function (x) { return String(x) !== v; }) : arr.concat([v]);
+    };
+
+    const acceptSuggestion = function () {
+      if (suggestion && typeof suggestion === 'string') {
+        setSearchTerm(suggestion);
+        setSuggestion(null);
+      }
+    };
+
+    // Color picker: best-effort mapping from English/German colour names
+    // (the values the feeds ship) to CSS background colors so the swatches
+    // visually mean something. Anything unmapped renders a neutral chip.
+    const colourSwatch = function (name) {
+      var map = {
+        black: '#000', schwarz: '#000', noir: '#000',
+        white: '#fff', weiss: '#fff', 'weiß': '#fff', blanc: '#fff',
+        grey: '#888', gray: '#888', grau: '#888', gris: '#888',
+        silver: '#c0c0c0', silber: '#c0c0c0',
+        red: '#dc2626', rot: '#dc2626', rouge: '#dc2626',
+        blue: '#2563eb', blau: '#2563eb', bleu: '#2563eb', navy: '#1e3a8a',
+        green: '#16a34a', gruen: '#16a34a', 'grün': '#16a34a', vert: '#16a34a',
+        yellow: '#eab308', gelb: '#eab308', jaune: '#eab308',
+        orange: '#f97316',
+        pink: '#ec4899', rosa: '#ec4899', rose: '#ec4899',
+        purple: '#9333ea', lila: '#9333ea', violet: '#9333ea',
+        brown: '#92400e', braun: '#92400e', marron: '#92400e',
+        beige: '#d6b88a', sand: '#d6b88a', creme: '#f1eadc', cream: '#f1eadc',
+        gold: '#d4af37', bronze: '#cd7f32',
+        khaki: '#7c7553', olive: '#556b2f', olivgruen: '#556b2f', oliv: '#556b2f',
+        turquoise: '#14b8a6', tuerkis: '#14b8a6', 'türkis': '#14b8a6',
+        mint: '#a7f3d0', mintgreen: '#a7f3d0',
+        coral: '#ff7f50', koralle: '#ff7f50',
+        burgundy: '#7f1d1d', bordeaux: '#7f1d1d', weinrot: '#7f1d1d'
+      };
+      var key = String(name || '').toLowerCase().replace(/\s+/g, '');
+      return map[key] || null;
+    };
+
+    // Persist a tiny recents list (last 10 used product IDs) in localStorage
+    // so the picker can offer a one-click re-insert next session.
+    useEffect(function () {
+      try {
+        var raw = window.localStorage && window.localStorage.getItem('myfeedsPickerRecents');
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) setRecents(parsed.slice(0, 10));
+        }
+      } catch (e) { /* ignore */ }
+    }, []);
+
+    const rememberRecent = function (product) {
+      if (!product || (!product.id && !product.aw_product_id)) return;
+      try {
+        var next = [product].concat((recents || []).filter(function (r) {
+          return String(r.id || r.aw_product_id) !== String(product.id || product.aw_product_id);
+        })).slice(0, 10);
+        setRecents(next);
+        if (window.localStorage) {
+          window.localStorage.setItem('myfeedsPickerRecents', JSON.stringify(next));
+        }
+      } catch (e) { /* ignore */ }
+    };
+
+    const toggleProduct = function (product, useCurrentVariant) {
+      if (!product || !product.id && !product.aw_product_id) {
+        alert("Product missing ID - cannot be saved.");
+        return;
+      }
+      rememberRecent(product);
+      const awId = product.aw_product_id || product.id;
+      
+      const title = product.title || product.product_name || product.name || '';
+      const mainImage = product.image_url || product.merchant_image_url || product.large_image || product.aw_image_url || product.image || product.picture || '';
+      const deepLink = product.affiliate_link || product.aw_deep_link || product.link || product.url || '';
+      const currency = getCurrency(product);
+      
+      // ENHANCED: Use selected variant color/size if available
+      let selectedColor = '';
+      let selectedSize = '';
+      
+      if (useCurrentVariant && currentVariant) {
+        selectedColor = currentVariant.color || '';
+        selectedSize = currentVariant.size || '';
+        console.log("✅ MYFEEDS: Saving product with selected variant - Color:", selectedColor, "Size:", selectedSize);
+      } else {
+        // Fallback to product's default color
+        const colorAttr = (product.attributes && (product.attributes.colour || product.attributes.color || product.attributes['Fashion:colour'])) || product.colour;
+        selectedColor = (Array.isArray(colorAttr) && colorAttr.length > 0) ? colorAttr[0] : (typeof colorAttr === 'string' ? colorAttr : '');
+      }
+
+      let priceNow = resolveCurrentPrice(product);
+      let priceOld = resolveOriginalPrice(product);
+      const discountPct = toNumber(product.savings_percent || product.discount || product.saving);
+      if (priceOld === 0 && discountPct > 0 && priceNow > 0 && discountPct < 100) {
+        priceOld = priceNow / (1 - discountPct / 100);
+      }
+
+      const enriched = {
+        id: String(awId),
+        title: title,
+        image_url: mainImage,
+        affiliate_link: deepLink,
+        brand: product.brand || product.brand_name || product.manufacturer || '',
+        merchant: resolveShopName(product) || product.merchant_name || product.merchantName || product.shopname || '',
+        price: priceNow,
+        original_price: priceOld,
+        currency: currency,
+        color: selectedColor || product.color || '',
+        size: selectedSize || ''
+      };
+      
+      console.log("💾 MYFEEDS: Enriched product data:", enriched);
+      
+      setSelected(function(prev){
+        const exists = prev.some(function(p){ return String(p.id) === enriched.id; });
+        if (exists) { return prev.filter(function(p){ return String(p.id) !== enriched.id; }); }
+        return single ? [enriched] : prev.concat([enriched]);
+      });
+    };
+
+    // The card's rule (format_shipping_info_raw() in class-product-picker.php):
+    // only a real 0 is free shipping, and a value that names no cost - empty,
+    // "3-4 days", the sentence the importer stores - says that costs may
+    // apply. Reading any text as a number made "Shipping costs may apply" a
+    // 0, and the tile said "Free Shipping" while the card said the opposite.
+    const formatShipping = function (product) {
+      const raw = product.shipping;
+      const amount = shippingAmount(raw);
+      if (amount !== null) {
+        return amount > 0 ? 'Shipping: ' + formatMoney(amount, getCurrency(product)) : 'Free Shipping';
+      }
+      if (typeof raw === 'string' && /free/i.test(raw)) return 'Free Shipping';
+      return 'Shipping costs may apply';
+    };
+
+    const priceBlock = function(product){
+      let currentPrice = resolveCurrentPrice(product);
+      let originalPrice = resolveOriginalPrice(product);
+      const pct = toNumber(product.savings_percent || product.discount || product.saving);
+      if (originalPrice === 0 && pct > 0 && currentPrice > 0 && pct < 100) {
+        originalPrice = currentPrice / (1 - pct/100);
+      }
+      const hasDiscount = originalPrice > currentPrice && originalPrice > 0 && currentPrice > 0;
+      const currency = getCurrency(product);
+      if (!(currentPrice > 0)) {
+        return React.createElement("div", { style: { margin: "2px 0 6px", fontSize: "13px", color: "#888" } }, priceOnRequest());
+      }
+      return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px", margin: "2px 0 6px" } },
+        hasDiscount ? [
+          React.createElement("span", { key: "original", style: { fontSize: "13px", color: "#888", textDecoration: "line-through" } }, formatMoney(originalPrice, currency)),
+          React.createElement("span", { key: "current", style: { fontSize: "14px", fontWeight: 700, color: "#c0392b" } }, formatMoney(currentPrice, currency))
+        ] : [
+          React.createElement("span", { key: "normal", style: { fontSize: "14px", fontWeight: 700, color: "#111" } }, formatMoney(currentPrice, currency))
+        ]
+      );
+    };
+
+    const discountBadge = function(product){
+      let currentPrice = resolveCurrentPrice(product);
+      let originalPrice = resolveOriginalPrice(product);
+      let percent = toNumber(product.savings_percent || product.discount || product.saving);
+      if ((!percent || percent <= 0) && originalPrice > currentPrice && currentPrice > 0) {
+        percent = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+      }
+      if (percent > 0) {
+        return React.createElement("div", { style: { position: "absolute", left: "8px", bottom: "8px", background: "#e53935", color: "#fff", borderRadius: "12px", padding: "2px 8px", fontSize: "12px", fontWeight: 700 } }, '-' + percent + '%');
+      }
+      return null;
+    };
+
+    const infoButton = function(onClick){
+      return React.createElement("button", { onClick, title: "Show details", style: { position: "absolute", top: "8px", right: "8px", width: "22px", height: "22px", borderRadius: "50%", border: "1px solid #667eea", background: "#fff", color: "#667eea", fontSize: "12px", fontWeight: 700, cursor: "pointer" } }, 'i');
+    };
+
+    const productCard = function(product, index){
+      const isSelected = (selected || []).some(function(p){ return String(p.id) === String(product.id || product.aw_product_id); });
+      const shopName = resolveShopName(product);
+      const brandName = product.brand || product.brand_name || product.manufacturer || product.make || product.vendor || "";
+      return React.createElement("div", { key: 'result-' + String(product.id || product.aw_product_id) + '-' + index, style: { border: isSelected ? "2px solid #667eea" : "1px solid #e5e7eb", borderRadius: "8px", background: "#fff", cursor: "pointer", overflow: "hidden", transition: "box-shadow .2s", boxShadow: isSelected ? "0 0 0 2px rgba(102,126,234,0.15)" : "0 1px 2px rgba(0,0,0,0.06)" }, onClick: function(){ toggleProduct(product); } },
+        React.createElement("div", { style: { position: "relative", height: "160px", background: "#fff", overflow: "hidden" } },
+          React.createElement("img", { src: product.image_url || product.merchant_image_url || product.large_image || product.aw_image_url || product.image || product.picture || PLACEHOLDER_IMG, alt: product.title || product.product_name || 'Product', style: { width: "100%", height: "100%", objectFit: "contain" } }),
+          infoButton(function(e){ 
+            e.stopPropagation(); 
+            
+            // Initialize variant state when opening detail view
+            const variants = getAllProductVariants(product);
+            setCurrentVariant({
+              color: variants.current_color,
+              size: variants.current_size
+            });
+            
+            rememberResultsScroll();
+            setShowProductDetail(product); 
+          }),
+          discountBadge(product),
+          colorIndicators(product)
+        ),
+        React.createElement("div", { style: { padding: "10px 12px" } },
+          brandName && React.createElement("div", { style: { fontSize: "11px", color: "#666", textTransform: "uppercase", letterSpacing: "0.3px", marginBottom: "4px", fontWeight: 600 } }, brandName),
+          React.createElement("div", { style: { fontSize: "13px", color: "#222", fontWeight: 600, lineHeight: 1.35, marginBottom: "4px", minHeight: "36px", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } }, product.title || product.product_name || product.name || ''),
+          priceBlock(product),
+          (function(){ var n = parseInt(product.variant_count, 10); return n > 1 ? React.createElement("div", { style: { fontSize: "11px", color: "#667eea", marginBottom: "4px", fontWeight: 600 } }, n + " sizes") : null; })(),
+          (function(){ const s=formatShipping(product); return s ? React.createElement("div", { style: { fontSize: "12px", color: "#555", marginBottom: "4px" } }, s) : null; })(),
+          (shopName && !looksLikeSku(shopName)) && React.createElement("div", { style: { fontSize: "12px", color: "#666" } }, shopName)
+        )
+      );
+    };
+
+    // ENHANCED: Extract all available colors and sizes for a product
+    const getAllProductVariants = function(product) {
+      const variants = {
+        colors: [],
+        sizes: [],
+        current_color: '',
+        current_size: ''
+      };
+      
+      // Extract colors from various sources with enhanced logic
+      const colorSources = [];
+      
+      // 1. Direct color fields
+      if (product.colors && Array.isArray(product.colors)) {
+        colorSources.push(...product.colors);
+      }
+      if (product.color && product.color !== 'null' && product.color !== '') {
+        colorSources.push(product.color);
+      }
+      if (product.colour && product.colour !== 'null' && product.colour !== '') {
+        colorSources.push(product.colour);
+      }
+      
+      // 2. Attributes object (most common source for AWIN feeds)
+      if (product.attributes) {
+        const attrColorFields = ['colors', 'color', 'colour', 'Fashion:colour', 'Fashion:color', 
+                                  'Fashion:swatch', 'swatch', 'colorway', 'variant_color'];
+        attrColorFields.forEach(field => {
+          const value = product.attributes[field];
+          if (value && value !== 'null' && value !== '') {
+            if (Array.isArray(value)) {
+              colorSources.push(...value);
+            } else if (typeof value === 'string') {
+              // Handle various separators: comma, pipe, semicolon
+              const separators = /[,|;]/;
+              if (separators.test(value)) {
+                colorSources.push(...value.split(separators).map(c => c.trim()));
+              } else {
+                colorSources.push(value);
+              }
+            }
+          }
+        });
+      }
+      
+      // 3. ENHANCED: Try to extract colors from product title
+      if (product.title) {
+        const titleLower = product.title.toLowerCase();
+        // Comprehensive color list (English + German)
+        const commonColors = [
+          'black', 'white', 'red', 'blue', 'green', 'yellow', 'brown', 'gray', 'grey', 
+          'pink', 'purple', 'orange', 'navy', 'beige', 'khaki', 'olive', 'cream', 'ivory',
+          'maroon', 'burgundy', 'teal', 'turquoise', 'mint', 'lime', 'gold', 'silver',
+          'schwarz', 'weiß', 'weiss', 'rot', 'blau', 'grün', 'gelb', 'braun', 'grau', 
+          'rosa', 'lila', 'orange', 'beige', 'creme'
+        ];
+        
+        commonColors.forEach(color => {
+          // Use word boundaries to avoid false matches
+          const regex = new RegExp('\\b' + color + '\\b', 'i');
+          if (regex.test(titleLower)) {
+            colorSources.push(color.charAt(0).toUpperCase() + color.slice(1));
+          }
+        });
+      }
+      
+      // 4. Check variant fields if product has variant information
+      if (product.variants && Array.isArray(product.variants)) {
+        product.variants.forEach(v => {
+          if (v.color) colorSources.push(v.color);
+          if (v.colour) colorSources.push(v.colour);
+        });
+      }
+      
+      // 5. Check custom fields that might contain color info
+      const customColorFields = ['variant', 'option1', 'option2', 'style'];
+      customColorFields.forEach(field => {
+        const value = product[field];
+        if (value && typeof value === 'string' && value.length > 0 && value.length < 30) {
+          // Check if value looks like a color (not a SKU or long description)
+          const lowerValue = value.toLowerCase();
+          if (/black|white|red|blue|green|yellow|brown|gray|grey|pink|purple|orange|navy|beige|schwarz|weiß|rot|blau|grün/i.test(lowerValue)) {
+            colorSources.push(value);
+          }
+        }
+      });
+      
+      // PROFESSIONAL COLOR NORMALIZATION AND DEDUPLICATION
+      const cleanedColors = colorSources
+        .map(c => c ? c.toString().trim() : '')
+        .filter(c => {
+          if (!c || c.length === 0) return false;
+          const lower = c.toLowerCase();
+          // Filter out non-color values
+          if (lower === 'null' || lower === 'undefined' || lower === 'n/a' || lower === 'none') return false;
+          // Filter out very long strings (likely not colors)
+          if (c.length > 30) return false;
+          return true;
+        })
+        .map(c => {
+          // Normalize color names (first letter uppercase, rest lowercase)
+          const normalized = c.toLowerCase();
+          return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+        });
+      
+      // Advanced deduplication with case-insensitive comparison
+      const uniqueColors = [];
+      const seenColors = new Set();
+      
+      cleanedColors.forEach(color => {
+        const colorKey = color.toLowerCase().replace(/[^a-z]/g, ''); // Normalize for comparison
+        
+        if (!seenColors.has(colorKey)) {
+          seenColors.add(colorKey);
+          uniqueColors.push(color);
+        }
+      });
+      
+      variants.colors = uniqueColors;
+      
+      // Extract sizes with enhanced logic
+      const sizeSources = [];
+      
+      // 1. Direct size fields
+      if (product.sizes && Array.isArray(product.sizes)) {
+        sizeSources.push(...product.sizes);
+      }
+      if (product.size && product.size !== 'null' && product.size !== '') {
+        sizeSources.push(product.size);
+      }
+      
+      // 2. Attributes object
+      if (product.attributes) {
+        const attrSizeFields = ['sizes', 'size', 'Fashion:size', 'variant_size'];
+        attrSizeFields.forEach(field => {
+          const value = product.attributes[field];
+          if (value && value !== 'null' && value !== '') {
+            if (Array.isArray(value)) {
+              sizeSources.push(...value);
+            } else if (typeof value === 'string') {
+              const separators = /[,|;]/;
+              if (separators.test(value)) {
+                sizeSources.push(...value.split(separators).map(s => s.trim()));
+              } else {
+                sizeSources.push(value);
+              }
+            }
+          }
+        });
+      }
+      
+      // 3. Check variant fields
+      if (product.variants && Array.isArray(product.variants)) {
+        product.variants.forEach(v => {
+          if (v.size) sizeSources.push(v.size);
+        });
+      }
+      
+      // PROFESSIONAL SIZE NORMALIZATION AND DEDUPLICATION
+      const cleanedSizes = sizeSources
+        .map(s => s ? s.toString().trim() : '')
+        .filter(s => {
+          if (!s || s.length === 0) return false;
+          const lower = s.toLowerCase();
+          if (lower === 'null' || lower === 'undefined' || lower === 'n/a' || lower === 'none') return false;
+          if (s.length > 20) return false; // Filter out very long strings
+          return true;
+        });
+      
+      // Remove duplicates and sort sizes logically
+      const uniqueSizes = Array.from(new Set(cleanedSizes));
+      
+      // Sort sizes in logical order (numbers first, then letters)
+      uniqueSizes.sort((a, b) => {
+        const aNum = parseFloat(a);
+        const bNum = parseFloat(b);
+        
+        // If both are numbers, sort numerically
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          return aNum - bNum;
+        }
+        
+        // If one is number and one is text, numbers come first
+        if (!isNaN(aNum) && isNaN(bNum)) return -1;
+        if (isNaN(aNum) && !isNaN(bNum)) return 1;
+        
+        // Both are text, sort alphabetically with special order for clothing sizes
+        const sizeOrder = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+        const aIndex = sizeOrder.indexOf(a.toUpperCase());
+        const bIndex = sizeOrder.indexOf(b.toUpperCase());
+        
+        if (aIndex !== -1 && bIndex !== -1) {
+          return aIndex - bIndex;
+        }
+        if (aIndex !== -1) return -1;
+        if (bIndex !== -1) return 1;
+        
+        return a.localeCompare(b);
+      });
+      
+      variants.sizes = uniqueSizes;
+      
+      // Set current values
+      variants.current_color = variants.colors[0] || '';
+      variants.current_size = variants.sizes[0] || '';
+      
+      return variants;
+    };
+
+    // DEACTIVATED: Color indicator circles - see Archiv/Product-Picker-WP-2025-01-20-COLOR-BADGE-SYSTEM
+    const colorIndicators = function(product) {
+      return null; // Deactivated until variant grouping is implemented
+    };
+    
+    // ENHANCED: Helper function to convert color names to hex values
+    const getColorHex = function(colorName) {
+      if (!colorName) return '#cccccc';
+      const colorMap = {
+        // Basic colors - English
+        'black': '#000000', 'white': '#ffffff', 'red': '#ff0000', 'blue': '#0000ff',
+        'green': '#008000', 'yellow': '#ffff00', 'brown': '#8b4513', 'gray': '#808080',
+        'grey': '#808080', 'pink': '#ffc0cb', 'purple': '#800080', 'orange': '#ffa500',
+        // Basic colors - German
+        'schwarz': '#000000', 'weiß': '#ffffff', 'weiss': '#ffffff', 'rot': '#ff0000',
+        'blau': '#0000ff', 'grün': '#008000', 'gelb': '#ffff00', 'braun': '#8b4513',
+        'grau': '#808080', 'rosa': '#ffc0cb', 'lila': '#800080',
+        // Extended colors - English
+        'navy': '#000080', 'beige': '#f5f5dc', 'khaki': '#c3b091', 'olive': '#808000',
+        'cream': '#fffdd0', 'ivory': '#fffff0', 'maroon': '#800000', 'burgundy': '#800020',
+        'teal': '#008080', 'turquoise': '#40e0d0', 'mint': '#98ff98', 'lime': '#00ff00',
+        'gold': '#ffd700', 'silver': '#c0c0c0', 'bronze': '#cd7f32', 'copper': '#b87333',
+        // Extended colors - German
+        'creme': '#fffdd0', 'marine': '#000080', 'türkis': '#40e0d0', 'mint': '#98ff98'
+      };
+      const normalizedColor = colorName.toLowerCase().trim();
+      return colorMap[normalizedColor] || '#cccccc';
+    };
+
+    // Display-only variant state for the local-parse colour pills
+    // (the fallback when the DB has no sibling rows for this product).
+    const switchColorVariant = function(newColor, newSize) {
+      if (!showProductDetail) return;
+      setCurrentVariant({
+        color: newColor || currentVariant.color,
+        size: newSize !== undefined ? newSize : currentVariant.size
+      });
+    };
+
+    // Real variant switch: when the user clicks a DB-backed colour
+    // sibling, we replace showProductDetail with the sibling's data so
+    // every downstream field (affiliate_link, image, price, title,
+    // selection on Add) reflects the chosen colour. We merge into the
+    // existing object instead of replacing it so unchanged fields
+    // (description, brand, category) carry over.
+    const switchToColorSibling = function (sibling) {
+      if (!showProductDetail || !sibling) return;
+      const merged = Object.assign({}, showProductDetail, {
+        id: sibling.external_id,
+        aw_product_id: sibling.external_id,
+        external_id: sibling.external_id,
+        title: sibling.product_name || showProductDetail.title,
+        product_name: sibling.product_name || showProductDetail.product_name,
+        colour: sibling.colour,
+        color: sibling.colour,
+        image_url: sibling.image_url || showProductDetail.image_url,
+        large_image: sibling.image_url || showProductDetail.large_image,
+        merchant_image_url: sibling.image_url || showProductDetail.merchant_image_url,
+        aw_image_url: sibling.image_url || showProductDetail.aw_image_url,
+        affiliate_link: sibling.affiliate_link || showProductDetail.affiliate_link,
+        aw_deep_link: sibling.affiliate_link || showProductDetail.aw_deep_link,
+        price: sibling.price != null ? sibling.price : showProductDetail.price,
+        search_price: sibling.price != null ? sibling.price : showProductDetail.search_price,
+        original_price: sibling.original_price != null ? sibling.original_price : showProductDetail.original_price,
+        rrp_price: sibling.original_price != null ? sibling.original_price : showProductDetail.rrp_price,
+        currency: sibling.currency || showProductDetail.currency,
+        in_stock: sibling.in_stock
+      });
+      setCurrentVariant({ color: sibling.colour, size: '' });
+      // Triggering setShowProductDetail re-runs the size-fetch and
+      // sibling-fetch effects with the new id, so any per-colour size
+      // availability also refreshes.
+      setShowProductDetail(merged);
+    };
+
+    // Build detail images upfront
+    const detailImages = function(p){
+      const list = resolveImages(p);
+      const main = p.image_url || p.merchant_image_url || p.large_image || p.aw_image_url || p.image || p.picture || PLACEHOLDER_IMG;
+      const result = [main].concat(list.filter(u => u !== main));
+      return Array.from(new Set(result));
+    };
+
+    return React.createElement(
+      Fragment,
+      null,
+
+      // Product Search Modal - ONLY show if no product detail is shown
+      !showProductDetail && React.createElement(Modal, { title: results.length > 0 ? ((!searchTerm || searchTerm.length < 2) ? "Your Selected Products (" + selected.length + ")" : "Product Search Results (" + results.length + " found)") : "Product Search Results", onRequestClose: closeWindow, className: "myfeeds-spacious-modal", shouldCloseOnClickOutside: false },
+        React.createElement("div", { className: "myfeeds-modal-content", ref: restoreResultsScroll },
+          // Search within modal - sticky at top
+          React.createElement("div", { className: "myfeeds-search-controls" },
+            React.createElement("div", { style: { display: "flex", gap: "10px", alignItems: "end" } },
+              React.createElement("div", { style: { flex: 1 } }, React.createElement(TextControl, { label: "Search", value: searchTerm, onChange: setSearchTerm, onKeyDown: function (e) { if (e.key === "Enter" || e.key === "NumpadEnter") { e.preventDefault(); fetchProducts(false); } }, style: { width: "100%" } })),
+              React.createElement("div", null, React.createElement(Button, { isPrimary: true, onClick: function(){ fetchProducts(false); }, disabled: isLoading || !searchTerm || searchTerm.length < 2, style: { height: "36px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, isLoading ? "Searching..." : "Search"))
+            ),
+            // Hint: phrases / price / sale auto-extracted from the query
+            parsedHint && (parsedHint.max_price || parsedHint.min_price || parsedHint.on_sale) && React.createElement("div", {
+              style: { marginTop: "8px", padding: "8px 12px", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: "6px", color: "#3730a3", fontSize: "13px" }
+            },
+              "Smart filter from your query: ",
+              parsedHint.min_price ? React.createElement("strong", null, "from " + parsedHint.min_price + "€ ") : null,
+              parsedHint.max_price ? React.createElement("strong", null, "up to " + parsedHint.max_price + "€ ") : null,
+              parsedHint.on_sale ? React.createElement("strong", null, "on sale ") : null
+            ),
+            // Did-you-mean banner: only renders when backend offered a correction
+            suggestion && React.createElement("div", {
+              style: { marginTop: "8px", padding: "10px 12px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "6px", color: "#9a3412", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }
+            },
+              React.createElement("div", null,
+                "No matches for ", React.createElement("strong", null, "\"" + searchTerm + "\""), ". Did you mean ",
+                React.createElement(Button, { isLink: true, onClick: acceptSuggestion, style: { padding: 0, color: "#9a3412", textDecoration: "underline", fontWeight: 600 } }, suggestion),
+                "?"
+              )
+            ),
+            // Sort + filter toolbar row, only when actively searching
+            searchTerm && searchTerm.length >= 2 && React.createElement("div", { style: { display: "flex", gap: "10px", alignItems: "center", marginTop: "10px", flexWrap: "wrap" } },
+              React.createElement("div", { style: { color: "#374151", fontSize: "13px" } },
+                isLoading ? "Searching…" : (totalResults > 0 ? (totalResults + " result" + (totalResults === 1 ? "" : "s")) : "")
+              ),
+              // Beside the count, not under it. On its own line it cost a
+              // row of whitespace inside a modal whose whole job is to
+              // show products.
+              !isLoading && React.createElement("div", {
+                style: { display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#6b7280", flexWrap: "wrap" }
+              },
+                React.createElement("span", null, answeredLoosely
+                  ? "Showing words inside longer words too, like Sweatshirt for shirt."
+                  : "Showing whole-word matches only."),
+                React.createElement(Button, {
+                  isLink: true,
+                  onClick: function () { setLooseMatch(!looseMatch); },
+                  style: { padding: 0, fontSize: "12px", color: "#667eea", textDecoration: "underline" }
+                }, looseMatch ? "Whole words only" : "Show partial matches too")
+              ),
+              React.createElement("div", { style: { flex: 1 } }),
+              React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#374151" } },
+                "Sort:",
+                React.createElement("select", {
+                  value: sortMode,
+                  onChange: function (e) { setSortMode(e.target.value); },
+                  style: { padding: "6px 8px", borderRadius: "6px", border: "1px solid #d1d5db", background: "#fff", fontSize: "13px" }
+                },
+                  React.createElement("option", { value: "relevance" }, "Best match"),
+                  React.createElement("option", { value: "price_asc" }, "Price (low → high)"),
+                  React.createElement("option", { value: "price_desc" }, "Price (high → low)"),
+                  React.createElement("option", { value: "discount_desc" }, "Biggest discount"),
+                  React.createElement("option", { value: "newest" }, "Newest")
+                )
+              ),
+              React.createElement(Button, {
+                isSecondary: true,
+                onClick: function () { setShowFilters(!showFilters); },
+                style: { padding: "6px 12px", fontSize: "13px", background: showFilters ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "#fff", color: showFilters ? "#fff" : "#667eea", border: "1px solid #667eea", borderRadius: "6px" }
+              }, showFilters ? "Hide filters" : ("Filters" + (activeFilterCount > 0 ? " (" + activeFilterCount + ")" : "")))
+            ),
+            // Active filter chips
+            activeFilterCount > 0 && React.createElement("div", { style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" } },
+              filterBrand.map(function (b) {
+                return React.createElement("span", { key: "fbchip-" + b, style: { background: "#eef2ff", border: "1px solid #c7d2fe", color: "#3730a3", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
+                  "Brand: " + b,
+                  React.createElement("button", { onClick: function () { setFilterBrand(filterBrand.filter(function (x) { return x !== b; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#3730a3", fontWeight: 600, padding: 0 } }, "×")
+                );
+              }),
+              filterColour.map(function (c) {
+                return React.createElement("span", { key: "fcchip-" + c, style: { background: "#fdf4ff", border: "1px solid #f5d0fe", color: "#86198f", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
+                  "Colour: " + c,
+                  React.createElement("button", { onClick: function () { setFilterColour(filterColour.filter(function (x) { return x !== c; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#86198f", fontWeight: 600, padding: 0 } }, "×")
+                );
+              }),
+              filterCategory.map(function (c) {
+                return React.createElement("span", { key: "fcatchip-" + c, style: { background: "#fef3c7", border: "1px solid #fde68a", color: "#92400e", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
+                  "Category: " + c,
+                  React.createElement("button", { onClick: function () { setFilterCategory(filterCategory.filter(function (x) { return x !== c; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#92400e", fontWeight: 600, padding: 0 } }, "×")
+                );
+              }),
+              (filterMinPrice !== '' || filterMaxPrice !== '') && React.createElement("span", { style: { background: "#ecfeff", border: "1px solid #a5f3fc", color: "#155e75", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
+                "Price: " + (filterMinPrice || '0') + "€ – " + (filterMaxPrice || '∞'),
+                React.createElement("button", { onClick: function () { setFilterMinPrice(''); setFilterMaxPrice(''); }, style: { background: "none", border: "none", cursor: "pointer", color: "#155e75", fontWeight: 600, padding: 0 } }, "×")
+              ),
+              filterOnSale && React.createElement("span", { style: { background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
+                "On sale",
+                React.createElement("button", { onClick: function () { setFilterOnSale(false); }, style: { background: "none", border: "none", cursor: "pointer", color: "#991b1b", fontWeight: 600, padding: 0 } }, "×")
+              ),
+              filterInStock && React.createElement("span", { style: { background: "#ecfdf5", border: "1px solid #a7f3d0", color: "#065f46", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
+                "In stock",
+                React.createElement("button", { onClick: function () { setFilterInStock(false); }, style: { background: "none", border: "none", cursor: "pointer", color: "#065f46", fontWeight: 600, padding: 0 } }, "×")
+              ),
+              React.createElement(Button, { isLink: true, onClick: clearAllFilters, style: { padding: "0 6px", fontSize: "12px", color: "#6b7280" } }, "Clear all")
+            ),
+            // Filter panel — collapsible. Each section caps height at ~220px
+            // with a hidden scrollbar so the panel itself stays compact even
+            // when the facet has many values.
+            showFilters && searchTerm && searchTerm.length >= 2 && React.createElement(Fragment, null,
+              // One-off styles for the panel — scrollbar hiding, swatch chip,
+              // facet row hover. Kept inline so the bundle stays self-contained.
+              React.createElement("style", null,
+                ".myfeeds-fp{margin-top:10px;padding:16px;background:#fafafa;border:1px solid #e5e7eb;border-radius:10px}" +
+                ".myfeeds-fp__grid{display:grid;grid-template-columns:1.15fr 1.15fr 1.15fr 220px;gap:18px;align-items:start}" +
+                "@media (max-width:980px){.myfeeds-fp__grid{grid-template-columns:1fr 1fr}.myfeeds-fp__right-stack{grid-column:span 2;flex-direction:row}}" +
+                "@media (max-width:600px){.myfeeds-fp__grid{grid-template-columns:1fr}.myfeeds-fp__right-stack{grid-column:auto;flex-direction:column}}" +
+                ".myfeeds-fp__right-stack{display:flex;flex-direction:column;gap:12px;min-width:0}" +
+                ".myfeeds-fp__right-stack > .myfeeds-fp__section{flex:1;min-width:0}" +
+                ".myfeeds-fp__section{display:flex;flex-direction:column;min-height:0;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px}" +
+                ".myfeeds-fp__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:11px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.06em}" +
+                ".myfeeds-fp__head .total{font-weight:500;color:#9ca3af;font-size:11px;text-transform:none;letter-spacing:0}" +
+                ".myfeeds-fp__scroll{max-height:220px;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none;padding-right:2px}" +
+                ".myfeeds-fp__scroll::-webkit-scrollbar{display:none;width:0;height:0}" +
+                ".myfeeds-fp__row{display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:13px;cursor:pointer;color:#374151;border-radius:4px;transition:background-color .12s}" +
+                ".myfeeds-fp__row:hover{background:#f3f4f6}" +
+                ".myfeeds-fp__row .label{flex:1;text-transform:capitalize;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+                ".myfeeds-fp__row .count{color:#9ca3af;font-size:11px;font-variant-numeric:tabular-nums}" +
+                ".myfeeds-fp__swatches{display:flex;flex-wrap:wrap;gap:6px}" +
+                ".myfeeds-fp__swatch{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #e5e7eb;background:#fff;border-radius:999px;cursor:pointer;font-size:12px;color:#374151;text-transform:capitalize;line-height:1.4;transition:border-color .12s,transform .08s}" +
+                ".myfeeds-fp__swatch:hover{border-color:#9ca3af}" +
+                ".myfeeds-fp__swatch.is-on{border:2px solid #667eea;padding:3px 9px;background:#eef2ff}" +
+                ".myfeeds-fp__swatch .dot{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,0.08);flex:none}" +
+                ".myfeeds-fp__swatch .num{color:#9ca3af;font-variant-numeric:tabular-nums}" +
+                ".myfeeds-fp__empty{font-size:12px;color:#9ca3af;padding:6px 0}" +
+                ".myfeeds-fp__price{display:flex;gap:6px;align-items:center;flex-wrap:wrap}" +
+                ".myfeeds-fp__price input{width:74px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px}" +
+                ".myfeeds-fp__price input:focus{outline:none;border-color:#667eea;box-shadow:0 0 0 3px rgba(102,126,234,0.15)}"
+              ),
+              React.createElement("div", { className: "myfeeds-fp" },
+                React.createElement("div", { className: "myfeeds-fp__grid" },
+                  // Brand
+                  React.createElement("div", { className: "myfeeds-fp__section" },
+                    React.createElement("div", { className: "myfeeds-fp__head" },
+                      React.createElement("span", null, "Brand"),
+                      facets && facets.brand && facets.brand.length > 0 ? React.createElement("span", { className: "total" }, facets.brand.length + (facets.brand.length >= 50 ? "+" : "")) : null
+                    ),
+                    facets && facets.brand && facets.brand.length > 0
+                      ? React.createElement("div", { className: "myfeeds-fp__scroll" },
+                          facets.brand.map(function (b) {
+                            var checked = filterBrand.some(function (x) { return x.toLowerCase() === b.value; });
+                            return React.createElement("label", { key: "fb-" + b.value, className: "myfeeds-fp__row" },
+                              React.createElement("input", { type: "checkbox", checked: checked, onChange: function () { setFilterBrand(toggleArrayItem(filterBrand, b.value)); } }),
+                              React.createElement("span", { className: "label" }, b.value),
+                              React.createElement("span", { className: "count" }, b.count)
+                            );
+                          })
+                        )
+                      : React.createElement("div", { className: "myfeeds-fp__empty" }, "Run a search to see brands")
+                  ),
+                  // Colour (visual picker)
+                  React.createElement("div", { className: "myfeeds-fp__section" },
+                    React.createElement("div", { className: "myfeeds-fp__head" },
+                      React.createElement("span", null, "Colour"),
+                      facets && facets.colour && facets.colour.length > 0 ? React.createElement("span", { className: "total" }, facets.colour.length + (facets.colour.length >= 50 ? "+" : "")) : null
+                    ),
+                    facets && facets.colour && facets.colour.length > 0
+                      ? React.createElement("div", { className: "myfeeds-fp__scroll" },
+                          React.createElement("div", { className: "myfeeds-fp__swatches" },
+                            facets.colour.map(function (c) {
+                              var swatch = colourSwatch(c.value);
+                              var checked = filterColour.some(function (x) { return x.toLowerCase() === c.value; });
+                              return React.createElement("button", {
+                                key: "fc-" + c.value,
+                                className: "myfeeds-fp__swatch" + (checked ? " is-on" : ""),
+                                onClick: function () { setFilterColour(toggleArrayItem(filterColour, c.value)); },
+                                title: c.value + " (" + c.count + ")"
+                              },
+                                swatch ? React.createElement("span", { className: "dot", style: { background: swatch } }) : null,
+                                c.value,
+                                React.createElement("span", { className: "num" }, "(" + c.count + ")")
+                              );
+                            })
+                          )
+                        )
+                      : React.createElement("div", { className: "myfeeds-fp__empty" }, "Run a search to see colours")
+                  ),
+                  // Category (raw merchant labels, capped to top-N)
+                  React.createElement("div", { className: "myfeeds-fp__section" },
+                    React.createElement("div", { className: "myfeeds-fp__head" },
+                      React.createElement("span", null, "Category"),
+                      facets && facets.category && facets.category.length > 0 ? React.createElement("span", { className: "total" }, facets.category.length + (facets.category.length >= 50 ? "+" : "")) : null
+                    ),
+                    facets && facets.category && facets.category.length > 0
+                      ? React.createElement("div", { className: "myfeeds-fp__scroll" },
+                          facets.category.map(function (c) {
+                            var checked = filterCategory.some(function (x) { return x.toLowerCase() === c.value; });
+                            return React.createElement("label", { key: "fcat-" + c.value, className: "myfeeds-fp__row", title: c.value },
+                              React.createElement("input", { type: "checkbox", checked: checked, onChange: function () { setFilterCategory(toggleArrayItem(filterCategory, c.value)); } }),
+                              React.createElement("span", { className: "label" }, c.value),
+                              React.createElement("span", { className: "count" }, c.count)
+                            );
+                          })
+                        )
+                      : React.createElement("div", { className: "myfeeds-fp__empty" }, "Run a search to see categories")
+                  ),
+                  // Right column stack: Price on top, Show Only below.
+                  // Both sections are compact, so stacking them in a single
+                  // narrow column saves the dead whitespace they leave behind
+                  // when each owns a full equal-width grid track.
+                  React.createElement("div", { className: "myfeeds-fp__right-stack" },
+                    React.createElement("div", { className: "myfeeds-fp__section" },
+                      React.createElement("div", { className: "myfeeds-fp__head" },
+                        React.createElement("span", null, "Price"),
+                        facets && facets.price_range ? React.createElement("span", { className: "total" }, Math.floor(facets.price_range.min) + " – " + Math.ceil(facets.price_range.max) + "€") : null
+                      ),
+                      React.createElement("div", { className: "myfeeds-fp__price" },
+                        React.createElement("input", { type: "number", placeholder: "Min", value: filterMinPrice, onChange: function (e) { setFilterMinPrice(e.target.value); } }),
+                        React.createElement("span", { style: { color: "#9ca3af" } }, "–"),
+                        React.createElement("input", { type: "number", placeholder: "Max", value: filterMaxPrice, onChange: function (e) { setFilterMaxPrice(e.target.value); } })
+                      )
+                    ),
+                    React.createElement("div", { className: "myfeeds-fp__section" },
+                      React.createElement("div", { className: "myfeeds-fp__head" }, "Show only"),
+                      React.createElement("label", { className: "myfeeds-fp__row" },
+                        React.createElement("input", { type: "checkbox", checked: filterOnSale, onChange: function () { setFilterOnSale(!filterOnSale); } }),
+                        React.createElement("span", { className: "label" }, "On sale")
+                      ),
+                      React.createElement("label", { className: "myfeeds-fp__row" },
+                        React.createElement("input", { type: "checkbox", checked: filterInStock, onChange: function () { setFilterInStock(!filterInStock); } }),
+                        React.createElement("span", { className: "label" }, "In stock")
+                      )
+                    )
+                  )
+                )
+              )
+            ),
+            // Recents row — only shown before the user has typed anything, so it
+            // doesn't compete with live results for screen space.
+            (!searchTerm || searchTerm.length < 2) && recents && recents.length > 0 && React.createElement("div", { style: { marginTop: "12px" } },
+              React.createElement("div", { style: { fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" } }, "Recently used"),
+              React.createElement("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap" } },
+                recents.slice(0, 10).map(function (r, idx) {
+                  var img = r.image_url || r.merchant_image_url || r.aw_image_url || PLACEHOLDER_IMG;
+                  var t = r.title || r.product_name || r.name || "Product";
+                  return React.createElement("button", {
+                    key: "rec-" + idx,
+                    // Click on a recent: push its title into the search bar.
+                    // The debounced search-as-you-type effect (280ms) then
+                    // refetches automatically so the user sees that product
+                    // (plus any size/colour variants) in the result grid.
+                    onClick: function () { setSearchTerm(t); },
+                    title: "Search for: " + t,
+                    style: { display: "flex", alignItems: "center", gap: "6px", padding: "4px 8px 4px 4px", border: "1px solid #e5e7eb", borderRadius: "999px", background: "#fff", cursor: "pointer", fontSize: "12px", color: "#374151" }
+                  },
+                    React.createElement("img", { src: img, alt: "", style: { width: "22px", height: "22px", borderRadius: "50%", objectFit: "cover", background: "#f3f4f6" } }),
+                    React.createElement("span", { style: { maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, t)
+                  );
+                })
+              )
+            )
+          ),
+
+          // Error in modal
+          error && React.createElement("div", { style: { backgroundColor: "#fef2f2", border: "1px solid #fecaca", padding: "10px", borderRadius: "6px", margin: "12px 0", color: "#b91c1c" } }, error),
+
+          // Product Grid (5 per row) - scrollable
+          results.length > 0 && React.createElement("div", { style: { marginBottom: "20px" } },
+            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "16px", padding: "12px", border: "1px solid #e5e7eb", borderRadius: "8px", background: "#fff" } },
+              results.map(productCard)
+            )
+          ),
+
+          // Load More Button
+          hasMoreResults && results.length > 0 && React.createElement("div", { style: { textAlign: "center", padding: "20px 0 10px" } },
+            React.createElement(Button, {
+              isSecondary: true,
+              onClick: function(){ fetchProducts(true); },
+              disabled: isLoadingMore,
+              style: { 
+                padding: "10px 32px", 
+                fontSize: "14px", 
+                background: "#fff", 
+                color: "#667eea", 
+                border: "1px solid #667eea", 
+                borderRadius: "6px",
+                minWidth: "200px"
+              }
+            }, isLoadingMore ? "Loading..." : "Load More Results")
+          )
+        ),
+
+
+          // Modal actions. A sibling of the scrolling body rather than its
+          // last child: as a child it could only be reached by scrolling,
+          // and whenever the body did not overflow there was no scrolling
+          // to reach it with. As a flex item of the frame it simply sits at
+          // the bottom, always.
+          React.createElement("div", { className: "myfeeds-modal-actions" },
+            React.createElement(Button, { isPrimary: true, onClick: function(){ props.onConfirm(selected); }, disabled: selected.length === 0, style: { padding: "10px 18px", fontSize: "14px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, confirmLabel(selected.length)),
+            React.createElement(Button, { isSecondary: true, onClick: props.onCancel, style: { padding: "10px 18px", fontSize: "14px", background: "#fff", color: "#667eea", border: "1px solid #667eea", borderRadius: "6px" } }, "Cancel")
+          )
+      ),
+      // Product Detail Modal - FIXED: Always shows on top, proper navigation
+      showProductDetail && React.createElement(Modal, { title: "", onRequestClose: function(){ 
+        console.log("🔙 MYFEEDS DEBUG: Detail modal X button clicked - returning to search results"); 
+        setShowProductDetail(null); 
+        // Keep the main search modal open for proper navigation
+      }, className: "myfeeds-detail-modal", shouldCloseOnClickOutside: false },
+        React.createElement("div", { className: "myfeeds-detail-content" },
+          React.createElement("div", { className: "myfeeds-product-detail" },
+            // Product Images Section
+            React.createElement("div", { className: "myfeeds-product-images" },
+              React.createElement("div", { className: "myfeeds-main-image" },
+                React.createElement("img", { src: detailImage || (showProductDetail && (showProductDetail.large_image || showProductDetail.image_url || showProductDetail.merchant_image_url || showProductDetail.image)) || "", alt: (showProductDetail && (showProductDetail.title || showProductDetail.product_name)) || "" }),
+              ),
+              (function(){ 
+                const imgs = detailImages(showProductDetail || {}); 
+                const current = detailImage || imgs[0];
+                // Every image is a thumbnail, the main one included, so
+                // there is a way back to it after looking at another.
+                return imgs.length > 1 ? React.createElement("div", { className: "myfeeds-additional-images" },
+                  imgs.slice(0, 8).map(function(imgUrl, idx){ 
+                    return React.createElement("div", { 
+                      key: 'thumb-' + idx, 
+                      className: "myfeeds-thumb-image" + (imgUrl === current ? " is-active" : ""),
+                      role: "button",
+                      tabIndex: 0,
+                      title: "Show this image",
+                      onClick: function(){ setDetailImage(imgUrl); },
+                      onKeyDown: function(e){ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetailImage(imgUrl); } }
+                    }, React.createElement("img", { src: imgUrl, alt: 'Image ' + (idx+1) })); 
+                  })
+                ) : null; 
+              })()
+            ),
+
+            // Product Info Section
+            React.createElement("div", { className: "myfeeds-product-info" },
+              // Brand
+              (showProductDetail && (showProductDetail.brand || showProductDetail.brand_name || showProductDetail.manufacturer)) && React.createElement("div", { className: "myfeeds-product-brand" }, showProductDetail.brand || showProductDetail.brand_name || showProductDetail.manufacturer),
+              
+              // Title
+              React.createElement("h1", { className: "myfeeds-product-title" }, showProductDetail && (showProductDetail.title || showProductDetail.product_name || 'Product')),
+              
+              // Price Section
+              React.createElement("div", { className: "myfeeds-product-price" },
+                (function(){ 
+                  const current = resolveCurrentPrice(showProductDetail || {});
+                  const original = resolveOriginalPrice(showProductDetail || {});
+                  const currency = getCurrency(showProductDetail || {});
+                  const discount = original > current && current > 0 ? Math.round(((original - current) / original) * 100) : 0;
+                  
+                  return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "15px" } },
+                    current > 0 && React.createElement("span", { className: "myfeeds-current-price" }, formatMoney(current, currency)),
+                    !(current > 0) && React.createElement("span", { className: "myfeeds-price-unavailable" }, priceOnRequest()),
+                    original > current && original > 0 && React.createElement("span", { className: "myfeeds-old-price" }, formatMoney(original, currency)),
+                    discount > 0 && React.createElement("span", { className: "myfeeds-discount-badge" }, "-" + discount + "%")
+                  );
+                })()
+              ),
+              
+              // Shipping
+              (function(){ 
+                const s = formatShipping(showProductDetail || {}); 
+                return s ? React.createElement("div", { style: { fontSize: "14px", color: "#28a745", fontWeight: "500", margin: "10px 0" } }, "📦 " + s) : null; 
+              })(),
+              
+              // Product Description - FULL TEXT
+              (showProductDetail && (showProductDetail.description || showProductDetail.product_description || showProductDetail.long_description || showProductDetail.full_description)) && React.createElement("div", { className: "myfeeds-product-description" },
+                React.createElement("h4", null, "Product Description"),
+                React.createElement("div", { className: "myfeeds-description-text" }, showProductDetail.description || showProductDetail.product_description || showProductDetail.long_description || showProductDetail.full_description || '')
+              ),
+              
+              // Product Attributes - ENHANCED WITH CLICKABLE COLORS
+              React.createElement("div", { className: "myfeeds-product-attributes" },
+                // Colors: prefer DB-backed siblings (real switchable
+                // variants) when available, otherwise fall back to the
+                // local-parse colour pills (display-only).
+                (function(){
+                  // ----- DB-backed sibling swatches -----
+                  if (Array.isArray(colorSiblings) && colorSiblings.length > 1) {
+                    return React.createElement("div", { className: "myfeeds-attribute-section" },
+                      React.createElement("div", { className: "myfeeds-attribute-title" }, "Available Colors:"),
+                      React.createElement("div", { className: "myfeeds-color-selection", style: { display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px" } },
+                        colorSiblings.map(function (sibling, idx) {
+                          var isCurrent = !!sibling.is_current;
+                          var outOfStock = sibling.in_stock !== 1 && sibling.in_stock !== '1' && sibling.in_stock !== true;
+                          return React.createElement("button", {
+                            key: 'sibling-' + (sibling.external_id || idx),
+                            type: 'button',
+                            title: sibling.colour + (outOfStock ? ' (out of stock)' : ''),
+                            onClick: function () {
+                              if (isCurrent) return;
+                              switchToColorSibling(sibling);
+                            },
+                            style: {
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: "6px",
+                              padding: "6px 8px 8px 8px",
+                              border: isCurrent ? "2px solid #667eea" : "1px solid #e5e7eb",
+                              borderRadius: "10px",
+                              background: isCurrent ? "#f5f3ff" : "#fff",
+                              cursor: isCurrent ? "default" : "pointer",
+                              fontSize: "12px",
+                              fontWeight: isCurrent ? 600 : 500,
+                              color: "#1d2327",
+                              transition: "all 0.18s ease",
+                              opacity: outOfStock ? 0.55 : 1
+                            }
+                          }, [
+                            // Mini thumbnail of the sibling's image (so
+                            // users see the actual product photo of the
+                            // colour they're switching to).
+                            React.createElement("div", {
+                              key: 'thumb',
+                              style: {
+                                width: "56px",
+                                height: "56px",
+                                borderRadius: "6px",
+                                border: "1px solid #f3f4f6",
+                                background: "#fff url('" + (sibling.image_url || PLACEHOLDER_IMG) + "') center/contain no-repeat",
+                                flexShrink: 0
+                              }
+                            }),
+                            React.createElement("div", { key: 'row', style: { display: "flex", alignItems: "center", gap: "5px" } }, [
+                              React.createElement("span", {
+                                key: 'dot',
+                                style: {
+                                  width: "10px",
+                                  height: "10px",
+                                  borderRadius: "50%",
+                                  background: getColorHex(sibling.colour),
+                                  border: "1px solid rgba(0,0,0,0.2)",
+                                  display: "inline-block"
+                                }
+                              }),
+                              React.createElement("span", { key: 'label' }, sibling.colour)
+                            ])
+                          ]);
+                        })
+                      ),
+                      React.createElement("div", {
+                        style: { marginTop: "8px", fontSize: "11px", color: "#71717a" }
+                      }, "Click a colour to switch the affiliate link and price to that variant.")
+                    );
+                  }
+
+                  // ----- Fallback: local-parse colour pills (display) -----
+                  const variants = getAllProductVariants(showProductDetail || {});
+                  if (variants.colors.length === 0) return null;
+
+                  return React.createElement("div", { className: "myfeeds-attribute-section" },
+                    React.createElement("div", { className: "myfeeds-attribute-title" }, "Available Colors:"),
+                    React.createElement("div", { className: "myfeeds-color-selection", style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" } },
+                      variants.colors.map(function(color, idx){
+                        const isCurrentColor = currentVariant.color === color || (!currentVariant.color && idx === 0);
+
+                        return React.createElement("div", {
+                          key: 'color-option-' + idx,
+                          className: "myfeeds-color-option",
+                          style: {
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "6px 12px",
+                            border: isCurrentColor ? "2px solid #667eea" : "1px solid #ddd",
+                            borderRadius: "20px",
+                            cursor: "pointer",
+                            backgroundColor: isCurrentColor ? "#f5f3ff" : "#fff",
+                            fontSize: "13px",
+                            fontWeight: isCurrentColor ? "600" : "400",
+                            transition: "all 0.2s ease"
+                          },
+                          onClick: function() {
+                            switchColorVariant(color, null);
+                          }
+                        }, [
+                          React.createElement("div", {
+                            key: 'circle',
+                            style: {
+                              width: "16px",
+                              height: "16px",
+                              borderRadius: "50%",
+                              backgroundColor: getColorHex(color),
+                              border: "1px solid rgba(0,0,0,0.2)",
+                              flexShrink: 0
+                            }
+                          }),
+                          React.createElement("span", { key: 'name' }, color.toString().trim())
+                        ]);
+                      })
+                    )
+                  );
+                })(),
+                
+                // Sizes - Interactive Size Selection (uses DB sizes from dedup if available)
+                (function(){
+                  var variants = getAllProductVariants(showProductDetail || {});
+                  // Prefer the rows: they carry the id, price and link
+                  // of each size, so clicking one can actually switch.
+                  var sizesToShow = sizeVariants.length > 0
+                    ? sizeVariants.map(function (v) { return v.size; })
+                    : (detailSizes.length > 0 ? detailSizes : variants.sizes);
+                  if (sizesToShow.length === 0) return null;
+                  
+                  return React.createElement("div", { className: "myfeeds-attribute-section", style: { marginTop: "15px" } },
+                    React.createElement("div", { className: "myfeeds-attribute-title" }, "Available Sizes" + (sizesToShow.length > 1 ? " (" + sizesToShow.length + ")" : "") + ":"),
+                    React.createElement("div", { className: "myfeeds-size-selection", style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" } }, 
+                      sizesToShow.map(function(size, idx){
+                        const isCurrentSize = currentVariant.size === size || (!currentVariant.size && idx === 0);
+                        
+                        return React.createElement("div", { 
+                          key: 'size-option-' + idx,
+                          className: "myfeeds-size-option",
+                          style: {
+                            padding: "8px 12px",
+                            border: isCurrentSize ? "2px solid #667eea" : "1px solid #ddd",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            backgroundColor: isCurrentSize ? "#f5f3ff" : "#fff",
+                            fontSize: "13px",
+                            fontWeight: isCurrentSize ? "600" : "400",
+                            transition: "all 0.2s ease",
+                            minWidth: "35px",
+                            textAlign: "center"
+                          },
+                          onClick: function() {
+                            // A real switch where we have the row: the
+                            // link, price and id then belong to the size
+                            // the author picked, so "Add to Selection"
+                            // stores that size and not the one the
+                            // search happened to open.
+                            var row = null;
+                            for (var vi = 0; vi < sizeVariants.length; vi++) {
+                              if (String(sizeVariants[vi].size) === String(size)) { row = sizeVariants[vi]; break; }
+                            }
+                            if (row) {
+                              setShowProductDetail(Object.assign({}, showProductDetail, {
+                                id: row.external_id,
+                                external_id: row.external_id,
+                                aw_product_id: row.external_id,
+                                price: row.price,
+                                old_price: row.original_price,
+                                original_price: row.original_price,
+                                currency: row.currency,
+                                affiliate_link: row.affiliate_link,
+                                image_url: row.image_url || showProductDetail.image_url,
+                                in_stock: row.in_stock ? 1 : 0
+                              }));
+                            }
+                            switchColorVariant(null, size);
+                          },
+                          onMouseEnter: function(e) {
+                            if (!isCurrentSize) {
+                              e.target.style.backgroundColor = "#f8f9fa";
+                              e.target.style.borderColor = "#667eea";
+                            }
+                          },
+                          onMouseLeave: function(e) {
+                            if (!isCurrentSize) {
+                              e.target.style.backgroundColor = "#fff";
+                              e.target.style.borderColor = "#ddd";
+                            }
+                          }
+                        }, size.toString().trim());
+                      })
+                    )
+                  );
+                })()
+              )
+            )
+          )
+        ),
+        
+        // Action Buttons - Outside scrollable area
+        React.createElement("div", { className: "myfeeds-product-actions" },
+          React.createElement("button", { 
+            className: "myfeeds-back-button",
+            onClick: function(){ 
+              console.log("🔙 MYFEEDS DEBUG: Back to Search clicked - returning to main search modal");
+              setShowProductDetail(null);
+            }
+          }, "← Back to Search"),
+          React.createElement("button", {
+            className: "myfeeds-add-button",
+            onClick: function(){
+              toggleProduct(showProductDetail, true);
+              setShowProductDetail(null);
+            }
+          }, (selected || []).some(function(p){ return String(p.id) === String(showProductDetail && showProductDetail.id); }) ? "Remove from Selection" : "Add to Selection")
+        )
+      )
+    );
+  }
+
+  // For a block in another file (Pro's Look block). Loaded with this
+  // bundle, read when that block opens the window.
+  window.myfeedsProductSearch = { Modal: ProductSearchModal };
+
   registerBlockType("myfeeds/product-picker", {
     title: "MyFeeds \u2013 Product Picker",
     icon: "cart",
@@ -296,78 +1806,8 @@
 
     edit({ attributes, setAttributes }) {
       const [searchTerm, setSearchTerm] = useState("");
-      const [results, setResults] = useState([]);
-      const [isLoading, setIsLoading] = useState(false);
       const [showModal, setShowModal] = useState(false);
       const [selected, setSelected] = useState(attributes.selectedProducts || []);
-      const [error, setError] = useState(null);
-      const [showProductDetail, setShowProductDetail] = useState(null);
-      // Where the results were scrolled to when a detail view opened.
-      // The search modal is unmounted while the detail view is up and
-      // comes back at the top; without this, "Back to search" and "Add
-      // to selection" both dropped the author at the first row again,
-      // and the product they had been looking at was three screens
-      // down. Read once on the way back, then forgotten, so a freshly
-      // opened modal starts at the top like it should.
-      const resultsScrollMemory = useRef(0);
-      const rememberResultsScroll = function () {
-        var el = document.querySelector('.myfeeds-modal-content');
-        resultsScrollMemory.current = el ? el.scrollTop : 0;
-      };
-      const restoreResultsScroll = function (el) {
-        if (!el || !resultsScrollMemory.current) return;
-        var y = resultsScrollMemory.current;
-        resultsScrollMemory.current = 0;
-        el.scrollTop = y;
-        // The grid may still be laying out when the ref fires; one
-        // frame later the height is final and the position sticks.
-        if (window.requestAnimationFrame) {
-          window.requestAnimationFrame(function () { el.scrollTop = y; });
-        }
-      };
-      // Which of the product's images the big frame is showing. Reset
-      // whenever another product opens, so the new one starts on its
-      // own main image rather than on the one clicked in the last.
-      const [detailImage, setDetailImage] = useState(null);
-      useEffect(function () {
-        setDetailImage(null);
-      }, [showProductDetail && (showProductDetail.id || showProductDetail.external_id)]);
-      const [searchOffset, setSearchOffset] = useState(0);
-      const [hasMoreResults, setHasMoreResults] = useState(false);
-      const [isLoadingMore, setIsLoadingMore] = useState(false);
-      const [currentVariant, setCurrentVariant] = useState({ color: '', size: '' });
-      const [detailSizes, setDetailSizes] = useState([]);
-      // The rows behind those sizes. A size label is enough to look at;
-      // to link to a size we need its own id, price and affiliate link.
-      const [sizeVariants, setSizeVariants] = useState([]);
-      // DB-backed colour siblings for the currently open detail product.
-      // Empty array means: no DB siblings (single-colour product or
-      // colour data unavailable) — fall back to the local-parse pills.
-      const [colorSiblings, setColorSiblings] = useState([]);
-
-      // Search-meta state: did-you-mean suggestion, structured filters,
-      // sort mode, OR-faceted aggregates, smart-parser extracted hint.
-      const [suggestion, setSuggestion] = useState(null);
-      const [filterBrand, setFilterBrand] = useState([]);
-      const [filterColour, setFilterColour] = useState([]);
-      const [filterCategory, setFilterCategory] = useState([]);
-      const [filterMinPrice, setFilterMinPrice] = useState('');
-      const [filterMaxPrice, setFilterMaxPrice] = useState('');
-      const [filterOnSale, setFilterOnSale] = useState(false);
-      const [filterInStock, setFilterInStock] = useState(false);
-      const [sortMode, setSortMode] = useState('relevance');
-      const [facets, setFacets] = useState(null);
-      const [parsedHint, setParsedHint] = useState(null);
-      const [totalResults, setTotalResults] = useState(0);
-      const [showFilters, setShowFilters] = useState(false);
-      // Whole-word matching is the default. A search word has to START a
-      // word, the way the full-text index has always treated long words.
-      // Switching this on also accepts the word inside a longer one, for
-      // the compounds a word start cannot reach: Sweatshirt for "shirt",
-      // Trenchcoat for "coat", and most German nouns.
-      const [looseMatch, setLooseMatch] = useState(false);
-      const [answeredLoosely, setAnsweredLoosely] = useState(false);
-      const [recents, setRecents] = useState([]);
 
       // Keep the local list in step with the saved one. Undo, redo and
       // anything that edits the block's attributes from outside change
@@ -424,428 +1864,13 @@
         .catch(function() { /* Silently fail */ });
       }, []);
 
-      // Body class while modal open (for scoped CSS) + live-measure the
-      // wp-admin sidebar width so the modal can offset against it (otherwise
-      // the modal frame and the dark overlay center on the full viewport
-      // and cover the sidebar, which looks shifted).
-      //
-      // The block editor mounts inside an iframe since WP 5.9, so
-      // #adminmenuwrap is in the PARENT document, not the iframe's. We
-      // resolve to whichever document has it. Cross-origin parents (rare on
-      // wp-admin same-origin) safely fall through to the default 160px.
-      useEffect(function() {
-        var modalOpen = showModal || !!showProductDetail;
-
-        var resolveAdminMenuRoot = function () {
-          // Walk up window.parent until we find the admin doc with the menu,
-          // or we hit a cross-origin barrier.
-          var win = window;
-          for (var i = 0; i < 5; i++) {
-            try {
-              var doc = win.document;
-              if (doc && doc.getElementById && doc.getElementById('adminmenuwrap')) {
-                return doc;
-              }
-              if (win.parent && win.parent !== win) {
-                win = win.parent;
-                continue;
-              }
-            } catch (e) {
-              // cross-origin — give up
-              break;
-            }
-            break;
-          }
-          return null;
-        };
-
-        var syncSidebarWidth = function () {
-          var sidebarWidth = 0;
-          var doc = resolveAdminMenuRoot();
-          if (doc) {
-            var menu = doc.getElementById('adminmenuwrap');
-            if (menu) {
-              var rect = menu.getBoundingClientRect();
-              // rect.right gives us the right edge of the sidebar relative to
-              // its own document's viewport. Mobile off-canvas pushes the
-              // menu off the left edge so rect.right goes to ~0 or negative.
-              sidebarWidth = Math.max(0, rect.right);
-            }
-          }
-          document.body.style.setProperty('--myfeeds-sidebar-width', sidebarWidth + 'px');
-        };
-
-        if (modalOpen) {
-          document.body.classList.add('myfeeds-modal-open');
-          syncSidebarWidth();
-          window.addEventListener('resize', syncSidebarWidth);
-        } else {
-          document.body.classList.remove('myfeeds-modal-open');
-        }
-
-        return function cleanup() {
-          document.body.classList.remove('myfeeds-modal-open');
-          window.removeEventListener('resize', syncSidebarWidth);
-        };
-      }, [showModal, showProductDetail]);
-
-      // Fetch available sizes + colour-sibling variants when the detail
-      // view opens. Both are read-only lookups and don't touch the
-      // search result-set or any dedup count.
-      useEffect(function() {
-        if (showProductDetail) {
-          var productName = showProductDetail.title || showProductDetail.product_name || '';
-          var colourVal = showProductDetail.colour || showProductDetail.color || '';
-          if (!colourVal && showProductDetail.attributes) {
-            var attrC = showProductDetail.attributes.colour || showProductDetail.attributes.color;
-            colourVal = Array.isArray(attrC) ? (attrC[0] || '') : (typeof attrC === 'string' ? attrC : '');
-          }
-          // The id has to be known BEFORE the size-variants request. It
-          // used to be declared below with var, which hoists the name
-          // but not the value: the request went out as id=undefined and
-          // the size click never had a row to switch to.
-          var productId = showProductDetail.id || showProductDetail.aw_product_id || showProductDetail.external_id || '';
-          if (productId && apiUrl) {
-            // The rows behind each size - id, price, link - grouped by
-            // the same key the search and the shop use. The label-only
-            // product-sizes request is no longer needed: labels come
-            // with the rows.
-            fetch(apiUrl + 'product-size-variants?id=' + encodeURIComponent(String(productId)), {
-              credentials: 'include',
-              headers: { 'X-WP-Nonce': nonce }
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(rows) {
-              rows = Array.isArray(rows) ? rows : [];
-              setSizeVariants(rows);
-              setDetailSizes(rows.map(function (v) { return v.size; }));
-            })
-            .catch(function() { setSizeVariants([]); setDetailSizes([]); });
-          } else if (productName && apiUrl) {
-            fetch(apiUrl + 'product-sizes?name=' + encodeURIComponent(productName) + '&colour=' + encodeURIComponent(colourVal), {
-              credentials: 'include',
-              headers: { 'X-WP-Nonce': nonce }
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(sizes) { if (Array.isArray(sizes)) setDetailSizes(sizes); })
-            .catch(function() { setDetailSizes([]); });
-          }
-
-          // Colour-siblings: backend returns an array only when there
-          // are at least two distinct colours for this product family;
-          // otherwise it returns []. Either way we set state without
-          // breaking the local-parse fallback.
-          if (productId && apiUrl) {
-            fetch(apiUrl + 'product-color-siblings?id=' + encodeURIComponent(String(productId)), {
-              credentials: 'include',
-              headers: { 'X-WP-Nonce': nonce }
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(siblings) {
-              setColorSiblings(Array.isArray(siblings) ? siblings : []);
-            })
-            .catch(function() { setColorSiblings([]); });
-          } else {
-            setColorSiblings([]);
-          }
-        } else {
-          setDetailSizes([]);
-          setSizeVariants([]);
-          setColorSiblings([]);
-        }
-        // Keyed on the product's identity, not the object. Picking a size
-        // replaces showProductDetail with that size's row, and hanging
-        // this on the object would re-fetch the same sizes and colours on
-        // every click. Name and colour are what actually decide the size
-        // run - a colour switch does need a fresh fetch.
-      }, [
-        showProductDetail && (showProductDetail.title || showProductDetail.product_name || ''),
-        showProductDetail && (showProductDetail.colour || showProductDetail.color || '')
-      ]);
-
-      const openModalAndSearch = async function(){
+      // Every press opens the window and searches at once - also while it
+      // is open (searchKey moves), which is how Pro's Rakuten line runs the
+      // search again after an import.
+      const [searchKey, setSearchKey] = useState(0);
+      const openModalAndSearch = function(){
         setShowModal(true);
-        if (!searchTerm || searchTerm.length < 2) {
-          // Empty search: show selected products or prompt message
-          if (selected.length > 0) {
-            setResults(selected);
-            setError(null);
-          } else {
-            setResults([]);
-            setError("Enter a search term to find products in your feeds.");
-          }
-        } else {
-          await fetchProducts(false);
-        }
-      };
-
-      const buildSearchUrl = function (offset, withFacets) {
-        var u = apiUrl + 'products?q=' + encodeURIComponent(searchTerm) + '&offset=' + offset + '&with_meta=1';
-        if (withFacets) u += '&include_facets=1';
-        if (sortMode && sortMode !== 'relevance') u += '&sort=' + encodeURIComponent(sortMode);
-        (filterBrand || []).forEach(function (b) { u += '&brand[]=' + encodeURIComponent(b); });
-        (filterColour || []).forEach(function (c) { u += '&colour[]=' + encodeURIComponent(c); });
-        (filterCategory || []).forEach(function (c) { u += '&category[]=' + encodeURIComponent(c); });
-        if (filterMinPrice !== '' && filterMinPrice !== null) u += '&min_price=' + encodeURIComponent(filterMinPrice);
-        if (filterMaxPrice !== '' && filterMaxPrice !== null) u += '&max_price=' + encodeURIComponent(filterMaxPrice);
-        if (filterOnSale) u += '&on_sale=1';
-        if (filterInStock) u += '&in_stock=1';
-        if (looseMatch) u += '&loose=1';
-        return u;
-      };
-
-      // AbortController + generation guard so a slow in-flight request can't
-      // overwrite the result of a newer one when the user is typing fast or
-      // toggling filters quickly.
-      const fetchRef = (function () {
-        if (!window.__myfeedsFetchRef) window.__myfeedsFetchRef = { ctrl: null, gen: 0 };
-        return window.__myfeedsFetchRef;
-      })();
-
-      const fetchProducts = async function (loadMore) {
-        if (!searchTerm || searchTerm.length < 2) {
-          setError("Please enter at least 2 characters for search");
-          return;
-        }
-        if (loadMore) {
-          setIsLoadingMore(true);
-        } else {
-          setIsLoading(true);
-          setSearchOffset(0);
-        }
-        setError(null);
-
-        // Cancel any in-flight request and stamp this one with a generation
-        // so a slow response from a previous keystroke can't overwrite a
-        // newer one when it arrives out of order.
-        if (fetchRef.ctrl) { try { fetchRef.ctrl.abort(); } catch (e) { /* ignore */ } }
-        var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-        fetchRef.ctrl = ctrl;
-        fetchRef.gen += 1;
-        var myGen = fetchRef.gen;
-
-        try {
-          var offset = loadMore ? searchOffset + 50 : 0;
-          // Only fetch facets on the first page — facets are query-scoped not
-          // page-scoped, so requesting them on every load-more is waste.
-          const fetchOpts = {
-            credentials: 'include',
-            headers: { 'X-WP-Nonce': nonce }
-          };
-          if (ctrl) fetchOpts.signal = ctrl.signal;
-          const response = await fetch(buildSearchUrl(offset, !loadMore), fetchOpts);
-
-          // Stale response guard — newer request has started, drop this one.
-          if (myGen !== fetchRef.gen) return;
-
-          if (response.ok) {
-            const payload = await response.json();
-            if (myGen !== fetchRef.gen) return;
-            var newProducts = (payload && Array.isArray(payload.products)) ? payload.products : [];
-            if (loadMore) {
-              setResults(function(prev) {
-                var existingIds = {};
-                prev.forEach(function(p) { existingIds[String(p.id || p.aw_product_id)] = true; });
-                var unique = newProducts.filter(function(p) { return !existingIds[String(p.id || p.aw_product_id)]; });
-                return prev.concat(unique);
-              });
-            } else {
-              setResults(newProducts);
-              setSuggestion((payload && payload.suggestion) ? payload.suggestion : null);
-              setFacets((payload && payload.facets) ? payload.facets : null);
-              setParsedHint((payload && payload.parsed) ? payload.parsed : null);
-              // What the server actually answered. It can be wider than
-              // what was asked: when the whole-word pass finds nothing,
-              // a substring rescue runs instead. The note below the
-              // toolbar reads this, so it never describes a list it is
-              // not showing.
-              setAnsweredLoosely(!!(payload && payload.loose));
-              setTotalResults((payload && typeof payload.total === 'number') ? payload.total : newProducts.length);
-              if (newProducts.length === 0 && !(payload && payload.suggestion)) {
-                // Distinguish "typo / no products" from "filters too narrow"
-                var hasFilters = (filterBrand.length + filterColour.length + filterCategory.length) > 0
-                  || filterMinPrice !== '' || filterMaxPrice !== ''
-                  || filterOnSale || filterInStock;
-                setError(hasFilters
-                  ? 'No products match these filters. Try removing one of the active filters.'
-                  : 'No products found for "' + searchTerm + '". Try other keywords.');
-              }
-            }
-            setSearchOffset(offset);
-            setHasMoreResults(newProducts.length >= 50);
-          } else {
-            setError('Search failed.');
-            if (!loadMore) setResults([]);
-          }
-        } catch (e) {
-          // AbortError is expected when superseded — silently ignore.
-          if (e && (e.name === 'AbortError' || (e.message || '').toLowerCase().indexOf('abort') !== -1)) {
-            return;
-          }
-          setError('Search failed. Please check your feeds configuration.');
-          if (!loadMore) setResults([]);
-        } finally {
-          if (myGen === fetchRef.gen) {
-            setIsLoading(false);
-            setIsLoadingMore(false);
-          }
-        }
-      };
-
-      // "Show partial matches" was turned on for one particular word.
-      // Type a different one and it closes again, otherwise the next
-      // search silently starts wide.
-      useEffect(function () {
-        setLooseMatch(false);
-      }, [searchTerm]);
-
-      // Search-as-you-type: when the modal is open and the user is typing or
-      // changing filters/sort, refetch after a short debounce so the result
-      // list updates without making them hit Enter every time.
-      useEffect(function () {
-        if (!showModal) return undefined;
-        if (!searchTerm || searchTerm.length < 2) return undefined;
-        var t = setTimeout(function () { fetchProducts(false); }, 280);
-        return function () { clearTimeout(t); };
-      }, [searchTerm, sortMode, filterBrand, filterColour, filterCategory, filterMinPrice, filterMaxPrice, filterOnSale, filterInStock, looseMatch, showModal]);
-
-      const clearAllFilters = function () {
-        setFilterBrand([]);
-        setFilterColour([]);
-        setFilterCategory([]);
-        setFilterMinPrice('');
-        setFilterMaxPrice('');
-        setFilterOnSale(false);
-        setFilterInStock(false);
-        setSortMode('relevance');
-      };
-
-      const activeFilterCount = filterBrand.length + filterColour.length + filterCategory.length
-        + (filterOnSale ? 1 : 0) + (filterInStock ? 1 : 0)
-        + (filterMinPrice !== '' ? 1 : 0) + (filterMaxPrice !== '' ? 1 : 0);
-
-      const toggleArrayItem = function (arr, value) {
-        var v = String(value);
-        var has = arr.some(function (x) { return String(x) === v; });
-        return has ? arr.filter(function (x) { return String(x) !== v; }) : arr.concat([v]);
-      };
-
-      const acceptSuggestion = function () {
-        if (suggestion && typeof suggestion === 'string') {
-          setSearchTerm(suggestion);
-          setSuggestion(null);
-        }
-      };
-
-      // Color picker: best-effort mapping from English/German colour names
-      // (the values the feeds ship) to CSS background colors so the swatches
-      // visually mean something. Anything unmapped renders a neutral chip.
-      const colourSwatch = function (name) {
-        var map = {
-          black: '#000', schwarz: '#000', noir: '#000',
-          white: '#fff', weiss: '#fff', 'weiß': '#fff', blanc: '#fff',
-          grey: '#888', gray: '#888', grau: '#888', gris: '#888',
-          silver: '#c0c0c0', silber: '#c0c0c0',
-          red: '#dc2626', rot: '#dc2626', rouge: '#dc2626',
-          blue: '#2563eb', blau: '#2563eb', bleu: '#2563eb', navy: '#1e3a8a',
-          green: '#16a34a', gruen: '#16a34a', 'grün': '#16a34a', vert: '#16a34a',
-          yellow: '#eab308', gelb: '#eab308', jaune: '#eab308',
-          orange: '#f97316',
-          pink: '#ec4899', rosa: '#ec4899', rose: '#ec4899',
-          purple: '#9333ea', lila: '#9333ea', violet: '#9333ea',
-          brown: '#92400e', braun: '#92400e', marron: '#92400e',
-          beige: '#d6b88a', sand: '#d6b88a', creme: '#f1eadc', cream: '#f1eadc',
-          gold: '#d4af37', bronze: '#cd7f32',
-          khaki: '#7c7553', olive: '#556b2f', olivgruen: '#556b2f', oliv: '#556b2f',
-          turquoise: '#14b8a6', tuerkis: '#14b8a6', 'türkis': '#14b8a6',
-          mint: '#a7f3d0', mintgreen: '#a7f3d0',
-          coral: '#ff7f50', koralle: '#ff7f50',
-          burgundy: '#7f1d1d', bordeaux: '#7f1d1d', weinrot: '#7f1d1d'
-        };
-        var key = String(name || '').toLowerCase().replace(/\s+/g, '');
-        return map[key] || null;
-      };
-
-      // Persist a tiny recents list (last 10 used product IDs) in localStorage
-      // so the picker can offer a one-click re-insert next session.
-      useEffect(function () {
-        try {
-          var raw = window.localStorage && window.localStorage.getItem('myfeedsPickerRecents');
-          if (raw) {
-            var parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) setRecents(parsed.slice(0, 10));
-          }
-        } catch (e) { /* ignore */ }
-      }, []);
-
-      const rememberRecent = function (product) {
-        if (!product || (!product.id && !product.aw_product_id)) return;
-        try {
-          var next = [product].concat((recents || []).filter(function (r) {
-            return String(r.id || r.aw_product_id) !== String(product.id || product.aw_product_id);
-          })).slice(0, 10);
-          setRecents(next);
-          if (window.localStorage) {
-            window.localStorage.setItem('myfeedsPickerRecents', JSON.stringify(next));
-          }
-        } catch (e) { /* ignore */ }
-      };
-
-      const toggleProduct = function (product, useCurrentVariant) {
-        if (!product || !product.id && !product.aw_product_id) {
-          alert("Product missing ID - cannot be saved.");
-          return;
-        }
-        rememberRecent(product);
-        const awId = product.aw_product_id || product.id;
-        
-        const title = product.title || product.product_name || product.name || '';
-        const mainImage = product.image_url || product.merchant_image_url || product.large_image || product.aw_image_url || product.image || product.picture || '';
-        const deepLink = product.affiliate_link || product.aw_deep_link || product.link || product.url || '';
-        const currency = getCurrency(product);
-        
-        // ENHANCED: Use selected variant color/size if available
-        let selectedColor = '';
-        let selectedSize = '';
-        
-        if (useCurrentVariant && currentVariant) {
-          selectedColor = currentVariant.color || '';
-          selectedSize = currentVariant.size || '';
-          console.log("✅ MYFEEDS: Saving product with selected variant - Color:", selectedColor, "Size:", selectedSize);
-        } else {
-          // Fallback to product's default color
-          const colorAttr = (product.attributes && (product.attributes.colour || product.attributes.color || product.attributes['Fashion:colour'])) || product.colour;
-          selectedColor = (Array.isArray(colorAttr) && colorAttr.length > 0) ? colorAttr[0] : (typeof colorAttr === 'string' ? colorAttr : '');
-        }
-
-        let priceNow = resolveCurrentPrice(product);
-        let priceOld = resolveOriginalPrice(product);
-        const discountPct = toNumber(product.savings_percent || product.discount || product.saving);
-        if (priceOld === 0 && discountPct > 0 && priceNow > 0 && discountPct < 100) {
-          priceOld = priceNow / (1 - discountPct / 100);
-        }
-
-        const enriched = {
-          id: String(awId),
-          title: title,
-          image_url: mainImage,
-          affiliate_link: deepLink,
-          brand: product.brand || product.brand_name || product.manufacturer || '',
-          merchant: resolveShopName(product) || product.merchant_name || product.merchantName || product.shopname || '',
-          price: priceNow,
-          original_price: priceOld,
-          currency: currency,
-          color: selectedColor || product.color || '',
-          size: selectedSize || ''
-        };
-        
-        console.log("💾 MYFEEDS: Enriched product data:", enriched);
-        
-        setSelected(function(prev){
-          const exists = prev.some(function(p){ return String(p.id) === enriched.id; });
-          if (exists) { return prev.filter(function(p){ return String(p.id) !== enriched.id; }); }
-          return prev.concat([enriched]);
-        });
+        setSearchKey(function (k) { return k + 1; });
       };
 
       const removeSelectedProduct = function (productId) {
@@ -854,389 +1879,9 @@
         setAttributes({ selectedProducts: newSelected });
       };
 
-      const saveSelection = function () {
-        setAttributes({ selectedProducts: selected });
+      const saveSelection = function (list) {
+        setAttributes({ selectedProducts: list });
         setShowModal(false);
-      };
-
-      // The card's rule (format_shipping_info_raw() in class-product-picker.php):
-      // only a real 0 is free shipping, and a value that names no cost - empty,
-      // "3-4 days", the sentence the importer stores - says that costs may
-      // apply. Reading any text as a number made "Shipping costs may apply" a
-      // 0, and the tile said "Free Shipping" while the card said the opposite.
-      const formatShipping = function (product) {
-        const raw = product.shipping;
-        const amount = shippingAmount(raw);
-        if (amount !== null) {
-          return amount > 0 ? 'Shipping: ' + formatMoney(amount, getCurrency(product)) : 'Free Shipping';
-        }
-        if (typeof raw === 'string' && /free/i.test(raw)) return 'Free Shipping';
-        return 'Shipping costs may apply';
-      };
-
-      const priceBlock = function(product){
-        let currentPrice = resolveCurrentPrice(product);
-        let originalPrice = resolveOriginalPrice(product);
-        const pct = toNumber(product.savings_percent || product.discount || product.saving);
-        if (originalPrice === 0 && pct > 0 && currentPrice > 0 && pct < 100) {
-          originalPrice = currentPrice / (1 - pct/100);
-        }
-        const hasDiscount = originalPrice > currentPrice && originalPrice > 0 && currentPrice > 0;
-        const currency = getCurrency(product);
-        if (!(currentPrice > 0)) {
-          return React.createElement("div", { style: { margin: "2px 0 6px", fontSize: "13px", color: "#888" } }, priceOnRequest());
-        }
-        return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px", margin: "2px 0 6px" } },
-          hasDiscount ? [
-            React.createElement("span", { key: "original", style: { fontSize: "13px", color: "#888", textDecoration: "line-through" } }, formatMoney(originalPrice, currency)),
-            React.createElement("span", { key: "current", style: { fontSize: "14px", fontWeight: 700, color: "#c0392b" } }, formatMoney(currentPrice, currency))
-          ] : [
-            React.createElement("span", { key: "normal", style: { fontSize: "14px", fontWeight: 700, color: "#111" } }, formatMoney(currentPrice, currency))
-          ]
-        );
-      };
-
-      const discountBadge = function(product){
-        let currentPrice = resolveCurrentPrice(product);
-        let originalPrice = resolveOriginalPrice(product);
-        let percent = toNumber(product.savings_percent || product.discount || product.saving);
-        if ((!percent || percent <= 0) && originalPrice > currentPrice && currentPrice > 0) {
-          percent = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
-        }
-        if (percent > 0) {
-          return React.createElement("div", { style: { position: "absolute", left: "8px", bottom: "8px", background: "#e53935", color: "#fff", borderRadius: "12px", padding: "2px 8px", fontSize: "12px", fontWeight: 700 } }, '-' + percent + '%');
-        }
-        return null;
-      };
-
-      const infoButton = function(onClick){
-        return React.createElement("button", { onClick, title: "Show details", style: { position: "absolute", top: "8px", right: "8px", width: "22px", height: "22px", borderRadius: "50%", border: "1px solid #667eea", background: "#fff", color: "#667eea", fontSize: "12px", fontWeight: 700, cursor: "pointer" } }, 'i');
-      };
-
-      const productCard = function(product, index){
-        const isSelected = (selected || []).some(function(p){ return String(p.id) === String(product.id || product.aw_product_id); });
-        const shopName = resolveShopName(product);
-        const brandName = product.brand || product.brand_name || product.manufacturer || product.make || product.vendor || "";
-        return React.createElement("div", { key: 'result-' + String(product.id || product.aw_product_id) + '-' + index, style: { border: isSelected ? "2px solid #667eea" : "1px solid #e5e7eb", borderRadius: "8px", background: "#fff", cursor: "pointer", overflow: "hidden", transition: "box-shadow .2s", boxShadow: isSelected ? "0 0 0 2px rgba(102,126,234,0.15)" : "0 1px 2px rgba(0,0,0,0.06)" }, onClick: function(){ toggleProduct(product); } },
-          React.createElement("div", { style: { position: "relative", height: "160px", background: "#fff", overflow: "hidden" } },
-            React.createElement("img", { src: product.image_url || product.merchant_image_url || product.large_image || product.aw_image_url || product.image || product.picture || PLACEHOLDER_IMG, alt: product.title || product.product_name || 'Product', style: { width: "100%", height: "100%", objectFit: "contain" } }),
-            infoButton(function(e){ 
-              e.stopPropagation(); 
-              
-              // Initialize variant state when opening detail view
-              const variants = getAllProductVariants(product);
-              setCurrentVariant({
-                color: variants.current_color,
-                size: variants.current_size
-              });
-              
-              rememberResultsScroll();
-              setShowProductDetail(product); 
-            }),
-            discountBadge(product),
-            colorIndicators(product)
-          ),
-          React.createElement("div", { style: { padding: "10px 12px" } },
-            brandName && React.createElement("div", { style: { fontSize: "11px", color: "#666", textTransform: "uppercase", letterSpacing: "0.3px", marginBottom: "4px", fontWeight: 600 } }, brandName),
-            React.createElement("div", { style: { fontSize: "13px", color: "#222", fontWeight: 600, lineHeight: 1.35, marginBottom: "4px", minHeight: "36px", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } }, product.title || product.product_name || product.name || ''),
-            priceBlock(product),
-            (function(){ var n = parseInt(product.variant_count, 10); return n > 1 ? React.createElement("div", { style: { fontSize: "11px", color: "#667eea", marginBottom: "4px", fontWeight: 600 } }, n + " sizes") : null; })(),
-            (function(){ const s=formatShipping(product); return s ? React.createElement("div", { style: { fontSize: "12px", color: "#555", marginBottom: "4px" } }, s) : null; })(),
-            (shopName && !looksLikeSku(shopName)) && React.createElement("div", { style: { fontSize: "12px", color: "#666" } }, shopName)
-          )
-        );
-      };
-
-      // ENHANCED: Extract all available colors and sizes for a product
-      const getAllProductVariants = function(product) {
-        const variants = {
-          colors: [],
-          sizes: [],
-          current_color: '',
-          current_size: ''
-        };
-        
-        // Extract colors from various sources with enhanced logic
-        const colorSources = [];
-        
-        // 1. Direct color fields
-        if (product.colors && Array.isArray(product.colors)) {
-          colorSources.push(...product.colors);
-        }
-        if (product.color && product.color !== 'null' && product.color !== '') {
-          colorSources.push(product.color);
-        }
-        if (product.colour && product.colour !== 'null' && product.colour !== '') {
-          colorSources.push(product.colour);
-        }
-        
-        // 2. Attributes object (most common source for AWIN feeds)
-        if (product.attributes) {
-          const attrColorFields = ['colors', 'color', 'colour', 'Fashion:colour', 'Fashion:color', 
-                                    'Fashion:swatch', 'swatch', 'colorway', 'variant_color'];
-          attrColorFields.forEach(field => {
-            const value = product.attributes[field];
-            if (value && value !== 'null' && value !== '') {
-              if (Array.isArray(value)) {
-                colorSources.push(...value);
-              } else if (typeof value === 'string') {
-                // Handle various separators: comma, pipe, semicolon
-                const separators = /[,|;]/;
-                if (separators.test(value)) {
-                  colorSources.push(...value.split(separators).map(c => c.trim()));
-                } else {
-                  colorSources.push(value);
-                }
-              }
-            }
-          });
-        }
-        
-        // 3. ENHANCED: Try to extract colors from product title
-        if (product.title) {
-          const titleLower = product.title.toLowerCase();
-          // Comprehensive color list (English + German)
-          const commonColors = [
-            'black', 'white', 'red', 'blue', 'green', 'yellow', 'brown', 'gray', 'grey', 
-            'pink', 'purple', 'orange', 'navy', 'beige', 'khaki', 'olive', 'cream', 'ivory',
-            'maroon', 'burgundy', 'teal', 'turquoise', 'mint', 'lime', 'gold', 'silver',
-            'schwarz', 'weiß', 'weiss', 'rot', 'blau', 'grün', 'gelb', 'braun', 'grau', 
-            'rosa', 'lila', 'orange', 'beige', 'creme'
-          ];
-          
-          commonColors.forEach(color => {
-            // Use word boundaries to avoid false matches
-            const regex = new RegExp('\\b' + color + '\\b', 'i');
-            if (regex.test(titleLower)) {
-              colorSources.push(color.charAt(0).toUpperCase() + color.slice(1));
-            }
-          });
-        }
-        
-        // 4. Check variant fields if product has variant information
-        if (product.variants && Array.isArray(product.variants)) {
-          product.variants.forEach(v => {
-            if (v.color) colorSources.push(v.color);
-            if (v.colour) colorSources.push(v.colour);
-          });
-        }
-        
-        // 5. Check custom fields that might contain color info
-        const customColorFields = ['variant', 'option1', 'option2', 'style'];
-        customColorFields.forEach(field => {
-          const value = product[field];
-          if (value && typeof value === 'string' && value.length > 0 && value.length < 30) {
-            // Check if value looks like a color (not a SKU or long description)
-            const lowerValue = value.toLowerCase();
-            if (/black|white|red|blue|green|yellow|brown|gray|grey|pink|purple|orange|navy|beige|schwarz|weiß|rot|blau|grün/i.test(lowerValue)) {
-              colorSources.push(value);
-            }
-          }
-        });
-        
-        // PROFESSIONAL COLOR NORMALIZATION AND DEDUPLICATION
-        const cleanedColors = colorSources
-          .map(c => c ? c.toString().trim() : '')
-          .filter(c => {
-            if (!c || c.length === 0) return false;
-            const lower = c.toLowerCase();
-            // Filter out non-color values
-            if (lower === 'null' || lower === 'undefined' || lower === 'n/a' || lower === 'none') return false;
-            // Filter out very long strings (likely not colors)
-            if (c.length > 30) return false;
-            return true;
-          })
-          .map(c => {
-            // Normalize color names (first letter uppercase, rest lowercase)
-            const normalized = c.toLowerCase();
-            return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-          });
-        
-        // Advanced deduplication with case-insensitive comparison
-        const uniqueColors = [];
-        const seenColors = new Set();
-        
-        cleanedColors.forEach(color => {
-          const colorKey = color.toLowerCase().replace(/[^a-z]/g, ''); // Normalize for comparison
-          
-          if (!seenColors.has(colorKey)) {
-            seenColors.add(colorKey);
-            uniqueColors.push(color);
-          }
-        });
-        
-        variants.colors = uniqueColors;
-        
-        // Extract sizes with enhanced logic
-        const sizeSources = [];
-        
-        // 1. Direct size fields
-        if (product.sizes && Array.isArray(product.sizes)) {
-          sizeSources.push(...product.sizes);
-        }
-        if (product.size && product.size !== 'null' && product.size !== '') {
-          sizeSources.push(product.size);
-        }
-        
-        // 2. Attributes object
-        if (product.attributes) {
-          const attrSizeFields = ['sizes', 'size', 'Fashion:size', 'variant_size'];
-          attrSizeFields.forEach(field => {
-            const value = product.attributes[field];
-            if (value && value !== 'null' && value !== '') {
-              if (Array.isArray(value)) {
-                sizeSources.push(...value);
-              } else if (typeof value === 'string') {
-                const separators = /[,|;]/;
-                if (separators.test(value)) {
-                  sizeSources.push(...value.split(separators).map(s => s.trim()));
-                } else {
-                  sizeSources.push(value);
-                }
-              }
-            }
-          });
-        }
-        
-        // 3. Check variant fields
-        if (product.variants && Array.isArray(product.variants)) {
-          product.variants.forEach(v => {
-            if (v.size) sizeSources.push(v.size);
-          });
-        }
-        
-        // PROFESSIONAL SIZE NORMALIZATION AND DEDUPLICATION
-        const cleanedSizes = sizeSources
-          .map(s => s ? s.toString().trim() : '')
-          .filter(s => {
-            if (!s || s.length === 0) return false;
-            const lower = s.toLowerCase();
-            if (lower === 'null' || lower === 'undefined' || lower === 'n/a' || lower === 'none') return false;
-            if (s.length > 20) return false; // Filter out very long strings
-            return true;
-          });
-        
-        // Remove duplicates and sort sizes logically
-        const uniqueSizes = Array.from(new Set(cleanedSizes));
-        
-        // Sort sizes in logical order (numbers first, then letters)
-        uniqueSizes.sort((a, b) => {
-          const aNum = parseFloat(a);
-          const bNum = parseFloat(b);
-          
-          // If both are numbers, sort numerically
-          if (!isNaN(aNum) && !isNaN(bNum)) {
-            return aNum - bNum;
-          }
-          
-          // If one is number and one is text, numbers come first
-          if (!isNaN(aNum) && isNaN(bNum)) return -1;
-          if (isNaN(aNum) && !isNaN(bNum)) return 1;
-          
-          // Both are text, sort alphabetically with special order for clothing sizes
-          const sizeOrder = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
-          const aIndex = sizeOrder.indexOf(a.toUpperCase());
-          const bIndex = sizeOrder.indexOf(b.toUpperCase());
-          
-          if (aIndex !== -1 && bIndex !== -1) {
-            return aIndex - bIndex;
-          }
-          if (aIndex !== -1) return -1;
-          if (bIndex !== -1) return 1;
-          
-          return a.localeCompare(b);
-        });
-        
-        variants.sizes = uniqueSizes;
-        
-        // Set current values
-        variants.current_color = variants.colors[0] || '';
-        variants.current_size = variants.sizes[0] || '';
-        
-        return variants;
-      };
-
-      // DEACTIVATED: Color indicator circles - see Archiv/Product-Picker-WP-2025-01-20-COLOR-BADGE-SYSTEM
-      const colorIndicators = function(product) {
-        return null; // Deactivated until variant grouping is implemented
-      };
-      
-      // ENHANCED: Helper function to convert color names to hex values
-      const getColorHex = function(colorName) {
-        if (!colorName) return '#cccccc';
-        const colorMap = {
-          // Basic colors - English
-          'black': '#000000', 'white': '#ffffff', 'red': '#ff0000', 'blue': '#0000ff',
-          'green': '#008000', 'yellow': '#ffff00', 'brown': '#8b4513', 'gray': '#808080',
-          'grey': '#808080', 'pink': '#ffc0cb', 'purple': '#800080', 'orange': '#ffa500',
-          // Basic colors - German
-          'schwarz': '#000000', 'weiß': '#ffffff', 'weiss': '#ffffff', 'rot': '#ff0000',
-          'blau': '#0000ff', 'grün': '#008000', 'gelb': '#ffff00', 'braun': '#8b4513',
-          'grau': '#808080', 'rosa': '#ffc0cb', 'lila': '#800080',
-          // Extended colors - English
-          'navy': '#000080', 'beige': '#f5f5dc', 'khaki': '#c3b091', 'olive': '#808000',
-          'cream': '#fffdd0', 'ivory': '#fffff0', 'maroon': '#800000', 'burgundy': '#800020',
-          'teal': '#008080', 'turquoise': '#40e0d0', 'mint': '#98ff98', 'lime': '#00ff00',
-          'gold': '#ffd700', 'silver': '#c0c0c0', 'bronze': '#cd7f32', 'copper': '#b87333',
-          // Extended colors - German
-          'creme': '#fffdd0', 'marine': '#000080', 'türkis': '#40e0d0', 'mint': '#98ff98'
-        };
-        const normalizedColor = colorName.toLowerCase().trim();
-        return colorMap[normalizedColor] || '#cccccc';
-      };
-
-      // Display-only variant state for the local-parse colour pills
-      // (the fallback when the DB has no sibling rows for this product).
-      const switchColorVariant = function(newColor, newSize) {
-        if (!showProductDetail) return;
-        setCurrentVariant({
-          color: newColor || currentVariant.color,
-          size: newSize !== undefined ? newSize : currentVariant.size
-        });
-      };
-
-      // Real variant switch: when the user clicks a DB-backed colour
-      // sibling, we replace showProductDetail with the sibling's data so
-      // every downstream field (affiliate_link, image, price, title,
-      // selection on Add) reflects the chosen colour. We merge into the
-      // existing object instead of replacing it so unchanged fields
-      // (description, brand, category) carry over.
-      const switchToColorSibling = function (sibling) {
-        if (!showProductDetail || !sibling) return;
-        const merged = Object.assign({}, showProductDetail, {
-          id: sibling.external_id,
-          aw_product_id: sibling.external_id,
-          external_id: sibling.external_id,
-          title: sibling.product_name || showProductDetail.title,
-          product_name: sibling.product_name || showProductDetail.product_name,
-          colour: sibling.colour,
-          color: sibling.colour,
-          image_url: sibling.image_url || showProductDetail.image_url,
-          large_image: sibling.image_url || showProductDetail.large_image,
-          merchant_image_url: sibling.image_url || showProductDetail.merchant_image_url,
-          aw_image_url: sibling.image_url || showProductDetail.aw_image_url,
-          affiliate_link: sibling.affiliate_link || showProductDetail.affiliate_link,
-          aw_deep_link: sibling.affiliate_link || showProductDetail.aw_deep_link,
-          price: sibling.price != null ? sibling.price : showProductDetail.price,
-          search_price: sibling.price != null ? sibling.price : showProductDetail.search_price,
-          original_price: sibling.original_price != null ? sibling.original_price : showProductDetail.original_price,
-          rrp_price: sibling.original_price != null ? sibling.original_price : showProductDetail.rrp_price,
-          currency: sibling.currency || showProductDetail.currency,
-          in_stock: sibling.in_stock
-        });
-        setCurrentVariant({ color: sibling.colour, size: '' });
-        // Triggering setShowProductDetail re-runs the size-fetch and
-        // sibling-fetch effects with the new id, so any per-colour size
-        // availability also refreshes.
-        setShowProductDetail(merged);
-      };
-
-      // Build detail images upfront
-      const detailImages = function(p){
-        const list = resolveImages(p);
-        const main = p.image_url || p.merchant_image_url || p.large_image || p.aw_image_url || p.image || p.picture || PLACEHOLDER_IMG;
-        const result = [main].concat(list.filter(u => u !== main));
-        return Array.from(new Set(result));
       };
 
       return React.createElement(
@@ -1489,7 +2134,7 @@
         React.createElement("div", { className: "myfeeds-search-section" },
           React.createElement(TextControl, { label: "Search Products", value: searchTerm, onChange: setSearchTerm, onKeyDown: function (e) { if (e.key === "Enter") { e.preventDefault(); openModalAndSearch(); } } }),
           React.createElement("div", { className: "myfeeds-search-actions" },
-            React.createElement(Button, { isPrimary: true, onClick: openModalAndSearch, disabled: isLoading || ((!searchTerm || searchTerm.length < 2) && selected.length === 0), style: { background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, (!searchTerm || searchTerm.length < 2) && selected.length > 0 ? "View Selected" : "Search Products"),
+            React.createElement(Button, { isPrimary: true, onClick: openModalAndSearch, disabled: (!searchTerm || searchTerm.length < 2) && selected.length === 0, style: { background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, (!searchTerm || searchTerm.length < 2) && selected.length > 0 ? "View Selected" : "Search Products"),
             selected.length > 0 && React.createElement(Button, { isSecondary: true, onClick: function(){ setSelected([]); setAttributes({ selectedProducts: [] }); }, style: { marginLeft: "10px", background: "#fff", color: "#667eea", border: "1px solid #667eea", borderRadius: "6px" } }, "Clear All")
           )
         ),
@@ -1518,599 +2163,17 @@
           )
         ),
 
-        // Product Search Modal - ONLY show if no product detail is shown
-        showModal && !showProductDetail && React.createElement(Modal, { title: results.length > 0 ? ((!searchTerm || searchTerm.length < 2) ? "Your Selected Products (" + selected.length + ")" : "Product Search Results (" + results.length + " found)") : "Product Search Results", onRequestClose: function(){ setShowModal(false); }, className: "myfeeds-spacious-modal", shouldCloseOnClickOutside: false },
-          React.createElement("div", { className: "myfeeds-modal-content", ref: restoreResultsScroll },
-            // Search within modal - sticky at top
-            React.createElement("div", { className: "myfeeds-search-controls" },
-              React.createElement("div", { style: { display: "flex", gap: "10px", alignItems: "end" } },
-                React.createElement("div", { style: { flex: 1 } }, React.createElement(TextControl, { label: "Search", value: searchTerm, onChange: setSearchTerm, onKeyDown: function (e) { if (e.key === "Enter" || e.key === "NumpadEnter") { e.preventDefault(); fetchProducts(false); } }, style: { width: "100%" } })),
-                React.createElement("div", null, React.createElement(Button, { isPrimary: true, onClick: function(){ fetchProducts(false); }, disabled: isLoading || !searchTerm || searchTerm.length < 2, style: { height: "36px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, isLoading ? "Searching..." : "Search"))
-              ),
-              // Hint: phrases / price / sale auto-extracted from the query
-              parsedHint && (parsedHint.max_price || parsedHint.min_price || parsedHint.on_sale) && React.createElement("div", {
-                style: { marginTop: "8px", padding: "8px 12px", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: "6px", color: "#3730a3", fontSize: "13px" }
-              },
-                "Smart filter from your query: ",
-                parsedHint.min_price ? React.createElement("strong", null, "from " + parsedHint.min_price + "€ ") : null,
-                parsedHint.max_price ? React.createElement("strong", null, "up to " + parsedHint.max_price + "€ ") : null,
-                parsedHint.on_sale ? React.createElement("strong", null, "on sale ") : null
-              ),
-              // Did-you-mean banner: only renders when backend offered a correction
-              suggestion && React.createElement("div", {
-                style: { marginTop: "8px", padding: "10px 12px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "6px", color: "#9a3412", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }
-              },
-                React.createElement("div", null,
-                  "No matches for ", React.createElement("strong", null, "\"" + searchTerm + "\""), ". Did you mean ",
-                  React.createElement(Button, { isLink: true, onClick: acceptSuggestion, style: { padding: 0, color: "#9a3412", textDecoration: "underline", fontWeight: 600 } }, suggestion),
-                  "?"
-                )
-              ),
-              // Sort + filter toolbar row, only when actively searching
-              searchTerm && searchTerm.length >= 2 && React.createElement("div", { style: { display: "flex", gap: "10px", alignItems: "center", marginTop: "10px", flexWrap: "wrap" } },
-                React.createElement("div", { style: { color: "#374151", fontSize: "13px" } },
-                  isLoading ? "Searching…" : (totalResults > 0 ? (totalResults + " result" + (totalResults === 1 ? "" : "s")) : "")
-                ),
-                // Beside the count, not under it. On its own line it cost a
-                // row of whitespace inside a modal whose whole job is to
-                // show products.
-                !isLoading && React.createElement("div", {
-                  style: { display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#6b7280", flexWrap: "wrap" }
-                },
-                  React.createElement("span", null, answeredLoosely
-                    ? "Showing words inside longer words too, like Sweatshirt for shirt."
-                    : "Showing whole-word matches only."),
-                  React.createElement(Button, {
-                    isLink: true,
-                    onClick: function () { setLooseMatch(!looseMatch); },
-                    style: { padding: 0, fontSize: "12px", color: "#667eea", textDecoration: "underline" }
-                  }, looseMatch ? "Whole words only" : "Show partial matches too")
-                ),
-                React.createElement("div", { style: { flex: 1 } }),
-                React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#374151" } },
-                  "Sort:",
-                  React.createElement("select", {
-                    value: sortMode,
-                    onChange: function (e) { setSortMode(e.target.value); },
-                    style: { padding: "6px 8px", borderRadius: "6px", border: "1px solid #d1d5db", background: "#fff", fontSize: "13px" }
-                  },
-                    React.createElement("option", { value: "relevance" }, "Best match"),
-                    React.createElement("option", { value: "price_asc" }, "Price (low → high)"),
-                    React.createElement("option", { value: "price_desc" }, "Price (high → low)"),
-                    React.createElement("option", { value: "discount_desc" }, "Biggest discount"),
-                    React.createElement("option", { value: "newest" }, "Newest")
-                  )
-                ),
-                React.createElement(Button, {
-                  isSecondary: true,
-                  onClick: function () { setShowFilters(!showFilters); },
-                  style: { padding: "6px 12px", fontSize: "13px", background: showFilters ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "#fff", color: showFilters ? "#fff" : "#667eea", border: "1px solid #667eea", borderRadius: "6px" }
-                }, showFilters ? "Hide filters" : ("Filters" + (activeFilterCount > 0 ? " (" + activeFilterCount + ")" : "")))
-              ),
-              // Active filter chips
-              activeFilterCount > 0 && React.createElement("div", { style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" } },
-                filterBrand.map(function (b) {
-                  return React.createElement("span", { key: "fbchip-" + b, style: { background: "#eef2ff", border: "1px solid #c7d2fe", color: "#3730a3", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
-                    "Brand: " + b,
-                    React.createElement("button", { onClick: function () { setFilterBrand(filterBrand.filter(function (x) { return x !== b; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#3730a3", fontWeight: 600, padding: 0 } }, "×")
-                  );
-                }),
-                filterColour.map(function (c) {
-                  return React.createElement("span", { key: "fcchip-" + c, style: { background: "#fdf4ff", border: "1px solid #f5d0fe", color: "#86198f", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
-                    "Colour: " + c,
-                    React.createElement("button", { onClick: function () { setFilterColour(filterColour.filter(function (x) { return x !== c; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#86198f", fontWeight: 600, padding: 0 } }, "×")
-                  );
-                }),
-                filterCategory.map(function (c) {
-                  return React.createElement("span", { key: "fcatchip-" + c, style: { background: "#fef3c7", border: "1px solid #fde68a", color: "#92400e", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
-                    "Category: " + c,
-                    React.createElement("button", { onClick: function () { setFilterCategory(filterCategory.filter(function (x) { return x !== c; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#92400e", fontWeight: 600, padding: 0 } }, "×")
-                  );
-                }),
-                (filterMinPrice !== '' || filterMaxPrice !== '') && React.createElement("span", { style: { background: "#ecfeff", border: "1px solid #a5f3fc", color: "#155e75", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
-                  "Price: " + (filterMinPrice || '0') + "€ – " + (filterMaxPrice || '∞'),
-                  React.createElement("button", { onClick: function () { setFilterMinPrice(''); setFilterMaxPrice(''); }, style: { background: "none", border: "none", cursor: "pointer", color: "#155e75", fontWeight: 600, padding: 0 } }, "×")
-                ),
-                filterOnSale && React.createElement("span", { style: { background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
-                  "On sale",
-                  React.createElement("button", { onClick: function () { setFilterOnSale(false); }, style: { background: "none", border: "none", cursor: "pointer", color: "#991b1b", fontWeight: 600, padding: 0 } }, "×")
-                ),
-                filterInStock && React.createElement("span", { style: { background: "#ecfdf5", border: "1px solid #a7f3d0", color: "#065f46", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
-                  "In stock",
-                  React.createElement("button", { onClick: function () { setFilterInStock(false); }, style: { background: "none", border: "none", cursor: "pointer", color: "#065f46", fontWeight: 600, padding: 0 } }, "×")
-                ),
-                React.createElement(Button, { isLink: true, onClick: clearAllFilters, style: { padding: "0 6px", fontSize: "12px", color: "#6b7280" } }, "Clear all")
-              ),
-              // Filter panel — collapsible. Each section caps height at ~220px
-              // with a hidden scrollbar so the panel itself stays compact even
-              // when the facet has many values.
-              showFilters && searchTerm && searchTerm.length >= 2 && React.createElement(Fragment, null,
-                // One-off styles for the panel — scrollbar hiding, swatch chip,
-                // facet row hover. Kept inline so the bundle stays self-contained.
-                React.createElement("style", null,
-                  ".myfeeds-fp{margin-top:10px;padding:16px;background:#fafafa;border:1px solid #e5e7eb;border-radius:10px}" +
-                  ".myfeeds-fp__grid{display:grid;grid-template-columns:1.15fr 1.15fr 1.15fr 220px;gap:18px;align-items:start}" +
-                  "@media (max-width:980px){.myfeeds-fp__grid{grid-template-columns:1fr 1fr}.myfeeds-fp__right-stack{grid-column:span 2;flex-direction:row}}" +
-                  "@media (max-width:600px){.myfeeds-fp__grid{grid-template-columns:1fr}.myfeeds-fp__right-stack{grid-column:auto;flex-direction:column}}" +
-                  ".myfeeds-fp__right-stack{display:flex;flex-direction:column;gap:12px;min-width:0}" +
-                  ".myfeeds-fp__right-stack > .myfeeds-fp__section{flex:1;min-width:0}" +
-                  ".myfeeds-fp__section{display:flex;flex-direction:column;min-height:0;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px}" +
-                  ".myfeeds-fp__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:11px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.06em}" +
-                  ".myfeeds-fp__head .total{font-weight:500;color:#9ca3af;font-size:11px;text-transform:none;letter-spacing:0}" +
-                  ".myfeeds-fp__scroll{max-height:220px;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none;padding-right:2px}" +
-                  ".myfeeds-fp__scroll::-webkit-scrollbar{display:none;width:0;height:0}" +
-                  ".myfeeds-fp__row{display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:13px;cursor:pointer;color:#374151;border-radius:4px;transition:background-color .12s}" +
-                  ".myfeeds-fp__row:hover{background:#f3f4f6}" +
-                  ".myfeeds-fp__row .label{flex:1;text-transform:capitalize;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
-                  ".myfeeds-fp__row .count{color:#9ca3af;font-size:11px;font-variant-numeric:tabular-nums}" +
-                  ".myfeeds-fp__swatches{display:flex;flex-wrap:wrap;gap:6px}" +
-                  ".myfeeds-fp__swatch{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #e5e7eb;background:#fff;border-radius:999px;cursor:pointer;font-size:12px;color:#374151;text-transform:capitalize;line-height:1.4;transition:border-color .12s,transform .08s}" +
-                  ".myfeeds-fp__swatch:hover{border-color:#9ca3af}" +
-                  ".myfeeds-fp__swatch.is-on{border:2px solid #667eea;padding:3px 9px;background:#eef2ff}" +
-                  ".myfeeds-fp__swatch .dot{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,0.08);flex:none}" +
-                  ".myfeeds-fp__swatch .num{color:#9ca3af;font-variant-numeric:tabular-nums}" +
-                  ".myfeeds-fp__empty{font-size:12px;color:#9ca3af;padding:6px 0}" +
-                  ".myfeeds-fp__price{display:flex;gap:6px;align-items:center;flex-wrap:wrap}" +
-                  ".myfeeds-fp__price input{width:74px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px}" +
-                  ".myfeeds-fp__price input:focus{outline:none;border-color:#667eea;box-shadow:0 0 0 3px rgba(102,126,234,0.15)}"
-                ),
-                React.createElement("div", { className: "myfeeds-fp" },
-                  React.createElement("div", { className: "myfeeds-fp__grid" },
-                    // Brand
-                    React.createElement("div", { className: "myfeeds-fp__section" },
-                      React.createElement("div", { className: "myfeeds-fp__head" },
-                        React.createElement("span", null, "Brand"),
-                        facets && facets.brand && facets.brand.length > 0 ? React.createElement("span", { className: "total" }, facets.brand.length + (facets.brand.length >= 50 ? "+" : "")) : null
-                      ),
-                      facets && facets.brand && facets.brand.length > 0
-                        ? React.createElement("div", { className: "myfeeds-fp__scroll" },
-                            facets.brand.map(function (b) {
-                              var checked = filterBrand.some(function (x) { return x.toLowerCase() === b.value; });
-                              return React.createElement("label", { key: "fb-" + b.value, className: "myfeeds-fp__row" },
-                                React.createElement("input", { type: "checkbox", checked: checked, onChange: function () { setFilterBrand(toggleArrayItem(filterBrand, b.value)); } }),
-                                React.createElement("span", { className: "label" }, b.value),
-                                React.createElement("span", { className: "count" }, b.count)
-                              );
-                            })
-                          )
-                        : React.createElement("div", { className: "myfeeds-fp__empty" }, "Run a search to see brands")
-                    ),
-                    // Colour (visual picker)
-                    React.createElement("div", { className: "myfeeds-fp__section" },
-                      React.createElement("div", { className: "myfeeds-fp__head" },
-                        React.createElement("span", null, "Colour"),
-                        facets && facets.colour && facets.colour.length > 0 ? React.createElement("span", { className: "total" }, facets.colour.length + (facets.colour.length >= 50 ? "+" : "")) : null
-                      ),
-                      facets && facets.colour && facets.colour.length > 0
-                        ? React.createElement("div", { className: "myfeeds-fp__scroll" },
-                            React.createElement("div", { className: "myfeeds-fp__swatches" },
-                              facets.colour.map(function (c) {
-                                var swatch = colourSwatch(c.value);
-                                var checked = filterColour.some(function (x) { return x.toLowerCase() === c.value; });
-                                return React.createElement("button", {
-                                  key: "fc-" + c.value,
-                                  className: "myfeeds-fp__swatch" + (checked ? " is-on" : ""),
-                                  onClick: function () { setFilterColour(toggleArrayItem(filterColour, c.value)); },
-                                  title: c.value + " (" + c.count + ")"
-                                },
-                                  swatch ? React.createElement("span", { className: "dot", style: { background: swatch } }) : null,
-                                  c.value,
-                                  React.createElement("span", { className: "num" }, "(" + c.count + ")")
-                                );
-                              })
-                            )
-                          )
-                        : React.createElement("div", { className: "myfeeds-fp__empty" }, "Run a search to see colours")
-                    ),
-                    // Category (raw merchant labels, capped to top-N)
-                    React.createElement("div", { className: "myfeeds-fp__section" },
-                      React.createElement("div", { className: "myfeeds-fp__head" },
-                        React.createElement("span", null, "Category"),
-                        facets && facets.category && facets.category.length > 0 ? React.createElement("span", { className: "total" }, facets.category.length + (facets.category.length >= 50 ? "+" : "")) : null
-                      ),
-                      facets && facets.category && facets.category.length > 0
-                        ? React.createElement("div", { className: "myfeeds-fp__scroll" },
-                            facets.category.map(function (c) {
-                              var checked = filterCategory.some(function (x) { return x.toLowerCase() === c.value; });
-                              return React.createElement("label", { key: "fcat-" + c.value, className: "myfeeds-fp__row", title: c.value },
-                                React.createElement("input", { type: "checkbox", checked: checked, onChange: function () { setFilterCategory(toggleArrayItem(filterCategory, c.value)); } }),
-                                React.createElement("span", { className: "label" }, c.value),
-                                React.createElement("span", { className: "count" }, c.count)
-                              );
-                            })
-                          )
-                        : React.createElement("div", { className: "myfeeds-fp__empty" }, "Run a search to see categories")
-                    ),
-                    // Right column stack: Price on top, Show Only below.
-                    // Both sections are compact, so stacking them in a single
-                    // narrow column saves the dead whitespace they leave behind
-                    // when each owns a full equal-width grid track.
-                    React.createElement("div", { className: "myfeeds-fp__right-stack" },
-                      React.createElement("div", { className: "myfeeds-fp__section" },
-                        React.createElement("div", { className: "myfeeds-fp__head" },
-                          React.createElement("span", null, "Price"),
-                          facets && facets.price_range ? React.createElement("span", { className: "total" }, Math.floor(facets.price_range.min) + " – " + Math.ceil(facets.price_range.max) + "€") : null
-                        ),
-                        React.createElement("div", { className: "myfeeds-fp__price" },
-                          React.createElement("input", { type: "number", placeholder: "Min", value: filterMinPrice, onChange: function (e) { setFilterMinPrice(e.target.value); } }),
-                          React.createElement("span", { style: { color: "#9ca3af" } }, "–"),
-                          React.createElement("input", { type: "number", placeholder: "Max", value: filterMaxPrice, onChange: function (e) { setFilterMaxPrice(e.target.value); } })
-                        )
-                      ),
-                      React.createElement("div", { className: "myfeeds-fp__section" },
-                        React.createElement("div", { className: "myfeeds-fp__head" }, "Show only"),
-                        React.createElement("label", { className: "myfeeds-fp__row" },
-                          React.createElement("input", { type: "checkbox", checked: filterOnSale, onChange: function () { setFilterOnSale(!filterOnSale); } }),
-                          React.createElement("span", { className: "label" }, "On sale")
-                        ),
-                        React.createElement("label", { className: "myfeeds-fp__row" },
-                          React.createElement("input", { type: "checkbox", checked: filterInStock, onChange: function () { setFilterInStock(!filterInStock); } }),
-                          React.createElement("span", { className: "label" }, "In stock")
-                        )
-                      )
-                    )
-                  )
-                )
-              ),
-              // Recents row — only shown before the user has typed anything, so it
-              // doesn't compete with live results for screen space.
-              (!searchTerm || searchTerm.length < 2) && recents && recents.length > 0 && React.createElement("div", { style: { marginTop: "12px" } },
-                React.createElement("div", { style: { fontSize: "12px", fontWeight: 600, color: "#374151", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" } }, "Recently used"),
-                React.createElement("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap" } },
-                  recents.slice(0, 10).map(function (r, idx) {
-                    var img = r.image_url || r.merchant_image_url || r.aw_image_url || PLACEHOLDER_IMG;
-                    var t = r.title || r.product_name || r.name || "Product";
-                    return React.createElement("button", {
-                      key: "rec-" + idx,
-                      // Click on a recent: push its title into the search bar.
-                      // The debounced search-as-you-type effect (280ms) then
-                      // refetches automatically so the user sees that product
-                      // (plus any size/colour variants) in the result grid.
-                      onClick: function () { setSearchTerm(t); },
-                      title: "Search for: " + t,
-                      style: { display: "flex", alignItems: "center", gap: "6px", padding: "4px 8px 4px 4px", border: "1px solid #e5e7eb", borderRadius: "999px", background: "#fff", cursor: "pointer", fontSize: "12px", color: "#374151" }
-                    },
-                      React.createElement("img", { src: img, alt: "", style: { width: "22px", height: "22px", borderRadius: "50%", objectFit: "cover", background: "#f3f4f6" } }),
-                      React.createElement("span", { style: { maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, t)
-                    );
-                  })
-                )
-              )
-            ),
-
-            // Error in modal
-            error && React.createElement("div", { style: { backgroundColor: "#fef2f2", border: "1px solid #fecaca", padding: "10px", borderRadius: "6px", margin: "12px 0", color: "#b91c1c" } }, error),
-
-            // Product Grid (5 per row) - scrollable
-            results.length > 0 && React.createElement("div", { style: { marginBottom: "20px" } },
-              React.createElement("div", { style: { display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "16px", padding: "12px", border: "1px solid #e5e7eb", borderRadius: "8px", background: "#fff" } },
-                results.map(productCard)
-              )
-            ),
-
-            // Load More Button
-            hasMoreResults && results.length > 0 && React.createElement("div", { style: { textAlign: "center", padding: "20px 0 10px" } },
-              React.createElement(Button, {
-                isSecondary: true,
-                onClick: function(){ fetchProducts(true); },
-                disabled: isLoadingMore,
-                style: { 
-                  padding: "10px 32px", 
-                  fontSize: "14px", 
-                  background: "#fff", 
-                  color: "#667eea", 
-                  border: "1px solid #667eea", 
-                  borderRadius: "6px",
-                  minWidth: "200px"
-                }
-              }, isLoadingMore ? "Loading..." : "Load More Results")
-            )
-          ),
-
-
-            // Modal actions. A sibling of the scrolling body rather than its
-            // last child: as a child it could only be reached by scrolling,
-            // and whenever the body did not overflow there was no scrolling
-            // to reach it with. As a flex item of the frame it simply sits at
-            // the bottom, always.
-            React.createElement("div", { className: "myfeeds-modal-actions" },
-              React.createElement(Button, { isPrimary: true, onClick: saveSelection, disabled: selected.length === 0, style: { padding: "10px 18px", fontSize: "14px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, labelUseProducts(selected.length)),
-              React.createElement(Button, { isSecondary: true, onClick: function(){ setSelected(attributes.selectedProducts || []); setShowModal(false); }, style: { padding: "10px 18px", fontSize: "14px", background: "#fff", color: "#667eea", border: "1px solid #667eea", borderRadius: "6px" } }, "Cancel")
-            )
-        ),
-        // Product Detail Modal - FIXED: Always shows on top, proper navigation
-        showProductDetail && React.createElement(Modal, { title: "", onRequestClose: function(){ 
-          console.log("🔙 MYFEEDS DEBUG: Detail modal X button clicked - returning to search results"); 
-          setShowProductDetail(null); 
-          // Keep the main search modal open for proper navigation
-        }, className: "myfeeds-detail-modal", shouldCloseOnClickOutside: false },
-          React.createElement("div", { className: "myfeeds-detail-content" },
-            React.createElement("div", { className: "myfeeds-product-detail" },
-              // Product Images Section
-              React.createElement("div", { className: "myfeeds-product-images" },
-                React.createElement("div", { className: "myfeeds-main-image" },
-                  React.createElement("img", { src: detailImage || (showProductDetail && (showProductDetail.large_image || showProductDetail.image_url || showProductDetail.merchant_image_url || showProductDetail.image)) || "", alt: (showProductDetail && (showProductDetail.title || showProductDetail.product_name)) || "" }),
-                ),
-                (function(){ 
-                  const imgs = detailImages(showProductDetail || {}); 
-                  const current = detailImage || imgs[0];
-                  // Every image is a thumbnail, the main one included, so
-                  // there is a way back to it after looking at another.
-                  return imgs.length > 1 ? React.createElement("div", { className: "myfeeds-additional-images" },
-                    imgs.slice(0, 8).map(function(imgUrl, idx){ 
-                      return React.createElement("div", { 
-                        key: 'thumb-' + idx, 
-                        className: "myfeeds-thumb-image" + (imgUrl === current ? " is-active" : ""),
-                        role: "button",
-                        tabIndex: 0,
-                        title: "Show this image",
-                        onClick: function(){ setDetailImage(imgUrl); },
-                        onKeyDown: function(e){ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetailImage(imgUrl); } }
-                      }, React.createElement("img", { src: imgUrl, alt: 'Image ' + (idx+1) })); 
-                    })
-                  ) : null; 
-                })()
-              ),
-
-              // Product Info Section
-              React.createElement("div", { className: "myfeeds-product-info" },
-                // Brand
-                (showProductDetail && (showProductDetail.brand || showProductDetail.brand_name || showProductDetail.manufacturer)) && React.createElement("div", { className: "myfeeds-product-brand" }, showProductDetail.brand || showProductDetail.brand_name || showProductDetail.manufacturer),
-                
-                // Title
-                React.createElement("h1", { className: "myfeeds-product-title" }, showProductDetail && (showProductDetail.title || showProductDetail.product_name || 'Product')),
-                
-                // Price Section
-                React.createElement("div", { className: "myfeeds-product-price" },
-                  (function(){ 
-                    const current = resolveCurrentPrice(showProductDetail || {});
-                    const original = resolveOriginalPrice(showProductDetail || {});
-                    const currency = getCurrency(showProductDetail || {});
-                    const discount = original > current && current > 0 ? Math.round(((original - current) / original) * 100) : 0;
-                    
-                    return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "15px" } },
-                      current > 0 && React.createElement("span", { className: "myfeeds-current-price" }, formatMoney(current, currency)),
-                      !(current > 0) && React.createElement("span", { className: "myfeeds-price-unavailable" }, priceOnRequest()),
-                      original > current && original > 0 && React.createElement("span", { className: "myfeeds-old-price" }, formatMoney(original, currency)),
-                      discount > 0 && React.createElement("span", { className: "myfeeds-discount-badge" }, "-" + discount + "%")
-                    );
-                  })()
-                ),
-                
-                // Shipping
-                (function(){ 
-                  const s = formatShipping(showProductDetail || {}); 
-                  return s ? React.createElement("div", { style: { fontSize: "14px", color: "#28a745", fontWeight: "500", margin: "10px 0" } }, "📦 " + s) : null; 
-                })(),
-                
-                // Product Description - FULL TEXT
-                (showProductDetail && (showProductDetail.description || showProductDetail.product_description || showProductDetail.long_description || showProductDetail.full_description)) && React.createElement("div", { className: "myfeeds-product-description" },
-                  React.createElement("h4", null, "Product Description"),
-                  React.createElement("div", { className: "myfeeds-description-text" }, showProductDetail.description || showProductDetail.product_description || showProductDetail.long_description || showProductDetail.full_description || '')
-                ),
-                
-                // Product Attributes - ENHANCED WITH CLICKABLE COLORS
-                React.createElement("div", { className: "myfeeds-product-attributes" },
-                  // Colors: prefer DB-backed siblings (real switchable
-                  // variants) when available, otherwise fall back to the
-                  // local-parse colour pills (display-only).
-                  (function(){
-                    // ----- DB-backed sibling swatches -----
-                    if (Array.isArray(colorSiblings) && colorSiblings.length > 1) {
-                      return React.createElement("div", { className: "myfeeds-attribute-section" },
-                        React.createElement("div", { className: "myfeeds-attribute-title" }, "Available Colors:"),
-                        React.createElement("div", { className: "myfeeds-color-selection", style: { display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px" } },
-                          colorSiblings.map(function (sibling, idx) {
-                            var isCurrent = !!sibling.is_current;
-                            var outOfStock = sibling.in_stock !== 1 && sibling.in_stock !== '1' && sibling.in_stock !== true;
-                            return React.createElement("button", {
-                              key: 'sibling-' + (sibling.external_id || idx),
-                              type: 'button',
-                              title: sibling.colour + (outOfStock ? ' (out of stock)' : ''),
-                              onClick: function () {
-                                if (isCurrent) return;
-                                switchToColorSibling(sibling);
-                              },
-                              style: {
-                                display: "flex",
-                                flexDirection: "column",
-                                alignItems: "center",
-                                gap: "6px",
-                                padding: "6px 8px 8px 8px",
-                                border: isCurrent ? "2px solid #667eea" : "1px solid #e5e7eb",
-                                borderRadius: "10px",
-                                background: isCurrent ? "#f5f3ff" : "#fff",
-                                cursor: isCurrent ? "default" : "pointer",
-                                fontSize: "12px",
-                                fontWeight: isCurrent ? 600 : 500,
-                                color: "#1d2327",
-                                transition: "all 0.18s ease",
-                                opacity: outOfStock ? 0.55 : 1
-                              }
-                            }, [
-                              // Mini thumbnail of the sibling's image (so
-                              // users see the actual product photo of the
-                              // colour they're switching to).
-                              React.createElement("div", {
-                                key: 'thumb',
-                                style: {
-                                  width: "56px",
-                                  height: "56px",
-                                  borderRadius: "6px",
-                                  border: "1px solid #f3f4f6",
-                                  background: "#fff url('" + (sibling.image_url || PLACEHOLDER_IMG) + "') center/contain no-repeat",
-                                  flexShrink: 0
-                                }
-                              }),
-                              React.createElement("div", { key: 'row', style: { display: "flex", alignItems: "center", gap: "5px" } }, [
-                                React.createElement("span", {
-                                  key: 'dot',
-                                  style: {
-                                    width: "10px",
-                                    height: "10px",
-                                    borderRadius: "50%",
-                                    background: getColorHex(sibling.colour),
-                                    border: "1px solid rgba(0,0,0,0.2)",
-                                    display: "inline-block"
-                                  }
-                                }),
-                                React.createElement("span", { key: 'label' }, sibling.colour)
-                              ])
-                            ]);
-                          })
-                        ),
-                        React.createElement("div", {
-                          style: { marginTop: "8px", fontSize: "11px", color: "#71717a" }
-                        }, "Click a colour to switch the affiliate link and price to that variant.")
-                      );
-                    }
-
-                    // ----- Fallback: local-parse colour pills (display) -----
-                    const variants = getAllProductVariants(showProductDetail || {});
-                    if (variants.colors.length === 0) return null;
-
-                    return React.createElement("div", { className: "myfeeds-attribute-section" },
-                      React.createElement("div", { className: "myfeeds-attribute-title" }, "Available Colors:"),
-                      React.createElement("div", { className: "myfeeds-color-selection", style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" } },
-                        variants.colors.map(function(color, idx){
-                          const isCurrentColor = currentVariant.color === color || (!currentVariant.color && idx === 0);
-
-                          return React.createElement("div", {
-                            key: 'color-option-' + idx,
-                            className: "myfeeds-color-option",
-                            style: {
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              padding: "6px 12px",
-                              border: isCurrentColor ? "2px solid #667eea" : "1px solid #ddd",
-                              borderRadius: "20px",
-                              cursor: "pointer",
-                              backgroundColor: isCurrentColor ? "#f5f3ff" : "#fff",
-                              fontSize: "13px",
-                              fontWeight: isCurrentColor ? "600" : "400",
-                              transition: "all 0.2s ease"
-                            },
-                            onClick: function() {
-                              switchColorVariant(color, null);
-                            }
-                          }, [
-                            React.createElement("div", {
-                              key: 'circle',
-                              style: {
-                                width: "16px",
-                                height: "16px",
-                                borderRadius: "50%",
-                                backgroundColor: getColorHex(color),
-                                border: "1px solid rgba(0,0,0,0.2)",
-                                flexShrink: 0
-                              }
-                            }),
-                            React.createElement("span", { key: 'name' }, color.toString().trim())
-                          ]);
-                        })
-                      )
-                    );
-                  })(),
-                  
-                  // Sizes - Interactive Size Selection (uses DB sizes from dedup if available)
-                  (function(){
-                    var variants = getAllProductVariants(showProductDetail || {});
-                    // Prefer the rows: they carry the id, price and link
-                    // of each size, so clicking one can actually switch.
-                    var sizesToShow = sizeVariants.length > 0
-                      ? sizeVariants.map(function (v) { return v.size; })
-                      : (detailSizes.length > 0 ? detailSizes : variants.sizes);
-                    if (sizesToShow.length === 0) return null;
-                    
-                    return React.createElement("div", { className: "myfeeds-attribute-section", style: { marginTop: "15px" } },
-                      React.createElement("div", { className: "myfeeds-attribute-title" }, "Available Sizes" + (sizesToShow.length > 1 ? " (" + sizesToShow.length + ")" : "") + ":"),
-                      React.createElement("div", { className: "myfeeds-size-selection", style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" } }, 
-                        sizesToShow.map(function(size, idx){
-                          const isCurrentSize = currentVariant.size === size || (!currentVariant.size && idx === 0);
-                          
-                          return React.createElement("div", { 
-                            key: 'size-option-' + idx,
-                            className: "myfeeds-size-option",
-                            style: {
-                              padding: "8px 12px",
-                              border: isCurrentSize ? "2px solid #667eea" : "1px solid #ddd",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              backgroundColor: isCurrentSize ? "#f5f3ff" : "#fff",
-                              fontSize: "13px",
-                              fontWeight: isCurrentSize ? "600" : "400",
-                              transition: "all 0.2s ease",
-                              minWidth: "35px",
-                              textAlign: "center"
-                            },
-                            onClick: function() {
-                              // A real switch where we have the row: the
-                              // link, price and id then belong to the size
-                              // the author picked, so "Add to Selection"
-                              // stores that size and not the one the
-                              // search happened to open.
-                              var row = null;
-                              for (var vi = 0; vi < sizeVariants.length; vi++) {
-                                if (String(sizeVariants[vi].size) === String(size)) { row = sizeVariants[vi]; break; }
-                              }
-                              if (row) {
-                                setShowProductDetail(Object.assign({}, showProductDetail, {
-                                  id: row.external_id,
-                                  external_id: row.external_id,
-                                  aw_product_id: row.external_id,
-                                  price: row.price,
-                                  old_price: row.original_price,
-                                  original_price: row.original_price,
-                                  currency: row.currency,
-                                  affiliate_link: row.affiliate_link,
-                                  image_url: row.image_url || showProductDetail.image_url,
-                                  in_stock: row.in_stock ? 1 : 0
-                                }));
-                              }
-                              switchColorVariant(null, size);
-                            },
-                            onMouseEnter: function(e) {
-                              if (!isCurrentSize) {
-                                e.target.style.backgroundColor = "#f8f9fa";
-                                e.target.style.borderColor = "#667eea";
-                              }
-                            },
-                            onMouseLeave: function(e) {
-                              if (!isCurrentSize) {
-                                e.target.style.backgroundColor = "#fff";
-                                e.target.style.borderColor = "#ddd";
-                              }
-                            }
-                          }, size.toString().trim());
-                        })
-                      )
-                    );
-                  })()
-                )
-              )
-            )
-          ),
-          
-          // Action Buttons - Outside scrollable area
-          React.createElement("div", { className: "myfeeds-product-actions" },
-            React.createElement("button", { 
-              className: "myfeeds-back-button",
-              onClick: function(){ 
-                console.log("🔙 MYFEEDS DEBUG: Back to Search clicked - returning to main search modal");
-                setShowProductDetail(null); 
-                setShowModal(true); // CRITICAL: Reopen the main search modal instead of closing everything
-              }
-            }, "← Back to Search"),
-            React.createElement("button", {
-              className: "myfeeds-add-button",
-              onClick: function(){
-                toggleProduct(showProductDetail, true);
-                setShowProductDetail(null);
-              }
-            }, (selected || []).some(function(p){ return String(p.id) === String(showProductDetail && showProductDetail.id); }) ? "Remove from Selection" : "Add to Selection")
-          )
-        )
+        // The search window (ProductSearchModal above).
+        showModal && React.createElement(ProductSearchModal, {
+          term: searchTerm,
+          onTermChange: setSearchTerm,
+          selected: selected,
+          onSelectedChange: setSelected,
+          searchKey: searchKey,
+          onConfirm: saveSelection,
+          onCancel: function(){ setSelected(attributes.selectedProducts || []); setShowModal(false); },
+          onClose: function(){ setShowModal(false); }
+        })
         ) // close myfeeds-editor-wrapper
       ); // close Fragment
     },
