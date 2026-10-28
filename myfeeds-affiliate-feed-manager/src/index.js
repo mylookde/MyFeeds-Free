@@ -1604,7 +1604,10 @@
           // and whenever the body did not overflow there was no scrolling
           // to reach it with. As a flex item of the frame it simply sits at
           // the bottom, always.
-          React.createElement("div", { className: "myfeeds-modal-actions" },
+          // Says which source the window shows, so what other code hangs on
+          // this bar (Pro's Rakuten progress, a feeds-only add-on) can stay
+          // off while it shows another.
+          React.createElement("div", { className: "myfeeds-modal-actions", "data-myfeeds-source": sourceId },
             React.createElement(Button, { isPrimary: true, onClick: function(){ props.onConfirm(selected); }, disabled: selected.length === 0, style: { padding: "10px 18px", fontSize: "14px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, confirmLabel(selected.length)),
             React.createElement(Button, { isSecondary: true, onClick: props.onCancel, style: { padding: "10px 18px", fontSize: "14px", background: "#fff", color: "#667eea", border: "1px solid #667eea", borderRadius: "6px" } }, "Cancel")
           )
