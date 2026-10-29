@@ -202,6 +202,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 == Changelog ==
 
 = 1.0.51 =
+* Fixed: on sites with a page cache (BigScoots, WP Rocket, LiteSpeed, SiteGround Optimizer and others), a post could keep showing sold-out products and old prices until the cache expired on its own. After every import MyFeeds now clears the cached copies of the posts that show products - those posts only, never the whole site.
 * Improved: opening the product search in the Product Picker block sends one search instead of two. The search window is now a part of the editor of its own, which changes nothing in how it looks or works.
 
 = 1.0.50 =

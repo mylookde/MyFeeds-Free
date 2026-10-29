@@ -436,6 +436,7 @@ function myfeeds_load_includes() {
         'class-settings-manager.php' => 'Settings Manager Class',
         'class-db-manager.php' => 'Database Manager Class',
         'class-image-cdn-probe.php' => 'Image CDN probe (learns how an unknown image host asks for a smaller copy)',
+        'class-page-cache-purge.php' => 'Page cache purge (after an import, clears the cached copies of the posts that show products - those posts only; no-op without a cache plugin)',
         'class-search-engine.php' => 'Search Engine (FULLTEXT + Synonyms)',
         'class-batch-importer.php' => 'Batch Importer Class',
         'class-universal-mapper-ui.php' => 'Universal Mapper UI Class',
