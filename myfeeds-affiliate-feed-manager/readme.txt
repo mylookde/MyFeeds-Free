@@ -145,6 +145,10 @@ The automatic mapping is written for the feed formats these networks document. T
 
 Yes. The nightly sync refreshes every product it finds on the site: MyFeeds blocks in posts, pages and any public post type, in synced patterns, in block widgets and in block-theme templates. Products a theme or plugin shows by itself (its own table, a template, a post type that keeps them in custom fields) can be announced with the `myfeeds_active_product_ids` filter: return the list you were given plus the `external_id` of each product you show, and the nightly sync keeps their price and stock current. The filter can only add products, never remove the ones your blocks hold. The `myfeeds_discovery_post_types` filter narrows or widens the post types that are read.
 
+= I use a page cache. Do my posts show the new prices after an import? =
+
+Yes. MyFeeds needs no cache plugin and works the same without one. When a site has one, MyFeeds clears the cached copies of the posts that show products after every import, and only those: never the front page or the whole site. It does this for BigScoots Cache, WP Rocket, LiteSpeed Cache, SiteGround Speed Optimizer, W3 Total Cache, WP Super Cache, WP Fastest Cache, Cache Enabler, Breeze, Nginx Helper, Hummingbird and WP-Optimize. Any other cache, a host's own cache or a CDN can listen to the `myfeeds_product_posts_changed` action, which hands over the addresses of those posts after every import.
+
 = Does the plugin make any external requests? =
 
 Yes. See **External Services** below. In short: your site downloads your product feed from the address you saved and measures the file size of a few product pictures. The pictures themselves stay with the merchant, and your readers' browsers load them from there.
@@ -202,7 +206,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 == Changelog ==
 
 = 1.0.51 =
-* Fixed: on sites with a page cache (BigScoots, WP Rocket, LiteSpeed, SiteGround Optimizer and others), a post could keep showing sold-out products and old prices until the cache expired on its own. After every import MyFeeds now clears the cached copies of the posts that show products - those posts only, never the whole site.
+* Fixed: on sites with a page cache (BigScoots, WP Rocket, LiteSpeed, SiteGround Optimizer and others), a post could keep showing sold-out products and old prices until the cache expired on its own. After every import MyFeeds now clears the cached copies of the posts that show products - those posts only, never the whole site. Any other cache can listen to the new `myfeeds_product_posts_changed` action.
 * Improved: opening the product search in the Product Picker block sends one search instead of two. The search window is now a part of the editor of its own, which changes nothing in how it looks or works.
 
 = 1.0.50 =

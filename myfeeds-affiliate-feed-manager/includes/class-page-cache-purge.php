@@ -22,8 +22,10 @@
  * and wphb_clear_page_cache.
  *
  * Nothing here is a requirement. Each block runs only when its plugin is
- * loaded and does nothing otherwise; without any cache plugin the class
- * does not even ask the database.
+ * loaded and does nothing otherwise; without any cache plugin (and nobody
+ * listening to myfeeds_product_posts_changed) the class does not even ask
+ * the database. The list of plugins is a convenience, not the contract:
+ * the action is, for every cache that is not on it.
  *
  * Shared with Free byte for byte.
  */
@@ -68,7 +70,8 @@ class MyFeeds_Page_Cache_Purge {
      */
     public static function purge_product_posts() {
         $caches = self::active_caches();
-        if (empty($caches)) {
+        $listening = function_exists('has_filter') && has_filter('myfeeds_product_posts_changed');
+        if (empty($caches) && !$listening) {
             return array();
         }
 
@@ -90,6 +93,19 @@ class MyFeeds_Page_Cache_Purge {
             return array();
         }
 
+        /**
+         * The cached copies of these posts no longer match their products.
+         * Fired after every import, before the caches below are cleared,
+         * so a cache or host this file does not know - a host's own cache,
+         * a CDN, a cache plugin written next year - can clear them too.
+         *
+         * @param array<int,string> $urls Post id => address.
+         */
+        do_action('myfeeds_product_posts_changed', $urls);
+
+        if (empty($caches)) {
+            return array();
+        }
         self::purge($urls, $caches);
 
         if (function_exists('myfeeds_log')) {
