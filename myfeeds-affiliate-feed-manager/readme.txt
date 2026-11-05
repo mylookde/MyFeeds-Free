@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.51
+Stable tag: 1.0.52
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -204,6 +204,10 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 8. Shop design editor (MyFeeds Pro, Shop plan). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.0.52 =
+* Changed: the buttons on the Shop, Design and Analytics pages and in the Amazon dialog lead to the two plans of the paid plugin, Pro and Shop (Pro instead of Starter), and start the trial each plan comes with. The Shop plan was called E-commerce before.
+* Changed: the readme describes the one paid plugin, MyFeeds Pro, and its two plans.
 
 = 1.0.51 =
 * Fixed: on sites with a page cache (BigScoots, WP Rocket, LiteSpeed, SiteGround Optimizer and others), a post could keep showing sold-out products and old prices until the cache expired on its own. After every import MyFeeds now clears the cached copies of the posts that show products - those posts only, never the whole site. Any other cache can listen to the new `myfeeds_product_posts_changed` action.
