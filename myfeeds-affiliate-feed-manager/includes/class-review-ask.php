@@ -4,8 +4,7 @@
  *
  * One polite, dismissible notice, shown only on MyFeeds admin screens and
  * only after the plugin has proven itself: at least 8 days installed (a
- * week of use, the length of the shortest paid trial, plus a day) and at
- * least one feed that synced successfully.
+ * week of use plus a day) and at least one feed that synced successfully.
  *
  * Two steps in the same box. First one question, "how did you find
  * MyFeeds?": each answer is a plain link that opens a thank-you page on

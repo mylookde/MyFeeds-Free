@@ -3,8 +3,8 @@
  * Informational links to myfeeds.site.
  *
  * Adds an Upgrade link to the plugin's Plugins-screen row and a
- * "More features" entry to the MyFeeds submenu, both pointing to
- * separate paid plugins available at myfeeds.site. This plugin
+ * "More features" entry to the MyFeeds submenu, both pointing to the
+ * separate paid plugin MyFeeds Pro at myfeeds.site. This plugin
  * itself is fully functional with no gated UI.
  */
 

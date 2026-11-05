@@ -22,9 +22,11 @@ if (!defined('ABSPATH')) {
 
 class MyFeeds_Feature_Previews {
 
-    const CHECKOUT_PRO_URL = 'https://checkout.freemius.com/plugin/21336/plan/35610/?trial=paid';
-    const CHECKOUT_STARTER_URL = 'https://checkout.freemius.com/plugin/21336/plan/60599/?trial=paid';
-    const CHECKOUT_BUSINESS_URL = 'https://checkout.freemius.com/plugin/21336/plan/48994/?trial=paid';
+    // trial=true opens the trial each plan is set up with in Freemius, so
+    // a link never promises another length or payment rule than the
+    // checkout then gives. The pages name no trial length for that reason.
+    const CHECKOUT_PRO_URL = 'https://checkout.freemius.com/plugin/21336/plan/35610/?trial=true';
+    const CHECKOUT_SHOP_URL = 'https://checkout.freemius.com/plugin/21336/plan/48994/?trial=true';
 
     public function init() {
         add_action('admin_menu', array($this, 'register_submenus'), 95);
@@ -136,7 +138,7 @@ class MyFeeds_Feature_Previews {
 
     private function menu_label_with_badge($label, $tier) {
         // Submenu labels accept inline HTML. Tier comes from a closed
-        // set ("STARTER", "PRO" or "E-COMMERCE"), never user input, but
+        // set ("PRO" or "SHOP"), never user input, but
         // esc_html the label anyway for defense in depth.
         return esc_html($label) . ' <span class="myfeeds-tier-badge">' . esc_html($tier) . '</span>';
     }
@@ -147,12 +149,12 @@ class MyFeeds_Feature_Previews {
 
     public function render_myfeeds_shop() {
         $this->render_preview(array(
-            'eyebrow'    => __('E-commerce feature', 'myfeeds-affiliate-feed-manager'),
-            'tier'       => 'E-COMMERCE',
+            'eyebrow'    => __('Shop feature', 'myfeeds-affiliate-feed-manager'),
+            'tier'       => 'SHOP',
             'title'      => __('Turn your blog into an affiliate shop.', 'myfeeds-affiliate-feed-manager'),
             'subtitle'   => __('A blog post earns once. A shop earns every day. Every product you already import becomes a browsable storefront on your own domain. Visitors browse it. Search engines index it. You earn from both.', 'myfeeds-affiliate-feed-manager'),
-            'cta_label'  => __('Start 14-day free trial', 'myfeeds-affiliate-feed-manager'),
-            'cta_url'    => self::CHECKOUT_BUSINESS_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=shop',
+            'cta_label'  => __('Start free trial', 'myfeeds-affiliate-feed-manager'),
+            'cta_url'    => self::CHECKOUT_SHOP_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=shop',
             'cta_note'   => __('Cancel anytime from your dashboard', 'myfeeds-affiliate-feed-manager'),
             'screenshots' => array(
                 array(
@@ -179,12 +181,12 @@ class MyFeeds_Feature_Previews {
 
     public function render_myfeeds_card_design() {
         $this->render_preview(array(
-            'eyebrow'    => __('Starter feature', 'myfeeds-affiliate-feed-manager'),
-            'tier'       => 'STARTER',
+            'eyebrow'    => __('Pro feature', 'myfeeds-affiliate-feed-manager'),
+            'tier'       => 'PRO',
             'title'      => __('Make product cards look like your brand.', 'myfeeds-affiliate-feed-manager'),
             'subtitle'   => __('Generic plugin cards kill conversions. Pick colours, fonts, spacing and shadows in a visual editor. Every change shows up live on real product data, on desktop and on mobile, without touching theme CSS.', 'myfeeds-affiliate-feed-manager'),
-            'cta_label'  => __('Start 7-day free trial', 'myfeeds-affiliate-feed-manager'),
-            'cta_url'    => self::CHECKOUT_STARTER_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=card-design',
+            'cta_label'  => __('Start free trial', 'myfeeds-affiliate-feed-manager'),
+            'cta_url'    => self::CHECKOUT_PRO_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=card-design',
             'cta_note'   => __('Cancel anytime from your dashboard', 'myfeeds-affiliate-feed-manager'),
             'screenshots' => array(
                 array(
@@ -210,7 +212,7 @@ class MyFeeds_Feature_Previews {
             'tier'       => 'PRO',
             'title'      => __('See which products actually pay you.', 'myfeeds-affiliate-feed-manager'),
             'subtitle'   => __('Stop guessing. Clicks tracked on your own server, conversions pulled from your networks every night, all in one dashboard. You see which post pays, which product converts, which brand carries you.', 'myfeeds-affiliate-feed-manager'),
-            'cta_label'  => __('Start 7-day free trial', 'myfeeds-affiliate-feed-manager'),
+            'cta_label'  => __('Start free trial', 'myfeeds-affiliate-feed-manager'),
             'cta_url'    => self::CHECKOUT_PRO_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=analytics',
             'cta_note'   => __('Cancel anytime from your dashboard', 'myfeeds-affiliate-feed-manager'),
             'screenshots' => array(
@@ -300,7 +302,7 @@ class MyFeeds_Feature_Previews {
                     <?php
                     printf(
                         /* translators: %s is an anchor tag wrapping the text "myfeeds.site" */
-                        esc_html__('MyFeeds Starter, MyFeeds Pro and MyFeeds E-commerce are separate paid plugins available at %s. Activating a license unlocks the feature on this site.', 'myfeeds-affiliate-feed-manager'),
+                        esc_html__('MyFeeds Pro is a separate paid plugin available at %s, in two plans: Pro and Shop. Activating a license unlocks the feature on this site.', 'myfeeds-affiliate-feed-manager'),
                         '<a href="https://myfeeds.site/?utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=disclaimer" target="_blank" rel="noopener noreferrer">myfeeds.site</a>'
                     );
                     ?>
@@ -330,7 +332,7 @@ class MyFeeds_Feature_Previews {
                 'slug'        => 'myfeeds-shop',
                 'menu_title'  => __('Shop', 'myfeeds-affiliate-feed-manager'),
                 'page_title'  => __('MyFeeds — Shop', 'myfeeds-affiliate-feed-manager'),
-                'tier'        => 'E-COMMERCE',
+                'tier'        => 'SHOP',
             ),
             array(
                 'slug'        => 'myfeeds-card-design',
@@ -340,7 +342,7 @@ class MyFeeds_Feature_Previews {
                 // cannot be misread — and it matches the one-word siblings.
                 'menu_title'  => __('Design', 'myfeeds-affiliate-feed-manager'),
                 'page_title'  => __('MyFeeds — Card Design', 'myfeeds-affiliate-feed-manager'),
-                'tier'        => 'STARTER',
+                'tier'        => 'PRO',
             ),
             array(
                 'slug'        => 'myfeeds-analytics',

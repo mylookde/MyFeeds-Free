@@ -24,7 +24,7 @@ You get to stay where the value is. Writing. Instead of pasting URLs at midnight
 
 = Who is this for =
 
-MyFeeds is for anyone in affiliate marketing who earns a commission by promoting other companies' products: solo bloggers and niche sites as well as large publishers, magazines and deal sites. They use it to turn the product feed their affiliate network provides (some networks call it a datafeed) into product cards inside their posts, instead of pasting single affiliate links by hand. Larger sites with many merchants can add the paid plugins below, with unlimited feeds and, on E-commerce, a full shop with its own categories and filters.
+MyFeeds is for anyone in affiliate marketing who earns a commission by promoting other companies' products: solo bloggers and niche sites as well as large publishers, magazines and deal sites. They use it to turn the product feed their affiliate network provides (some networks call it a datafeed) into product cards inside their posts, instead of pasting single affiliate links by hand. Larger sites with many merchants can add the paid plugin below, with unlimited feeds and, on its Shop plan, a full shop with its own categories and filters.
 
 Whatever you cover, from clothing and gear to books, beauty, supplements, tools, baby, garden, hobbies, niche electronics, or deals: if there's an affiliate program for it, there's a product feed somewhere, and MyFeeds can read it.
 
@@ -70,9 +70,9 @@ The next day the nightly sync refreshes what changed. The week after, a full imp
 
 Install MyFeeds, paste one feed URL, and make your next post shoppable.
 
-= Related paid plugins =
+= Related paid plugin =
 
-This plugin is fully functional on its own. Separate, independent paid plugins called **MyFeeds Starter**, **MyFeeds Pro** and **MyFeeds E-commerce** are available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins). They add things like a carousel block, a visual card designer with Google Fonts, Amazon products through Amazon's Creators API, click and conversion analytics, and a full multi-feed shop system. They are not required to use this plugin.
+This plugin is fully functional on its own. A separate, independent paid plugin called **MyFeeds Pro** is available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins), in two plans: Pro and Shop. It adds things like a carousel block, a visual card designer with Google Fonts, Amazon products by link or ASIN and through Amazon's Creators API, click and conversion analytics, and, on the Shop plan, a full multi-feed shop system. It is not required to use this plugin.
 
 == Installation ==
 
@@ -181,7 +181,7 @@ Which hosts these are depends on the feeds you import, and their terms and priva
 
 Every product card links to the affiliate link from your feed. A request to your affiliate network or the merchant happens only when a reader clicks a card. Sample products, if you use them, link to a page on myfeeds.site.
 
-Apart from the above, the plugin sends nothing anywhere: it has no analytics, no tracking and no usage reporting. Links in the plugin's admin screens (to myfeeds.site, to the review page on WordPress.org, to the checkout of the paid plugins) open only when you click them.
+Apart from the above, the plugin sends nothing anywhere: it has no analytics, no tracking and no usage reporting. Links in the plugin's admin screens (to myfeeds.site, to the review page on WordPress.org, to the checkout of the paid plugin) open only when you click them.
 
 == Source Code ==
 
@@ -195,13 +195,13 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 == Screenshots ==
 
 1. The product picker inside the block editor. Search your whole feed, narrow it with filters, click what you want. Here: 120 results for "shoes", filtered down to one brand, four products picked.
-2. Your picked products, saved in the block. They stay together until you place them, each with its own price and discount. The shop buttons on the cards belong to MyFeeds E-commerce.
+2. Your picked products, saved in the block. They stay together until you place them, each with its own price and discount. The shop buttons on the cards belong to the Shop plan of MyFeeds Pro.
 3. Those four products published as a live product grid in a real blog post. Your readers see what the merchant is actually selling today, for as long as the post exists.
-4. The same four products as a swipeable carousel (MyFeeds Starter). A second way to present what you've curated, for image-heavy posts and roundups.
-5. Card design editor (MyFeeds Starter). Cards that look like your blog wrote them. One save, every card across every post catches up. The live editor opens more than this screen lets on.
-6. Full storefront on your own domain (MyFeeds E-commerce). Visitors see your real online shop with categories, filters and sorting. The controls they already know from any modern shop, all on your domain. Every checkout goes through your affiliate link.
-7. Category manager (MyFeeds E-commerce). A shop organised the way your readers shop. Build the tree once, then curate products into each category by hand. Smart keyword search behind the scenes; you stay the editor.
-8. Shop design editor (MyFeeds E-commerce). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
+4. The same four products as a swipeable carousel (MyFeeds Pro). A second way to present what you've curated, for image-heavy posts and roundups.
+5. Card design editor (MyFeeds Pro). Cards that look like your blog wrote them. One save, every card across every post catches up. The live editor opens more than this screen lets on.
+6. Full storefront on your own domain (MyFeeds Pro, Shop plan). Visitors see your real online shop with categories, filters and sorting. The controls they already know from any modern shop, all on your domain. Every checkout goes through your affiliate link.
+7. Category manager (MyFeeds Pro, Shop plan). A shop organised the way your readers shop. Build the tree once, then curate products into each category by hand. Smart keyword search behind the scenes; you stay the editor.
+8. Shop design editor (MyFeeds Pro, Shop plan). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
 
