@@ -206,12 +206,15 @@ class MyFeeds_Feature_Previews {
         ));
     }
 
+    // Clicks are counted on the site itself, so the page can say what they
+    // show. Earnings are whatever a network reports, so the page says
+    // where they come from and promises nothing about them.
     public function render_myfeeds_analytics() {
         $this->render_preview(array(
             'eyebrow'    => __('Pro feature', 'myfeeds-affiliate-feed-manager'),
             'tier'       => 'PRO',
-            'title'      => __('See which products actually pay you.', 'myfeeds-affiliate-feed-manager'),
-            'subtitle'   => __('Stop guessing. Clicks tracked on your own server, conversions pulled from your networks every night, all in one dashboard. You see which post pays, which product converts, which brand carries you.', 'myfeeds-affiliate-feed-manager'),
+            'title'      => __('See which posts and products get the clicks.', 'myfeeds-affiliate-feed-manager'),
+            'subtitle'   => __('Clicks on your product cards are counted on your own server and shown in one dashboard, per post, product, brand and network. Earnings, where your network reports them, sit right beside them.', 'myfeeds-affiliate-feed-manager'),
             'cta_label'  => __('Start free trial', 'myfeeds-affiliate-feed-manager'),
             'cta_url'    => self::CHECKOUT_PRO_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=analytics',
             'cta_note'   => __('Cancel anytime from your dashboard', 'myfeeds-affiliate-feed-manager'),
@@ -219,21 +222,21 @@ class MyFeeds_Feature_Previews {
                 array(
                     'image'       => $this->preview_image_url('analytics-overview.png'),
                     'placeholder' => __('Analytics overview', 'myfeeds-affiliate-feed-manager'),
-                    'caption'     => __('Total clicks, earnings, EPC and unique visitors at a glance, day by day against the period before, broken down by post, product, brand and network. Example data. Your numbers will differ.', 'myfeeds-affiliate-feed-manager'),
+                    'caption'     => __('Clicks and unique visitors at a glance, day by day against the period before, broken down by post, product, brand and network. Earnings and EPC show what a connected network reports. Example data. Your numbers will differ.', 'myfeeds-affiliate-feed-manager'),
                 ),
                 array(
                     'image'       => $this->preview_image_url('analytics-insights.png'),
                     'placeholder' => __('Insight cards', 'myfeeds-affiliate-feed-manager'),
-                    'caption'     => __('Action cards surface what to do next: top earners to amplify, dead products to swap, posts with no clicks to revisit. Example data.', 'myfeeds-affiliate-feed-manager'),
+                    'caption'     => __('Cards point to what to look at next: products that left your feed, posts without clicks, risers and fallers. Example data.', 'myfeeds-affiliate-feed-manager'),
                 ),
             ),
             'benefits' => array(
-                __('You see earnings and EPC per post, product, brand and network in one place.', 'myfeeds-affiliate-feed-manager'),
-                __('Conversions pull in from your affiliate networks every night while you sleep.', 'myfeeds-affiliate-feed-manager'),
-                __('Top performers and dead products land in your insight cards as action items.', 'myfeeds-affiliate-feed-manager'),
-                __('Click tracking runs on your own server with self-click exclusion, so the numbers are clean.', 'myfeeds-affiliate-feed-manager'),
-                __('Day-over-day deltas show you what is rising and what is fading.', 'myfeeds-affiliate-feed-manager'),
-                __('Optional Google Analytics 4 event push for your own reporting stack.', 'myfeeds-affiliate-feed-manager'),
+                __('Clicks per post, product, brand and network in one place.', 'myfeeds-affiliate-feed-manager'),
+                __('Counted on your own server. Clicks you make yourself while logged in are left out unless you include them.', 'myfeeds-affiliate-feed-manager'),
+                __('Each period against the one before, so you see what is rising and what is fading.', 'myfeeds-affiliate-feed-manager'),
+                __('Insight cards point to products that left your feed and posts that get no clicks.', 'myfeeds-affiliate-feed-manager'),
+                __('Optional: your clicks also go to Google Analytics 4 as events.', 'myfeeds-affiliate-feed-manager'),
+                __('Earnings come from your network, not from MyFeeds: where a network has a reporting API, connect it and the commissions it reports are shown beside the clicks.', 'myfeeds-affiliate-feed-manager'),
             ),
         ));
     }

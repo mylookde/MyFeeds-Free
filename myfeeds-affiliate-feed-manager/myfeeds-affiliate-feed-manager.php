@@ -446,6 +446,7 @@ function myfeeds_load_includes() {
         'class-demo-content.php' => 'Sample products for a fresh install (loaded on request only)',
         'class-upsell.php'       => 'Informational Upsell Banner',
         'class-review-ask.php'   => 'One-time wp.org review request',
+        'class-notice-scope.php' => 'Notice scope (on a MyFeeds screen only MyFeeds speaks: other plugins\' notices come off the notice hooks there and nowhere else)',
         'class-feature-previews.php' => 'Feature Preview Pages',
         'class-schema-generator.php' => 'Schema.org JSON-LD Generator',
         'class-product-picker.php' => 'Product Picker Class',
