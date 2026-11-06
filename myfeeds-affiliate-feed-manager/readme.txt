@@ -72,7 +72,7 @@ Install MyFeeds, paste one feed URL, and make your next post shoppable.
 
 = Related paid plugin =
 
-This plugin is fully functional on its own. A separate, independent paid plugin called **MyFeeds Pro** is available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins), in two plans: Pro and Shop. It adds things like a carousel block, a visual card designer with Google Fonts, Amazon products by link or ASIN and through Amazon's Creators API, click analytics per post and product, and, on the Shop plan, a full multi-feed shop system. It is not required to use this plugin.
+This plugin is fully functional on its own. A separate, independent paid plugin called **MyFeeds Pro** is available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins), in two plans: Pro and Shop. It adds things like a visual card designer with Google Fonts, auto-play and arrow colours for the carousel, Amazon products by link or ASIN and through Amazon's Creators API, click analytics per post and product, and, on the Shop plan, a full multi-feed shop system. It is not required to use this plugin.
 
 == Installation ==
 
@@ -151,11 +151,11 @@ Yes. MyFeeds needs no cache plugin and works the same without one. When a site h
 
 = Does the plugin make any external requests? =
 
-Yes. See **External Services** below. In short: your site downloads your product feed from the address you saved and measures the file size of a few product pictures. The pictures themselves stay with the merchant, and your readers' browsers load them from there.
+Yes. See **External Services** below. In short: your site downloads your product feed from the address you saved, measures the file size of a few product pictures, and reads a Look photo from a web address when you paste one in the editor. The pictures themselves stay with the merchant, and your readers' browsers load them from there.
 
 == External Services ==
 
-MyFeeds keeps your products in your own WordPress database. It contacts other servers in two cases: your site fetches the product feed you configured, and it measures the file size of a few product pictures. The pictures themselves are not copied to your site, so your readers' browsers load them from the merchant. Each case is described below.
+MyFeeds keeps your products in your own WordPress database. It contacts other servers in three cases: your site fetches the product feed you configured, it measures the file size of a few product pictures, and it reads a photo you give a Look block by its web address. The product pictures themselves are not copied to your site, so your readers' browsers load them from the merchant. Each case is described below.
 
 = Configured product feed URL (your affiliate network) =
 
@@ -177,9 +177,20 @@ A feed lists the web address of every product picture, on the merchant's own ser
 
 Which hosts these are depends on the feeds you import, and their terms and privacy policies apply. If your site uses an image optimisation or CDN plugin that rewrites picture addresses, pictures may be loaded through that service instead.
 
+= A Look photo from a web address (the site you name) =
+
+The Look block shows a photo with numbered points on it. The photo comes from your media library, or from a web address you paste under "Image from a URL".
+
+* **What is sent:** when you press "Check", your server sends an HTTP GET request to the address you pasted. If that address is a web page (a Pinterest pin, a product page), your server reads the preview image the page names and requests that image too. The first request carries a `User-Agent` header that says "MyFeeds image check" and names your site's address; the image request, and the copy below, carry WordPress's standard one, which names your WordPress version and your site address. No visitor data is sent.
+* **When it is sent:** only in the block editor, when you check an address and, if you choose "Copy into my media library", once more to copy the image into your media library. Showing a Look to a reader never asks your server to fetch anything.
+* **Where it is sent:** to the host of the address you pasted, and to the host of the preview image that page names. Addresses inside your own network are refused.
+* **A linked photo:** if you choose "Link the image", the photo stays where it is and your readers' browsers load it from that server, which receives their IP address and browser details, as for any picture embedded from another website. MyFeeds tells the browser to send no referrer with it. Name that server in your privacy policy; the editor says so too.
+
+The terms and privacy policy of the site you take the photo from apply, and so do its rights: copy an image only if you may. A product address you paste into a point is looked up in your own database only.
+
 = Links on a product card =
 
-Every product card links to the affiliate link from your feed. A request to your affiliate network or the merchant happens only when a reader clicks a card. Sample products, if you use them, link to a page on myfeeds.site.
+Every product card, and every point of a Look, links to the affiliate link from your feed. A request to your affiliate network or the merchant happens only when a reader clicks it. Sample products, if you use them, link to a page on myfeeds.site.
 
 Apart from the above, the plugin sends nothing anywhere: it has no analytics, no tracking and no usage reporting. Links in the plugin's admin screens (to myfeeds.site, to the review page on WordPress.org, to the checkout of the paid plugin) open only when you click them.
 
@@ -190,14 +201,18 @@ The full source for this plugin is open-source. See [myfeeds.site](https://myfee
 * Block editor source: `src/index.js`
 * Build tool: terser via `npm run build` (configuration in `package.json`)
 
-To rebuild the editor bundle from source, run `npm install && npm run build` inside the plugin folder.
+To rebuild the editor bundle from source, run `npm install && npm run build` inside the plugin folder. The other scripts in `assets/` are not built; they ship as they are written.
+
+= Credits =
+
+* Carousel: [Splide](https://github.com/Splidejs/splide) 4.1.4 by Naotoshi Fujita, MIT license. Bundled unchanged as `assets/vendor/splide.min.js` and `assets/vendor/splide-core.min.css` (only the reference to a source map that is not shipped is removed); the license text is in `assets/vendor/splide-LICENSE.txt`.
 
 == Screenshots ==
 
 1. The product picker inside the block editor. Search your whole feed, narrow it with filters, click what you want. Here: 120 results for "shoes", filtered down to one brand, four products picked.
 2. Your picked products, saved in the block. They stay together until you place them, each with its own price and discount. The shop buttons on the cards belong to the Shop plan of MyFeeds Pro.
 3. Those four products published as a live product grid in a real blog post. Your readers see what the merchant is actually selling today, for as long as the post exists.
-4. The same four products as a swipeable carousel (MyFeeds Pro). A second way to present what you've curated, for image-heavy posts and roundups.
+4. The same four products as a swipeable carousel. A second way to present what you've curated, for image-heavy posts and roundups.
 5. Card design editor (MyFeeds Pro). Cards that look like your blog wrote them. One save, every card across every post catches up. The live editor opens more than this screen lets on.
 6. Full storefront on your own domain (MyFeeds Pro, Shop plan). Visitors see your real online shop with categories, filters and sorting. The controls they already know from any modern shop, all on your domain. Every checkout goes through your affiliate link.
 7. Category manager (MyFeeds Pro, Shop plan). A shop organised the way your readers shop. Build the tree once, then curate products into each category by hand. Smart keyword search behind the scenes; you stay the editor.

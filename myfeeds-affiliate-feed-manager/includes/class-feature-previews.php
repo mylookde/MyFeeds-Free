@@ -202,6 +202,7 @@ class MyFeeds_Feature_Previews {
                 __('Full Google Fonts catalog plus your system fonts, no upload needed.', 'myfeeds-affiliate-feed-manager'),
                 __('Spacing, padding, corner radius and shadow on sliders. Mobile and desktop side by side.', 'myfeeds-affiliate-feed-manager'),
                 __('Save once. Every product card on your site picks up the new look.', 'myfeeds-affiliate-feed-manager'),
+                __('Equal rows, arrow colour, auto-play and button colours for every display.', 'myfeeds-affiliate-feed-manager'),
             ),
         ));
     }

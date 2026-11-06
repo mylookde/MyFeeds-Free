@@ -278,7 +278,7 @@
 
   // The picker's search window as a component of its own: the search
   // field, filters, results, the detail view and the "Use ..." bar. The
-  // picker opens it to choose many products; Pro's Look block opens it to
+  // picker opens it to choose many products; the Look block opens it to
   // choose one (assets/look-block.js). One window for both, so a change to
   // the search reaches every place that searches - a second copy would
   // drift from the first.
@@ -297,7 +297,7 @@
   //   onClose()                   the window's x; onCancel when not given.
   //   confirmLabel(n)             the "Use ..." button's text.
   //   sources                     other places to search besides the
-  //                               site's own feeds (Pro adds Amazon), see
+  //                               site's own feeds (Amazon, say), see
   //                               below. Without them the window is what
   //                               it always was.
   //   source, lockSource          the source the window opens on; with
@@ -711,8 +711,8 @@
     }, [searchTerm, sortMode, filterBrand, filterColour, filterCategory, filterMinPrice, filterMaxPrice, filterOnSale, filterInStock, looseMatch, sourceId, extSort, JSON.stringify(extOptions)]);
 
     // Opening the window searches at once, and so does every later press
-    // of the button that opened it (props.searchKey moves): Pro's Rakuten
-    // line presses it again after an import. A switch of source too, with
+    // of the button that opened it (props.searchKey moves): a line under
+    // the search presses it again after an import. A switch of source too, with
     // the words already typed.
     useEffect(function () {
       if (!searchTerm || searchTerm.length < 2) {
@@ -1605,7 +1605,7 @@
           // to reach it with. As a flex item of the frame it simply sits at
           // the bottom, always.
           // Says which source the window shows, so what other code hangs on
-          // this bar (Pro's Rakuten progress, a feeds-only add-on) can stay
+          // this bar (an import's progress, a feeds-only add-on) can stay
           // off while it shows another.
           React.createElement("div", { className: "myfeeds-modal-actions", "data-myfeeds-source": sourceId },
             React.createElement(Button, { isPrimary: true, onClick: function(){ props.onConfirm(selected); }, disabled: selected.length === 0, style: { padding: "10px 18px", fontSize: "14px", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: "6px", boxShadow: "0 2px 4px rgba(102, 126, 234, 0.2)" } }, confirmLabel(selected.length)),
@@ -1907,7 +1907,7 @@
     );
   }
 
-  // For a block in another file (Pro's Look block). Loaded with this
+  // For a block in another file (the Look block). Loaded with this
   // bundle, read when that block opens the window.
   window.myfeedsProductSearch = { Modal: ProductSearchModal };
 
@@ -1990,8 +1990,8 @@
       }, []);
 
       // Every press opens the window and searches at once - also while it
-      // is open (searchKey moves), which is how Pro's Rakuten line runs the
-      // search again after an import.
+      // is open (searchKey moves), which is how a line under the search
+      // runs the search again after an import.
       const [searchKey, setSearchKey] = useState(0);
       const openModalAndSearch = function(){
         setShowModal(true);

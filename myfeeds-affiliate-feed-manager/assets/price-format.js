@@ -7,7 +7,7 @@
  * the symbols, and hands the result over as window.myfeedsPriceFormat
  * (myfeeds_price_format_payload()). This file only applies it - the same
  * steps as myfeeds_format_price_with_spec() - so a tile in the picker reads
- * exactly like the card in the post. Byte-identical in Free and Pro.
+ * exactly like the card in the post. Byte-identical in both plugins.
  */
 ;(function () {
   'use strict';

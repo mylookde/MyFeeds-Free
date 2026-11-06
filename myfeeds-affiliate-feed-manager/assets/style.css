@@ -1,7 +1,7 @@
 /* 
  * MyFeeds Product Picker - Frontend Styles
  * Professional CSS with MAXIMUM SPECIFICITY to override theme CSS
- * Version: 4.1 - Grid layout, theme override, text containment
+ * Version: 4.2 - Grid and carousel, theme override, text containment
  */
 
 /* ==========================================================================
@@ -19,7 +19,8 @@
    Zero specificity on purpose: any width the theme gives wins. The cap
    is only for a column that has no width of its own, such as a
    full-width page-builder row, where an uncapped grid would stretch the
-   cards across the whole screen. */
+   cards across the whole screen. The carousel has the same pair in
+   carousel.css. */
 :where(.myfeeds-product-grid, .myfeeds-no-products) {
     max-width: 1200px;
     margin-left: auto;
@@ -34,10 +35,9 @@ html body .myfeeds-product-grid {
     display: flex !important;
     flex-wrap: wrap !important;
     justify-content: center !important;
-    /* gap + vertical padding read CSS vars so the Pro card-design
-       editor can drive them. Free has no UI to change them yet, but
-       the fallback values match the legacy hardcoded defaults so
-       free-only installs look identical to before. */
+    /* gap + vertical padding read CSS vars; the fallback values match
+       the legacy hardcoded defaults, so a site that sets none looks
+       identical to before. */
     gap: var(--myfeeds-grid-gap, 16px) !important;
     padding: var(--myfeeds-grid-padding-y, 24px) 0 !important;
     margin-top: 0 !important;
@@ -64,7 +64,8 @@ html body .myfeeds-product-grid.alignfull {
 /* Card widths derived from the gap variable so the row stays flush
    regardless of the chosen gap. Math: card_width = (row - (cols-1)
    * gap) / cols. */
-html body .myfeeds-product-grid .myfeeds-product-card {
+html body .myfeeds-product-grid .myfeeds-product-card,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
     width: calc((100% - 3 * var(--myfeeds-grid-gap, 16px)) / 4) !important;
     min-width: var(--myfeeds-card-min-w, 200px) !important;
     max-width: var(--myfeeds-card-max-w, 280px) !important;
@@ -74,13 +75,15 @@ html body .myfeeds-product-grid .myfeeds-product-card {
     html body .myfeeds-product-grid {
         justify-content: flex-start !important;
     }
-    html body .myfeeds-product-grid .myfeeds-product-card {
+    html body .myfeeds-product-grid .myfeeds-product-card,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
         width: calc((100% - var(--myfeeds-grid-gap, 16px)) / 2) !important;
     }
 }
 
 @media (max-width: 380px) {
-    html body .myfeeds-product-grid .myfeeds-product-card {
+    html body .myfeeds-product-grid .myfeeds-product-card,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
         width: 100% !important;
         max-width: 100% !important;
     }
@@ -91,7 +94,8 @@ html body .myfeeds-product-grid .myfeeds-product-card {
    min-width:0 prevents grid blowout from long content
    ========================================================================== */
 
-html body .myfeeds-product-grid .myfeeds-product-card {
+html body .myfeeds-product-grid .myfeeds-product-card,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
     display: flex !important;
     flex-direction: column !important;
     text-decoration: none !important;
@@ -111,7 +115,8 @@ html body .myfeeds-product-grid .myfeeds-product-card {
     min-width: 0 !important;
 }
 
-html body .myfeeds-product-grid .myfeeds-product-card:hover {
+html body .myfeeds-product-grid .myfeeds-product-card:hover,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card:hover {
     transform: scale(var(--myfeeds-card-hover-scale, 1.02)) !important;
     box-shadow: var(--myfeeds-card-hover-shadow, 0 4px 16px rgba(0,0,0,0.12)) !important;
     border-radius: var(--myfeeds-card-hover-radius, 4px) !important;
@@ -125,7 +130,10 @@ html body .myfeeds-product-grid .myfeeds-product-card:hover {
 @media (max-width: 768px) {
     html body .myfeeds-product-grid .myfeeds-product-card:hover,
     html body .myfeeds-product-grid .myfeeds-product-card:active,
-    html body .myfeeds-product-grid .myfeeds-product-card:focus {
+    html body .myfeeds-product-grid .myfeeds-product-card:focus,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card:hover,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card:active,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card:focus {
         transform: scale(var(--myfeeds-card-hover-scale, 1.02)) !important;
         box-shadow: var(--myfeeds-card-hover-shadow, 0 4px 16px rgba(0,0,0,0.12)) !important;
         border-radius: var(--myfeeds-card-hover-radius, 4px) !important;
@@ -137,7 +145,8 @@ html body .myfeeds-product-grid .myfeeds-product-card:hover {
    DISCOUNT BADGE - White pill, red text, on image
    ========================================================================== */
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image .myfeeds-discount-badge {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image .myfeeds-discount-badge,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image .myfeeds-discount-badge {
     position: absolute !important;
     top: var(--myfeeds-badge-top, 3%) !important;
     left: var(--myfeeds-badge-left, 3%) !important;
@@ -172,7 +181,8 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image .my
    PRODUCT IMAGE - Portrait ratio, contained
    ========================================================================== */
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image {
     position: relative !important;
     width: 100% !important;
     padding-bottom: var(--myfeeds-img-ratio, 125%) !important;
@@ -180,7 +190,8 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image {
     background: var(--myfeeds-img-bg, #f8f8f8) !important;
 }
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image img {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image img,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image img {
     position: absolute !important;
     top: 0 !important;
     left: 0 !important;
@@ -204,7 +215,8 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image img
    PRODUCT DETAILS - Text containment with ellipsis
    ========================================================================== */
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details {
     padding: var(--myfeeds-details-py, 12px) var(--myfeeds-details-px, 10px) !important;
     display: flex !important;
     flex-direction: column !important;
@@ -214,24 +226,30 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details {
 }
 
 /* Element order via CSS custom properties */
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand {
     order: var(--myfeeds-order-brand, 0) !important;
 }
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title {
     order: var(--myfeeds-order-title, 1) !important;
 }
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price {
     order: var(--myfeeds-order-price, 2) !important;
 }
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info {
     order: var(--myfeeds-order-shipping, 3) !important;
 }
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant {
     order: var(--myfeeds-order-merchant, 4) !important;
 }
 
 /* Brand */
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand {
     display: var(--myfeeds-brand-display, block) !important;
     font-weight: var(--myfeeds-brand-weight, 600) !important;
     font-size: var(--myfeeds-brand-size, 11px) !important;
@@ -248,7 +266,8 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
 }
 
 /* Title - single line with ellipsis */
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title {
     display: var(--myfeeds-title-display, block) !important;
     font-size: var(--myfeeds-title-size, 12px) !important;
     font-weight: var(--myfeeds-title-weight, 400) !important;
@@ -272,7 +291,8 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
    PRICE SECTION - Text containment, no column stretch
    ========================================================================== */
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price {
     display: var(--myfeeds-price-display, flex) !important;
     align-items: baseline !important;
     gap: 0 8px !important;
@@ -291,7 +311,8 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
 }
 
 /* OLD PRICE (strikethrough) */
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price {
     text-decoration: line-through !important;
     color: var(--myfeeds-old-price-color, #222) !important;
     font-size: var(--myfeeds-old-price-size, 15px) !important;
@@ -306,7 +327,8 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
 }
 
 /* Current price */
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price {
     font-weight: var(--myfeeds-price-weight, 600) !important;
     color: var(--myfeeds-price-color, #333) !important;
     font-size: var(--myfeeds-price-size, 15px) !important;
@@ -321,14 +343,16 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
 }
 
 /* Current price WITH DISCOUNT */
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount {
     color: var(--myfeeds-price-discount-color, #e74c3c) !important;
     font-size: var(--myfeeds-price-size, 15px) !important;
     font-family: var(--myfeeds-price-font, inherit) !important;
 }
 
 /* Price unavailable */
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-price-unavailable {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-price-unavailable,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-price-unavailable {
     font-size: 13px !important;
     color: #999 !important;
     font-style: italic !important;
@@ -343,7 +367,8 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
    SHIPPING INFO
    ========================================================================== */
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info {
     display: var(--myfeeds-shipping-display, block) !important;
     font-size: var(--myfeeds-shipping-size, 10px) !important;
     line-height: 1.3 !important;
@@ -363,7 +388,8 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .
    MERCHANT NAME
    ========================================================================== */
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant {
     display: var(--myfeeds-merchant-display, block) !important;
     font-size: var(--myfeeds-merchant-size, 10px) !important;
     line-height: 1.3 !important;
@@ -407,7 +433,8 @@ html body .myfeeds-no-products {
    Triggered by onerror handler adding .myfeeds-img-error class
    ========================================================================== */
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image.myfeeds-img-error {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image.myfeeds-img-error,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image.myfeeds-img-error {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -416,7 +443,8 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image.myf
     position: relative !important;
 }
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image.myfeeds-img-error::after {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image.myfeeds-img-error::after,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image.myfeeds-img-error::after {
     content: '' !important;
     position: absolute !important;
     top: 50% !important;
@@ -436,7 +464,9 @@ html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image.myf
    ========================================================================== */
 
 html body .myfeeds-product-grid .myfeeds-product-card,
-html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card {
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card,
+html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card,
+html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
     border-left: var(--myfeeds-card-border-width, 0) solid var(--myfeeds-card-border-color, transparent) !important;
     border-bottom: var(--myfeeds-card-border-width, 0) solid var(--myfeeds-card-border-color, transparent) !important;
     border-right: var(--myfeeds-card-border-width, 0) solid var(--myfeeds-card-border-color, transparent) !important;
@@ -444,48 +474,58 @@ html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-car
 }
 
 html body .myfeeds-product-grid .myfeeds-product-card:hover,
-html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card:hover {
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card:hover,
+html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card:hover,
+html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card:hover {
     margin-bottom: 0 !important;
 }
 
 /* Override inherited link colors */
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand {
     color: var(--myfeeds-brand-color, #222) !important;
     font-family: var(--myfeeds-brand-font, inherit) !important;
 }
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title {
     color: var(--myfeeds-title-color, #666) !important;
     font-family: var(--myfeeds-title-font, inherit) !important;
     text-transform: var(--myfeeds-title-transform, none) !important;
 }
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-old-price {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-old-price,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-old-price {
     color: var(--myfeeds-old-price-color, #222) !important;
     font-family: var(--myfeeds-old-price-font, inherit) !important;
 }
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-current-price {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-current-price,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-current-price {
     color: var(--myfeeds-price-color, #333) !important;
     font-family: var(--myfeeds-price-font, inherit) !important;
 }
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-current-price.has-discount {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-current-price.has-discount,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-current-price.has-discount {
     color: var(--myfeeds-price-discount-color, #e74c3c) !important;
     font-family: var(--myfeeds-price-font, inherit) !important;
 }
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info {
     color: var(--myfeeds-shipping-color, #999) !important;
     font-family: var(--myfeeds-shipping-font, inherit) !important;
 }
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant {
     color: var(--myfeeds-merchant-color, #666) !important;
     font-family: var(--myfeeds-merchant-font, inherit) !important;
 }
 
-html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-discount-badge {
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-discount-badge,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-discount-badge {
     color: var(--myfeeds-badge-color, #e74c3c) !important;
     background: var(--myfeeds-badge-bg, #fff) !important;
     font-family: var(--myfeeds-badge-font, inherit) !important;
@@ -502,19 +542,23 @@ html body .elementor-widget-container .myfeeds-product-grid {
     margin: 0 auto !important;
 }
 
-html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details {
+html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details,
+html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details {
     padding: var(--myfeeds-details-py, 12px) var(--myfeeds-details-px, 10px) !important;
 }
 
-html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price {
+html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price,
+html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price {
     font-size: var(--myfeeds-old-price-size, 15px) !important;
 }
 
-html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price {
+html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price,
+html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price {
     font-size: var(--myfeeds-price-size, 15px) !important;
 }
 
-html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount {
+html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount,
+html body .elementor-widget-container .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount {
     font-size: var(--myfeeds-price-size, 15px) !important;
 }
 
@@ -527,7 +571,8 @@ html body .elementor-widget-container .myfeeds-product-grid .myfeeds-product-car
    MISSING PRODUCT PLACEHOLDER
    ========================================================================== */
 
-html body .myfeeds-product-grid .myfeeds-product-card.myfeeds-missing-product {
+html body .myfeeds-product-grid .myfeeds-product-card.myfeeds-missing-product,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card.myfeeds-missing-product {
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
@@ -540,13 +585,15 @@ html body .myfeeds-product-grid .myfeeds-product-card.myfeeds-missing-product {
     text-decoration: none !important;
 }
 
-html body .myfeeds-product-grid .myfeeds-missing-product .myfeeds-missing-icon {
+html body .myfeeds-product-grid .myfeeds-missing-product .myfeeds-missing-icon,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-missing-product .myfeeds-missing-icon {
     font-size: 48px !important;
     margin-bottom: 12px !important;
     opacity: 0.6 !important;
 }
 
-html body .myfeeds-product-grid .myfeeds-missing-product .myfeeds-missing-text {
+html body .myfeeds-product-grid .myfeeds-missing-product .myfeeds-missing-text,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-missing-product .myfeeds-missing-text {
     font-size: 14px !important;
     color: #6c757d !important;
     text-align: center !important;
@@ -554,16 +601,46 @@ html body .myfeeds-product-grid .myfeeds-missing-product .myfeeds-missing-text {
 }
 
 @media (max-width: 767px) {
-    html body .myfeeds-product-grid .myfeeds-product-card.myfeeds-missing-product {
+    html body .myfeeds-product-grid .myfeeds-product-card.myfeeds-missing-product,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card.myfeeds-missing-product {
         min-height: 220px !important;
         padding: 16px !important;
     }
     
-    html body .myfeeds-product-grid .myfeeds-missing-product .myfeeds-missing-icon {
+    html body .myfeeds-product-grid .myfeeds-missing-product .myfeeds-missing-icon,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-missing-product .myfeeds-missing-icon {
         font-size: 36px !important;
     }
     
-    html body .myfeeds-product-grid .myfeeds-missing-product .myfeeds-missing-text {
+    html body .myfeeds-product-grid .myfeeds-missing-product .myfeeds-missing-text,
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-missing-product .myfeeds-missing-text {
         font-size: 12px !important;
+    }
+}
+
+
+/* ==========================================================================
+   CAROUSEL MODE — Override grid-specific widths
+   Splide manages slide widths automatically via perPage setting.
+   Cards inside slides must be 100% width without min/max constraints.
+   ========================================================================== */
+
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+}
+
+@media (max-width: 768px) {
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
+        width: 100% !important;
+    }
+}
+
+@media (max-width: 380px) {
+    html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card {
+        width: 100% !important;
+        max-width: none !important;
     }
 }

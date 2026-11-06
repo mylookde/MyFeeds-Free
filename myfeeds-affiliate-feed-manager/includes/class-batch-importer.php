@@ -934,9 +934,21 @@ class MyFeeds_Batch_Importer {
     private function extract_ids_from_blocks($blocks, &$product_ids, $post_id = 0) {
         foreach ($blocks as $block) {
             $block_name = $block['blockName'] ?? '';
-            
-            // Check block name for MyFeeds blocks
-            if (strpos($block_name, 'myfeeds') !== false) {
+
+            // A Look holds its products as points, not as a product list
+            // (rule 13: they are placed products too). feed_points() leaves
+            // out the Amazon points: they have no row, and every Quick Sync
+            // would count each one as gone from the feed.
+            if ($block_name === 'myfeeds/look') {
+                if (class_exists('MyFeeds_Look_Block')) {
+                    foreach (MyFeeds_Look_Block::feed_points($block) as $point) {
+                        if ($this->is_valid_product_id($point['id'])) {
+                            $product_ids[$point['id']] = true;
+                        }
+                    }
+                }
+            } elseif (strpos($block_name, 'myfeeds') !== false) {
+                // Check block name for MyFeeds blocks
                 MyFeeds_Logger::debug("=== BLOCK ATTR DIAGNOSIS (Post #{$post_id}) ===");
                 MyFeeds_Logger::info("BLOCK_DIAG Post #{$post_id}: blockName='{$block_name}', attrs_keys=[" . (!empty($block['attrs']) ? implode(', ', array_keys($block['attrs'])) : 'EMPTY') . "], selectedProducts_count=" . (isset($block['attrs']['selectedProducts']) ? count($block['attrs']['selectedProducts']) : 'N/A'));
                 MyFeeds_Logger::debug("Block: name='{$block_name}'");

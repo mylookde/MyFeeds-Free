@@ -1,0 +1,245 @@
+/* MyFeeds Carousel Styles v3 — Padding approach for clipping prevention */
+
+/* Container. Its width is the theme's, exactly like the grid's (see the
+   top of style.css): the content width by default, Wide or Full when the
+   author picks one. The 1200px cap only holds where the column has no
+   width of its own, and it has zero specificity so any theme width wins. */
+:where(.myfeeds-product-carousel.splide) {
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+:where(.myfeeds-product-carousel.splide.alignfull) {
+    max-width: none;
+}
+
+html body .myfeeds-product-carousel.splide {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding: 24px 0 !important;
+    position: relative !important;
+}
+
+html body .myfeeds-product-carousel.splide:not(.alignwide):not(.alignfull) {
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+
+/* Full width: the slides and the arrows keep the page's side padding,
+   so neither sits on the edge of the screen. The arrows are positioned
+   against the container's padding box, hence their own offset. */
+html body .myfeeds-product-carousel.splide.alignfull {
+    padding-left: var(--wp--style--root--padding-left, 16px) !important;
+    padding-right: var(--wp--style--root--padding-right, 16px) !important;
+}
+
+html body .myfeeds-product-carousel.splide.alignfull .splide__arrows {
+    left: var(--wp--style--root--padding-left, 16px) !important;
+    right: var(--wp--style--root--padding-right, 16px) !important;
+}
+
+/* Fewer products than places: carousel.js leaves Splide out, because a
+   loop would fill the empty places with clones of the same cards. The
+   slides stand as one centred row at the width a moving page gives
+   them. Splide's own stylesheet keeps an unmounted carousel hidden,
+   hence the visibility. */
+html body .myfeeds-product-carousel.myfeeds-carousel--still {
+    visibility: visible !important;
+}
+
+html body .myfeeds-product-carousel.myfeeds-carousel--still .splide__list {
+    display: flex !important;
+    justify-content: center !important;
+    gap: var(--myfeeds-slide-gap, 16px) !important;
+}
+
+html body .myfeeds-product-carousel.myfeeds-carousel--still .splide__slide {
+    width: calc((100% + var(--myfeeds-slide-gap, 16px)) / var(--myfeeds-per-page, 3) - var(--myfeeds-slide-gap, 16px)) !important;
+}
+
+/* Track: horizontal padding for arrows, vertical padding for shadows/badges/hover */
+html body .myfeeds-product-carousel .splide__track {
+    padding: 16px 40px 16px 40px !important;
+}
+
+/* Slides */
+html body .myfeeds-product-carousel .splide__slide {
+    display: flex !important;
+    padding: 4px 0 !important;
+}
+
+/* Arrow container — spans full carousel for vertical centering */
+html body .myfeeds-product-carousel .splide__arrows {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    pointer-events: none !important;
+}
+
+/* Arrow Styling — positioned at vertical center of track.
+   --myfeeds-arrow-color comes off the container's style attribute, one
+   value per block. Until August it arrived as a per-block <style> tag
+   keyed on the container id, which meant the same forty lines of CSS
+   once per carousel on the page. The defaults here are the colours that
+   tag used to print, so a page cached before the change and one rendered
+   after it look the same. */
+html body .myfeeds-product-carousel .splide__arrow {
+    position: absolute !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    z-index: 10 !important;
+    pointer-events: all !important;
+    visibility: visible !important;
+    background: #fff !important;
+    border: 1px solid var(--myfeeds-arrow-color, #333333) !important;
+    border-radius: 50% !important;
+    width: 36px !important;
+    height: 36px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+    opacity: 1 !important;
+    transition: all 0.2s ease !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+}
+
+html body .myfeeds-product-carousel .splide__arrow:hover {
+    background: var(--myfeeds-arrow-color, #333333) !important;
+    border-color: var(--myfeeds-arrow-color, #333333) !important;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35) !important;
+}
+
+html body .myfeeds-product-carousel .splide__arrow svg {
+    fill: var(--myfeeds-arrow-color, #333333) !important;
+    width: 16px !important;
+    height: 16px !important;
+}
+
+html body .myfeeds-product-carousel .splide__arrow:hover svg {
+    fill: #fff !important;
+}
+
+/* Left arrow mirrored */
+html body .myfeeds-product-carousel .splide__arrow--prev {
+    left: 0 !important;
+    transform: translateY(-50%) scaleX(-1) !important;
+}
+
+html body .myfeeds-product-carousel .splide__arrow--next {
+    right: 0 !important;
+}
+
+/* Mobile: arrows overlaid on cards, reduced track padding */
+@media (max-width: 480px) {
+    /* Zero, not the 12px 4px this rule used to carry: the per-block tag
+       overrode it on every carousel, so zero is what phones have always
+       actually rendered. */
+    html body .myfeeds-product-carousel .splide__track {
+        padding: 0 !important;
+    }
+
+    html body .myfeeds-product-carousel .splide__arrow {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        width: 32px !important;
+        height: 32px !important;
+        z-index: 20 !important;
+        background: transparent !important;
+        border: 2px solid var(--myfeeds-arrow-color, #333333) !important;
+        border-radius: 50% !important;
+        box-shadow: none !important;
+        pointer-events: all !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 0 !important;
+    }
+    
+    html body .myfeeds-product-carousel .splide__arrow svg {
+        width: 14px !important;
+        height: 14px !important;
+    }
+    
+    html body .myfeeds-product-carousel .splide__arrow--prev {
+        left: -2px !important;
+        top: 45% !important;
+        transform: scaleX(-1) !important;
+    }
+    
+    html body .myfeeds-product-carousel .splide__arrow--next {
+        right: -2px !important;
+        top: 45% !important;
+        transform: none !important;
+    }
+}
+
+/* Tablet breakpoint */
+@media (min-width: 481px) and (max-width: 768px) {
+    html body .myfeeds-product-carousel .splide__track {
+        padding: 14px 20px !important;
+    }
+}
+
+/* Missing placeholders in carousel */
+html body .myfeeds-product-carousel .splide__slide .myfeeds-missing-product {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}
+
+/* Carousel cards used to hardcode their own, smaller typography here.
+   Every one of these selectors carries more classes than the
+   variable-driven rule in style.css, so it won - and that meant no
+   slider in the Card Design editor had any effect on a carousel. The
+   same mistake lived in a mobile media query in style.css until May.
+
+   The numbers survive as fallbacks. PHP prints every variable on any
+   page with a card, so in practice they never apply; they only matter if
+   the variables block is missing. */
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image {
+    padding-bottom: var(--myfeeds-img-ratio, 100%) !important;
+}
+
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details {
+    padding: var(--myfeeds-details-py, 8px) var(--myfeeds-details-px, 8px) !important;
+}
+
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-brand {
+    font-size: var(--myfeeds-brand-size, 10px) !important;
+}
+
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-title {
+    font-size: var(--myfeeds-title-size, 11px) !important;
+}
+
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-current-price.has-discount {
+    font-size: var(--myfeeds-price-size, 13px) !important;
+}
+
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-product-price .myfeeds-old-price {
+    font-size: var(--myfeeds-old-price-size, 13px) !important;
+}
+
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-shipping-info {
+    font-size: var(--myfeeds-shipping-size, 9px) !important;
+}
+
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-details .myfeeds-merchant {
+    font-size: var(--myfeeds-merchant-size, 9px) !important;
+}
+
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-discount-badge {
+    font-size: var(--myfeeds-badge-size, 11px) !important;
+    padding: 4px 10px !important;
+}
+
+/* Image fallback in carousel */
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image.myfeeds-img-error {
+    padding-bottom: 100% !important;
+}

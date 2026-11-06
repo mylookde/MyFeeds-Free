@@ -84,10 +84,30 @@ class MyFeeds_Product_Picker {
         // Register block script
         // Every price the editor shows goes through the site's price format,
         // the same rule the card on the page uses.
+        $bundle_deps = ['wp-blocks', 'wp-components', 'wp-element', 'wp-i18n', myfeeds_price_format_script()];
+
+        // The sidebar: the display (grid, carousel, recommendation card,
+        // comparison table) and the texts of the last two. A dependency of
+        // the bundle so it loads first: the `blocks.registerBlockType`
+        // filter in it has to be in place before the bundle registers the
+        // block, otherwise every attribute but selectedProducts is dropped
+        // on save.
+        $inspector_path = MYFEEDS_PLUGIN_DIR . 'assets/picker-inspector.js';
+        if (file_exists($inspector_path)) {
+            wp_register_script(
+                'myfeeds-picker-inspector',
+                MYFEEDS_PLUGIN_URL . 'assets/picker-inspector.js',
+                ['wp-hooks', 'wp-compose', 'wp-block-editor', 'wp-components', 'wp-element', 'wp-api-fetch', myfeeds_price_format_script()],
+                filemtime($inspector_path),
+                true
+            );
+            $bundle_deps[] = 'myfeeds-picker-inspector';
+        }
+
         $script_registered = wp_register_script(
             'myfeeds-product-picker-editor',
             MYFEEDS_PLUGIN_URL . 'build/index.js',
-            ['wp-blocks', 'wp-components', 'wp-element', 'wp-i18n', myfeeds_price_format_script()],
+            $bundle_deps,
             $script_ver,
             true
         );
@@ -96,17 +116,37 @@ class MyFeeds_Product_Picker {
             MyFeeds_External_Debug::log("BLOCK DEBUG: Failed to register JavaScript!");
         }
 
+        // Inline `before` script that patches the block's attribute schema
+        // the moment the bundle calls registerBlockType(). The same filter
+        // exists in picker-inspector.js too, but this inline version ships
+        // with the bundle handle and prints right before its <script> tag,
+        // whatever order the scripts load in. One list for both and for
+        // the render: myfeeds_picker_block_attributes().
+        if ($script_registered) {
+            wp_add_inline_script('myfeeds-product-picker-editor', myfeeds_picker_attributes_inline_js(), 'before');
+        }
+
         // The editor says what the card says ("Price on request"), in the
         // site's language once the language pack carries the bundle's strings.
         if ($script_registered && function_exists('wp_set_script_translations')) {
             wp_set_script_translations('myfeeds-product-picker-editor', 'myfeeds-affiliate-feed-manager');
         }
         
+        // The texts of a recommendation card or comparison table. A style
+        // the editor's iframe gets, so a dependency of the block's own.
+        $pick_css_path = MYFEEDS_PLUGIN_DIR . 'assets/pick-panel.css';
+        wp_register_style(
+            'myfeeds-pick-panel',
+            MYFEEDS_PLUGIN_URL . 'assets/pick-panel.css',
+            [],
+            file_exists($pick_css_path) ? filemtime($pick_css_path) : MYFEEDS_VERSION
+        );
+
         // Register block styles
         $editor_style_registered = wp_register_style(
             'myfeeds-product-picker-editor',
             MYFEEDS_PLUGIN_URL . 'assets/editor.css',
-            [],
+            ['myfeeds-pick-panel'],
             $editor_css_ver
         );
         
@@ -131,19 +171,14 @@ class MyFeeds_Product_Picker {
             'style' => 'myfeeds-product-picker-frontend',
             'render_callback' => [$this, 'render_callback'],
             // Wide and Full in the block toolbar. Without an alignment
-            // the grid is as wide as the text around it; the theme
-            // decides what Wide and Full mean. src/index.js declares the
-            // same, because the editor takes the script's settings over
-            // these.
+            // the grid or carousel is as wide as the text around it; the
+            // theme decides what Wide and Full mean. src/index.js declares
+            // the same, because the editor takes the script's settings
+            // over these.
             'supports' => [
                 'align' => ['wide', 'full'],
             ],
-            'attributes' => [
-                'selectedProducts' => [
-                    'type' => 'array',
-                    'default' => [],
-                ],
-            ],
+            'attributes' => myfeeds_picker_block_attributes(),
         ]);
         
         if ($block_registered && class_exists('MyFeeds_External_Debug')) {
@@ -158,15 +193,18 @@ class MyFeeds_Product_Picker {
             MyFeeds_External_Debug::log("ASSETS DEBUG: Enqueuing editor assets...");
         }
         
-        // Pass data to JavaScript
-        $localize_result = wp_localize_script('myfeeds-product-picker-editor', 'myfeedsData', [
+        // Pass data to JavaScript. The sidebar loads first and reads the
+        // same object, so it gets it too.
+        $localize_data = [
             'apiUrl' => rest_url('myfeeds/v1/'),
             'pluginUrl' => MYFEEDS_PLUGIN_URL,
             'nonce' => wp_create_nonce('wp_rest'),
-            'isFree' => true,
-            'isPro' => false,
-            'isPremium' => false,
-        ]);
+            'displays' => class_exists('MyFeeds_Picker_Displays') ? MyFeeds_Picker_Displays::editor_config() : null,
+        ];
+        if (wp_script_is('myfeeds-picker-inspector', 'registered')) {
+            wp_localize_script('myfeeds-picker-inspector', 'myfeedsData', $localize_data);
+        }
+        $localize_result = wp_localize_script('myfeeds-product-picker-editor', 'myfeedsData', $localize_data);
         
         if (!$localize_result && class_exists('MyFeeds_External_Debug')) {
             MyFeeds_External_Debug::log("ASSETS DEBUG: Failed to localize script data!");
@@ -178,12 +216,14 @@ class MyFeeds_Product_Picker {
     public function enqueue_frontend_assets() {
         if (has_block('myfeeds/product-picker')) {
             wp_enqueue_style('myfeeds-product-picker-frontend');
+            MyFeeds_Picker_Carousel::enqueue_for_post();
         }
     }
 
     /**
-     * The class attribute of the block's outer element, with a leading
-     * space, ready to go into the opening tag.
+     * The class attribute of the block's outer element - the grid, the
+     * carousel or the editor's empty note - with a leading space, ready
+     * to go into the opening tag.
      *
      * Wide and Full are drawn by the theme (.alignwide / .alignfull), so
      * the block only has to carry the class. While WordPress renders the
@@ -236,6 +276,10 @@ class MyFeeds_Product_Picker {
      *   point (see that method's docblock).
      * - The placeholder helper (render_missing_product_placeholder)
      *   wraps its inputs with intval / esc_attr / esc_html via sprintf.
+     * - The carousel container's two dynamic attributes are built by
+     *   MyFeeds_Picker_Carousel and go through esc_attr: the arrow colour
+     *   after sanitize_hex_color, and the Splide options after
+     *   wp_json_encode.
      * - The optional Schema.org JSON-LD <script> appended at the end is
      *   built by MyFeeds_Schema_Generator::product_list_jsonld(), which
      *   uses wp_json_encode with JSON_HEX_TAG | JSON_HEX_AMP so embedded
@@ -260,7 +304,20 @@ class MyFeeds_Product_Picker {
             $cached_card_design = MyFeeds_Settings_Manager::get_card_design();
         }
 
-        $output = '<div' . self::wrapper_attributes($attrs, 'myfeeds-product-grid') . '>';
+        $is_carousel = (($attrs['displayMode'] ?? 'grid') === 'carousel');
+
+        // Recommendation card or comparison table: the loop below still
+        // decides which products survive, and they are drawn after it,
+        // because a label is a statement about all of them.
+        $pick_style = class_exists('MyFeeds_Picker_Displays') ? MyFeeds_Picker_Displays::style_for($attrs, false) : '';
+        $pick_items = array();
+        $render_card = function ($product) use ($placeholder_url, $cached_card_design) {
+            return $this->render_product_card($product, $placeholder_url, $cached_card_design);
+        };
+
+        $output = $is_carousel
+            ? MyFeeds_Picker_Carousel::open($attrs)
+            : '<div' . self::wrapper_attributes($attrs, 'myfeeds-product-grid') . '>';
         $rendered_count = 0;
         $rendered_products = array();
 
@@ -274,6 +331,9 @@ class MyFeeds_Product_Picker {
             }
             
             $requested_id = (string)$current_item['id'];
+            // What a label or favourite is stored by, whatever the card
+            // resolves to below.
+            $slot_id      = $requested_id;
             
             // Use multi-source resolver (single DB query in DB mode)
             if (class_exists('MyFeeds_Product_Resolver')) {
@@ -309,7 +369,8 @@ class MyFeeds_Product_Picker {
             
             if (!$product_data) {
                 myfeeds_log('PP_resolve_failed: id=' . $requested_id, 'error');
-                $output .= $this->render_missing_product_placeholder($idx, 'not_found', $requested_id);
+                $placeholder_html = $this->render_missing_product_placeholder($idx, 'not_found', $requested_id);
+                $output .= $is_carousel ? MyFeeds_Picker_Carousel::slide($placeholder_html) : $placeholder_html;
                 continue;
             }
 
@@ -349,21 +410,53 @@ class MyFeeds_Product_Picker {
             $returned_id = isset($product_data['id']) ? (string)$product_data['id'] : '';
             if ($returned_id !== $requested_id && $returned_id !== '') {
                 myfeeds_log('PP_id_mismatch: requested=' . $requested_id . ', got=' . $returned_id, 'error');
-                $output .= $this->render_missing_product_placeholder($idx, 'id_mismatch', $requested_id);
+                $placeholder_html = $this->render_missing_product_placeholder($idx, 'id_mismatch', $requested_id);
+                $output .= $is_carousel ? MyFeeds_Picker_Carousel::slide($placeholder_html) : $placeholder_html;
                 continue;
             }
 
-            $output .= $this->render_product_card($product_data, $placeholder_url, $cached_card_design);
+            if ($pick_style !== '') {
+                $pick_item    = MyFeeds_Picker_Displays::item($slot_id, $product_data, $data_source === 'fallback' ? 'copy' : 'feed');
+                $pick_items[] = $pick_item;
+                // The structured data names what the card names.
+                $rendered_products[] = array('title' => MyFeeds_Picker_Displays::card_title($pick_item)) + $product_data;
+                continue;
+            }
+
+            $card_html = $render_card($product_data);
+            $output .= $is_carousel ? MyFeeds_Picker_Carousel::slide($card_html) : $card_html;
             $rendered_products[] = $product_data;
             $rendered_count++;
         }
 
-        $output .= '</div>';
+        if ($pick_style !== '') {
+            $output = MyFeeds_Picker_Displays::render(
+                $pick_items,
+                $attrs,
+                $pick_style,
+                isset($products[0]['id']) ? (string) $products[0]['id'] : '',
+                $render_card,
+                // Every item here is a feed product or its saved copy.
+                function () {
+                    return '';
+                },
+                self::wrapper_attributes($attrs, MyFeeds_Picker_Displays::wrapper_classes($pick_style))
+            );
+            if ($output === '') {
+                return '';
+            }
+            if (class_exists('MyFeeds_Schema_Generator') && !empty($rendered_products)) {
+                $output .= MyFeeds_Schema_Generator::product_list_jsonld($rendered_products);
+            }
+            return $output;
+        }
+
+        $output .= $is_carousel ? MyFeeds_Picker_Carousel::close() : '</div>';
 
         // Schema.org JSON-LD ItemList — Google reads this and surfaces the
         // cards as a product list with rich snippets. Keep it after the
-        // grid so the visual content always renders even if the schema
-        // module is missing for some reason.
+        // grid/carousel so the visual content always renders even if the
+        // schema module is missing for some reason.
         if (class_exists('MyFeeds_Schema_Generator') && !empty($rendered_products)) {
             $output .= MyFeeds_Schema_Generator::product_list_jsonld($rendered_products);
         }
@@ -531,6 +624,29 @@ class MyFeeds_Product_Picker {
     }
     
     /**
+     * The price a card shows and the one it strikes through. One function,
+     * because a label like "Budget pick" compares what the card says and
+     * must not read a different number from the same row.
+     *
+     * @param array $product
+     * @return array{0:float,1:float} price, old price
+     */
+    public static function effective_prices(array $product) {
+        $price      = (float) ($product['price']      ?? 0);
+        $sale_price = (float) ($product['sale_price'] ?? 0);
+        $old_price  = (float) ($product['old_price']  ?? 0);
+
+        if ($old_price === 0.0 && $sale_price > 0 && $sale_price < $price) {
+            $old_price = $price;
+            $price = $sale_price;
+        }
+        if ($old_price > 0 && $sale_price > 0 && $sale_price < $old_price) {
+            $price = $sale_price;
+        }
+        return array($price, $old_price);
+    }
+
+    /**
      * Render an individual product card.
      *
      * Inputs from $product are kept in raw form throughout this method;
@@ -546,7 +662,7 @@ class MyFeeds_Product_Picker {
      *
      * @param array       $product         Resolved product data (raw).
      * @param string      $placeholder_url Fallback image URL.
-     * @param array|null  $card_design     Reserved for Premium card-design overrides.
+     * @param array|null  $card_design     The site's card settings (how the picture is fitted).
      * @return string                       Fully escaped HTML.
      */
     private function render_product_card($product, $placeholder_url, $card_design = null) {
@@ -556,22 +672,12 @@ class MyFeeds_Product_Picker {
         $merchant       = (string) ($product['merchant']       ?? '');
         $affiliate_link = myfeeds_repair_saved_link((string) ($product['affiliate_link'] ?? '#'));
 
-        $price      = (float) ($product['price']      ?? 0);
-        $sale_price = (float) ($product['sale_price'] ?? 0);
-        $old_price  = (float) ($product['old_price']  ?? 0);
+        list($price, $old_price) = self::effective_prices($product);
 
         if (class_exists('MyFeeds_Affiliate_Product_Picker')) {
             $product_id_for_log = isset($product['id']) ? (string) $product['id'] : '';
             $discount_log = isset($product['discount_percentage']) ? (string) $product['discount_percentage'] : 'none';
-            MyFeeds_Affiliate_Product_Picker::log("FRONTEND RENDER: {$product_id_for_log} - price: $price, old_price: $old_price, sale_price: $sale_price, discount_percentage: {$discount_log}");
-        }
-
-        if ($old_price === 0.0 && $sale_price > 0 && $sale_price < $price) {
-            $old_price = $price;
-            $price = $sale_price;
-        }
-        if ($old_price > 0 && $sale_price > 0 && $sale_price < $old_price) {
-            $price = $sale_price;
+            MyFeeds_Affiliate_Product_Picker::log("FRONTEND RENDER: {$product_id_for_log} - price: $price, old_price: $old_price, discount_percentage: {$discount_log}");
         }
 
         $currency = (string) ($product['currency'] ?? 'EUR');
@@ -590,10 +696,15 @@ class MyFeeds_Product_Picker {
         $shipping_text_raw = $this->format_shipping_info_raw($product['shipping'] ?? null, $currency);
 
         // ── Output composition. Every dynamic value is escaped here. ──
-        $card_html  = '<a class="myfeeds-product-card" href="' . esc_url($affiliate_link) . '" target="_blank" rel="nofollow sponsored noopener">';
+        $card_class = empty($product['pick']['favourite']) ? 'myfeeds-product-card' : 'myfeeds-product-card is-favourite';
+        $card_html  = '<a class="' . $card_class . '" href="' . esc_url($affiliate_link) . '" target="_blank" rel="nofollow sponsored noopener">';
+
+        // A price the page cannot vouch for, and the discount and shipping
+        // cost beside it.
+        $hide_price = !empty($product['hide_price']);
 
         $card_html .= '<div class="myfeeds-product-image">';
-        if ($discount_percent > 0) {
+        if ($discount_percent > 0 && !$hide_price) {
             $card_html .= '<div class="myfeeds-discount-badge">-' . intval($discount_percent) . '%</div>';
         }
         // Best-effort URL upgrade — handles known CDN patterns (Shopify,
@@ -657,6 +768,11 @@ class MyFeeds_Product_Picker {
                     break;
 
                 case 'price':
+                    // Amazon beside another shop: see the top of
+                    // class-picker-displays.php.
+                    if ($hide_price || !empty($product['pick']['hide_price'])) {
+                        break;
+                    }
                     $card_html .= '<div class="myfeeds-product-price">';
                     if ($old_price > $price && $price > 0) {
                         $card_html .= '<span class="myfeeds-old-price">' . esc_html(myfeeds_format_price($old_price, $currency)) . '</span> ';
@@ -670,7 +786,7 @@ class MyFeeds_Product_Picker {
                     break;
 
                 case 'shipping':
-                    if ($shipping_text_raw !== '') {
+                    if ($shipping_text_raw !== '' && !$hide_price) {
                         $card_html .= '<div class="myfeeds-shipping-info">' . esc_html($shipping_text_raw) . '</div>';
                     }
                     break;
@@ -682,6 +798,12 @@ class MyFeeds_Product_Picker {
                     break;
             }
         }
+
+        // Insertion point at the foot of the details block: the label,
+        // sentence and button of a recommendation card or comparison
+        // table (MyFeeds_Picker_Displays::card_extra()).
+        $card_html .= apply_filters('myfeeds_product_card_details_extra', '', $product);
+
         $card_html .= '</div>';
         $card_html .= '</a>';
 

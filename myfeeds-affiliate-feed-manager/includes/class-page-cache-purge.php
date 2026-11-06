@@ -182,8 +182,8 @@ class MyFeeds_Page_Cache_Purge {
      * Synced patterns, templates and template parts have no address of
      * their own and sit on many pages at once; clearing those pages would
      * mean clearing most of the site every night, so they are left to the
-     * cache's own expiry. The storefront has its own, more exact purge
-     * (MyFeeds_Cache_Compat::purge_storefront() in Pro).
+     * cache's own expiry. A storefront, where a site has one, has its own,
+     * more exact purge (MyFeeds_Cache_Compat::purge_storefront()).
      *
      * @return int[]
      */

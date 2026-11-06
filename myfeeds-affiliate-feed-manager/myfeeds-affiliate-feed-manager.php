@@ -390,8 +390,9 @@ add_action('admin_init', function() {
 
         // Two indexes the table never needed: idx_external_id repeats the
         // leading column of the unique key, idx_status has three values.
-        // Not a schema-version step on purpose - Pro shares that option
-        // and has steps of its own above 2.3 that Free must not skip past.
+        // Not a schema-version step on purpose - the option is shared with
+        // the other MyFeeds plugin, which has steps of its own above 2.3
+        // that this one must not skip past.
         if (!get_option('myfeeds_products_index_prune_v1')) {
             MyFeeds_DB_Manager::prune_redundant_indexes();
             update_option('myfeeds_products_index_prune_v1', 1, false);
@@ -424,6 +425,7 @@ function myfeeds_load_includes() {
     // Load all include files
     $includes_dir = MYFEEDS_PLUGIN_DIR . 'includes/';
     $include_files = array(
+        'myfeeds-asset-ver.php' => 'Asset version (stamp a file with the file: MYFEEDS_VERSION does not move between releases, so anything stamped with it is frozen in the browser of whoever opened it once)',
         'myfeeds-text.php' => 'Text repair (one definition of valid UTF-8: a regex without the u modifier ate the first byte of every em dash and a "force UTF-8" step turned the rest into question marks)',
         'myfeeds-price-format.php' => 'Price format (one rule for every price on the page and in the editor, in the site\'s locale: the cards wrote "150,00 £" on English sites)',
         'myfeeds-content-sources.php' => 'Content sources (where a product can be placed: every public post type, synced patterns, block widgets and block-theme templates - not only posts and pages, which is all the nightly Quick Sync used to read)',
@@ -449,6 +451,10 @@ function myfeeds_load_includes() {
         'class-notice-scope.php' => 'Notice scope (on a MyFeeds screen only MyFeeds speaks: other plugins\' notices come off the notice hooks there and nowhere else)',
         'class-feature-previews.php' => 'Feature Preview Pages',
         'class-schema-generator.php' => 'Schema.org JSON-LD Generator',
+        'myfeeds-picker-attributes.php' => 'Picker attributes (the one list of the block\'s attributes, for the render and the editor)',
+        'class-picker-carousel.php' => 'Picker Carousel (the carousel frame, its Splide options and assets)',
+        'class-picker-displays.php' => 'Picker Displays (recommendation card and comparison table)',
+        'class-look-block.php' => 'Look Block (own photo with numbered points linking to the products in it)',
         'class-product-picker.php' => 'Product Picker Class',
         'class-product-resolver.php' => 'Product Resolver (Multi-Source Fallback)',
         'class-atomic-index-manager.php' => 'Atomic Index Manager',
@@ -627,6 +633,13 @@ class MyFeeds_Affiliate_Product_Picker {
                 myfeeds_log("Initializing product_picker");
                 $this->product_picker->init();
             }
+
+            // The recommendation card and the comparison table hang their
+            // texts on the card and their REST routes here. The Look block
+            // starts itself when its file loads.
+            if (class_exists('MyFeeds_Picker_Displays')) {
+                MyFeeds_Picker_Displays::init();
+            }
             
             // Initialize Batch Importer
             if ($this->batch_importer && method_exists($this->batch_importer, 'init')) {
@@ -741,6 +754,13 @@ class MyFeeds_Affiliate_Product_Picker {
 
             self::create_database_tables();
             self::set_default_options();
+
+            // Coming from the other MyFeeds plugin, a site may hold more
+            // than one product source; the extra ones are set aside before
+            // a first import could touch them.
+            if (class_exists('MyFeeds_Feed_Manager')) {
+                MyFeeds_Feed_Manager::keep_one_source();
+            }
             
             // Schedule daily feed update at 03:00 AM
             self::schedule_daily_cron();

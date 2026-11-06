@@ -1,0 +1,62 @@
+/* The texts of a recommendation card or comparison table, under the block. */
+.myfeeds-pick-panel {
+    margin-top: 16px;
+    padding: 14px;
+    border: 1px solid rgba(102, 126, 234, .25);
+    border-radius: 12px;
+    background: rgba(102, 126, 234, .04);
+    font-size: 13px;
+}
+.myfeeds-pick-panel__head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+.myfeeds-pick-panel__head span { color: #5b5673; }
+.myfeeds-pick-panel__empty { margin: 8px 0 0; color: #5b5673; }
+.myfeeds-pick-row {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+    gap: 12px;
+    padding: 12px 0;
+    border-top: 1px solid rgba(102, 126, 234, .18);
+}
+.myfeeds-pick-row__thumb {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 10px;
+    color: #777;
+    text-align: center;
+}
+.myfeeds-pick-row__thumb img { width: 100%; height: 100%; object-fit: contain; }
+.myfeeds-pick-row__body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.myfeeds-pick-row__name { font-weight: 600; overflow-wrap: anywhere; }
+.myfeeds-pick-row__chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.myfeeds-pick-chip {
+    padding: 3px 9px;
+    border: 1px solid rgba(102, 126, 234, .45);
+    border-radius: 999px;
+    background: #fff;
+    color: #4a4570;
+    font-size: 12px;
+    cursor: pointer;
+}
+.myfeeds-pick-chip.is-on { background: #667eea; border-color: #667eea; color: #fff; }
+.myfeeds-pick-row__field {
+    width: 100%;
+    min-height: 32px;
+    padding: 4px 8px;
+    box-sizing: border-box;
+    border: 1px solid #c9c9d6;
+    border-radius: 6px;
+    font-size: 13px;
+}
+.myfeeds-pick-row__field::placeholder { color: #6b6b7b; opacity: 1; }
+.myfeeds-pick-row__fav { white-space: nowrap; font-size: 12px; align-self: start; padding-top: 2px; }
+@media (max-width: 600px) {
+    .myfeeds-pick-row { grid-template-columns: 44px minmax(0, 1fr); }
+    .myfeeds-pick-row__thumb { width: 44px; height: 44px; }
+    .myfeeds-pick-row__fav { grid-column: 2; }
+}

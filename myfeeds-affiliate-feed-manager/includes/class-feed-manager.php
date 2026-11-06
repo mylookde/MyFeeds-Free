@@ -15,6 +15,8 @@ class MyFeeds_Feed_Manager {
     
     const OPTION_KEY = 'myfeeds_feeds';
     const INDEX_FILE = 'myfeeds-feed-index.json';
+    /** Feed entries kept unchanged, out of the list, when a site holds more than one source. */
+    const SET_ASIDE_OPTION = 'myfeeds_feeds_set_aside';
 
     private $smart_mapper;
 
@@ -51,25 +53,19 @@ class MyFeeds_Feed_Manager {
     /**
      * Return feeds that should be visible in editor/list UIs.
      * Drops stale entries (empty name or url) and self-heals the option
-     * so the next read is consistent. In Free, single-feed, the option
-     * is also trimmed to at most one entry so legacy multi-feed leftovers
-     * from earlier installs cannot pollute the mapping editor dropdown.
+     * so the next read is consistent. A list with more than one product
+     * source keeps one and sets the others aside (keep_one_source()).
      */
     public static function get_displayable_feeds() {
+        self::keep_one_source();
         $raw = get_option(self::OPTION_KEY, array());
         if (!is_array($raw)) {
             return array();
         }
         $valid = array();
         foreach ($raw as $entry) {
-            if (!is_array($entry)) continue;
-            $name = isset($entry['name']) ? trim((string) $entry['name']) : '';
-            $url  = isset($entry['url'])  ? trim((string) $entry['url'])  : '';
-            if ($name === '' || $url === '') continue;
+            if (!self::is_listed_entry($entry)) continue;
             $valid[] = $entry;
-        }
-        if (count($valid) > 1) {
-            $valid = array_slice($valid, 0, 1);
         }
         $valid = array_values($valid);
         if (count($valid) !== count($raw)) {
@@ -77,8 +73,176 @@ class MyFeeds_Feed_Manager {
         }
         return $valid;
     }
+
+    /** An entry the feed list can show: it has a name and a URL. */
+    private static function is_listed_entry($entry) {
+        if (!is_array($entry)) {
+            return false;
+        }
+        $name = isset($entry['name']) ? trim((string) $entry['name']) : '';
+        $url  = isset($entry['url'])  ? trim((string) $entry['url'])  : '';
+        return $name !== '' && $url !== '';
+    }
+
+    /**
+     * This plugin keeps one product source up to date. A list that holds
+     * more - the feeds of an earlier setup with the other MyFeeds plugin -
+     * keeps the feed with the most products placed in posts (the first on
+     * a tie, which is the one an older version kept) and sets every other
+     * entry aside, unchanged, in myfeeds_feeds_set_aside: nothing about
+     * them is lost, and the plugin that wrote them takes them back.
+     *
+     * An entry fetched from a network's API cannot be updated here and
+     * goes aside too, even when it is the only one: left in the list, its
+     * snapshot would only grow older.
+     *
+     * Until 1.1.0 the list was cut to its first entry instead, and every
+     * other feed was gone for good.
+     *
+     * Their products leave the importer's sight with them: what a post
+     * still shows is archived and renders as it was (rule 12), the rest
+     * goes with the next full import, as for any feed no longer listed.
+     *
+     * @return int How many entries were set aside.
+     */
+    public static function keep_one_source() {
+        $raw = get_option(self::OPTION_KEY, array());
+        if (!is_array($raw) || empty($raw)) {
+            return 0;
+        }
+
+        $keepable = array();
+        $aside    = array();
+        foreach ($raw as $i => $entry) {
+            if (!self::is_listed_entry($entry)) {
+                continue;
+            }
+            if (!empty($entry['api']) && is_array($entry['api'])) {
+                $aside[$i] = $entry;
+            } elseif (class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($entry)) {
+                // The sample products are no source; they stay only while
+                // nothing else is there.
+                $aside[$i] = $entry;
+            } else {
+                $keepable[$i] = $entry;
+            }
+        }
+        // Nothing but the samples: they stay.
+        if (empty($keepable) && empty(array_filter($aside, function ($e) { return !empty($e['api']); }))) {
+            return 0;
+        }
+        if (count($keepable) <= 1 && count($aside) === 0) {
+            return 0;
+        }
+
+        $keep_index = null;
+        if (count($keepable) > 1) {
+            $placed = self::placed_count_by_feed();
+            $best   = -1;
+            foreach ($keepable as $i => $entry) {
+                $count = (int) ($placed[(int) ($entry['stable_id'] ?? 0)] ?? 0);
+                if ($count > $best) {
+                    $best = $count;
+                    $keep_index = $i;
+                }
+            }
+        } elseif (count($keepable) === 1) {
+            $keep_index = key($keepable);
+        }
+        foreach ($keepable as $i => $entry) {
+            if ($i !== $keep_index) {
+                $aside[$i] = $entry;
+            }
+        }
+        ksort($aside);
+
+        // Written first: if the request ends in between, an entry is in
+        // both lists for a moment, never in neither.
+        $kept_aside = get_option(self::SET_ASIDE_OPTION, array());
+        $kept_aside = is_array($kept_aside) ? array_values($kept_aside) : array();
+        foreach ($aside as $entry) {
+            if (!self::holds_entry($kept_aside, $entry)) {
+                $kept_aside[] = $entry;
+            }
+        }
+        update_option(self::SET_ASIDE_OPTION, $kept_aside, false);
+        update_option(self::OPTION_KEY, $keep_index === null ? array() : array($raw[$keep_index]));
+
+        myfeeds_log('Feeds: one product source per site - kept '
+            . ($keep_index === null ? 'none' : '"' . (string) $raw[$keep_index]['name'] . '"')
+            . ', set aside ' . count($aside) . ' (' . implode(', ', array_map(function ($e) {
+                return '"' . (string) $e['name'] . '"';
+            }, $aside)) . ')', 'info');
+        return count($aside);
+    }
+
+    /** The same entry by its stable_id, or by its URL where it has none. */
+    private static function holds_entry(array $list, array $entry) {
+        $sid = (int) ($entry['stable_id'] ?? 0);
+        $url = trim((string) ($entry['url'] ?? ''));
+        foreach ($list as $have) {
+            if (!is_array($have)) {
+                continue;
+            }
+            if ($sid > 0 && (int) ($have['stable_id'] ?? 0) === $sid) {
+                return true;
+            }
+            if ($sid === 0 && $url !== '' && trim((string) ($have['url'] ?? '')) === $url) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Placed products per feed (stable_id => count): every product a post
+     * shows, read the way the importer reads posts (picker and Look).
+     *
+     * @return array<int,int>
+     */
+    private static function placed_count_by_feed() {
+        if (!class_exists('MyFeeds_DB_Manager') || !MyFeeds_DB_Manager::table_exists()) {
+            return array();
+        }
+        $ids = MyFeeds_DB_Manager::placed_product_ids();
+        if (empty($ids)) {
+            return array();
+        }
+        global $wpdb;
+        $table  = MyFeeds_DB_Manager::table_name();
+        $counts = array();
+        foreach (array_chunk($ids, 500) as $chunk) {
+            $ph   = implode(',', array_fill(0, count($chunk), '%s'));
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders + table name are safe
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT feed_id, COUNT(DISTINCT external_id) AS placed FROM {$table} WHERE external_id IN ({$ph}) GROUP BY feed_id",
+                $chunk
+            ), ARRAY_A);
+            foreach ((array) $rows as $row) {
+                $feed = (int) $row['feed_id'];
+                $counts[$feed] = ($counts[$feed] ?? 0) + (int) $row['placed'];
+            }
+        }
+        return $counts;
+    }
+
+    /**
+     * On a request that may import - the admin, cron, WP-CLI - before
+     * anything reads the list. A visitor's page view never pays for it.
+     */
+    public static function keep_one_source_early() {
+        $may_import = is_admin()
+            || (function_exists('wp_doing_cron') && wp_doing_cron())
+            || (defined('WP_CLI') && WP_CLI);
+        if ($may_import) {
+            self::keep_one_source();
+        }
+    }
     
     public function init() {
+        // Before the importer's hooks and Action Scheduler (init 1 and 10).
+        add_action('init', array(__CLASS__, 'keep_one_source_early'), 0);
+
         // Admin hooks
         add_action('admin_menu', array($this, 'register_admin_pages'));
         add_action('admin_post_myfeeds_save_feed', array($this, 'handle_save_feed'));
@@ -341,9 +505,8 @@ class MyFeeds_Feed_Manager {
     /**
      * Read-only "content health" card listing posts that reference
      * products no longer present in the user's feed. Hidden when
-     * everything is fine. No edit links — Pro keeps the click-to-jump
-     * + in-editor highlight as a differentiation; Free only surfaces
-     * the awareness that something needs the user's attention.
+     * everything is fine. No edit links: the card says that something
+     * needs the user's attention and in which posts.
      */
     private function render_dead_products_health() {
         if (!class_exists('MyFeeds_Dead_Products')) {
@@ -2369,12 +2532,6 @@ class MyFeeds_Feed_Manager {
             'callback' => array($this, 'rest_get_product_color_siblings'),
             'permission_callback' => function() { return current_user_can('edit_posts'); },
         ));
-
-        register_rest_route('myfeeds/v1', '/plan-limits', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'rest_get_plan_limits'),
-            'permission_callback' => function() { return current_user_can('edit_posts'); },
-        ));
     }
     
     public function rest_list_feeds(WP_REST_Request $request) {
@@ -2477,16 +2634,6 @@ class MyFeeds_Feed_Manager {
         return rest_ensure_response(array());
     }
 
-    /**
-     * REST API: Report the plan label for the editor upsell card.
-     */
-    public function rest_get_plan_limits() {
-        return rest_ensure_response(array(
-            'plan'        => 'Free',
-            'upgrade_url' => 'https://myfeeds.site/?utm_source=wp-plugin-free&utm_medium=block-editor',
-        ));
-    }
-    
     /**
      * Enhanced REST API search with gender-aware logic (fixed substring bug)
      * In DB mode: Uses SQL LIKE on product_name and brand (FULLTEXT-upgradeable)

@@ -69,7 +69,7 @@ class MyFeeds_Maintenance {
      *
      * Before a reader sees a page, hence 'init' and not admin_init: an
      * archived card renders, and these must not. Once, under a flag; a
-     * storage rebuild in progress (Pro) postpones it to the next request.
+     * storage rebuild in progress postpones it to the next request.
      *
      * @return int Rows reset.
      */

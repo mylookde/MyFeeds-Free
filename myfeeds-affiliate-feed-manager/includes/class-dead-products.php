@@ -2,11 +2,10 @@
 /**
  * MyFeeds Dead-Product Detector
  *
- * Scans published posts that contain the myfeeds/product-picker block
- * and reports which posts reference products that are no longer active
- * in the user's feed. Surface is purely informational: a count + the
- * list of affected post titles. No click-to-edit, no per-tile
- * highlights — those stay Pro-only differentiation.
+ * Scans published posts that contain a product picker or a Look and
+ * reports which posts reference products that are no longer active in
+ * the user's feed. Surface is purely informational: a count + the list
+ * of affected post titles.
  *
  * Results are cached in a transient so the scan only runs when needed
  * and is invalidated after every feed sync (see batch-importer hooks).
@@ -21,11 +20,13 @@ if (!defined('ABSPATH')) {
 class MyFeeds_Dead_Products {
 
     const BLOCK_MARKER = 'wp:myfeeds/product-picker';
+    // Every block of this plugin that holds products: the picker and the
+    // Look (rule 13 - a Look's points are placed products too).
+    const CONTENT_MARKER = 'wp:myfeeds/';
     const CACHE_KEY    = 'myfeeds_dead_products_report_v1';
     const CACHE_TTL    = HOUR_IN_SECONDS;
     // Hard cap on the post sweep — protects against pathological sites
-    // with thousands of myfeeds posts. Free users with that scale are
-    // expected on Pro anyway.
+    // with thousands of posts holding products.
     const POST_SCAN_LIMIT = 500;
 
     /**
@@ -74,7 +75,7 @@ class MyFeeds_Dead_Products {
         }
 
         global $wpdb;
-        $needle = '%' . $wpdb->esc_like(self::BLOCK_MARKER) . '%';
+        $needle = '%' . $wpdb->esc_like(self::CONTENT_MARKER) . '%';
         $limit  = (int) self::POST_SCAN_LIMIT;
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- limit is an int constant
         $rows = $wpdb->get_results($wpdb->prepare(
@@ -152,7 +153,9 @@ class MyFeeds_Dead_Products {
 
     /**
      * Walks the block tree and returns the unique product ids the
-     * myfeeds/product-picker block references via selectedProducts.
+     * product picker references via selectedProducts and a Look through
+     * its points (MyFeeds_Look_Block::feed_points(), the one answer every
+     * reader of a Look asks; Amazon points are not feed products).
      */
     private static function extract_product_ids_from_content($content) {
         $blocks = parse_blocks((string) $content);
@@ -185,6 +188,13 @@ class MyFeeds_Dead_Products {
                     }
                 }
             }
+            if ($name === 'myfeeds/look' && class_exists('MyFeeds_Look_Block')) {
+                foreach (MyFeeds_Look_Block::feed_points($b) as $point) {
+                    if (!isset($out[$point['id']])) {
+                        $out[$point['id']] = true;
+                    }
+                }
+            }
             if (!empty($b['innerBlocks']) && is_array($b['innerBlocks'])) {
                 self::collect_ids_from_blocks($b['innerBlocks'], $out);
             }
@@ -198,9 +208,8 @@ class MyFeeds_Dead_Products {
      *   unknown  — no row at all (e.g. never imported, or wrong id format)
      *
      * Unknown is treated as not-dead by the caller. Flagging "no data"
-     * as "no longer in feeds" is the false-positive Pro kept tripping
-     * over before classify_product_ids was hardened — same guardrail
-     * lives here.
+     * as "no longer in feeds" is a false positive: a product that never
+     * imported, or an id in an older format, has no row and is not dead.
      */
     private static function classify_product_ids($ids) {
         $out = array();
@@ -278,8 +287,8 @@ class MyFeeds_Dead_Products {
 // priority pass), which is exactly the coverage we want.
 add_action('myfeeds_feed_update_complete', array('MyFeeds_Dead_Products', 'bust_cache'));
 // Post edits/saves change which product ids are referenced. Bust on
-// post save too, scoped to published posts that contain the picker
-// block, so the next admin visit reflects the current content.
+// post save too, scoped to published posts that contain a picker or a
+// Look, so the next admin visit reflects the current content.
 add_action('save_post', function ($post_id, $post) {
     if (!($post instanceof WP_Post)) {
         return;
@@ -287,7 +296,7 @@ add_action('save_post', function ($post_id, $post) {
     if ($post->post_status !== 'publish') {
         return;
     }
-    if (strpos((string) $post->post_content, MyFeeds_Dead_Products::BLOCK_MARKER) === false) {
+    if (strpos((string) $post->post_content, MyFeeds_Dead_Products::CONTENT_MARKER) === false) {
         return;
     }
     MyFeeds_Dead_Products::bust_cache();

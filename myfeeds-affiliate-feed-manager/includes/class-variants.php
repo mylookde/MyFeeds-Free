@@ -224,6 +224,109 @@ class MyFeeds_Variants {
     }
 
     /**
+     * The same product back under a different id.
+     *
+     * Merchants re-issue ids. AWIN gives a restocked article a new
+     * aw_product_id, JD Sports a new SKU - the shoe on the shelf is the
+     * same shoe, but the id a post is holding names nothing any more, or
+     * names a row the import has marked 'unavailable'.
+     *
+     * Two signals, and only these two:
+     *
+     *   The variant key: feed, photograph, name without the size, and
+     *   colour (variant_key()). Two rows sharing it are the same garment
+     *   in the same merchant's catalogue - which is exactly what a
+     *   re-listing is. The key of the old row is read from the row; for
+     *   a row that is gone it is computed from the copy the block kept,
+     *   with the same grammar the import writes it with.
+     *
+     *   Failing that, the exact product name within the same feed.
+     *   Weaker - two colourways can share a name - but bounded to one
+     *   merchant's catalogue.
+     *
+     * Both are index lookups. This used to match the photograph across
+     * the whole catalogue: no index on image_url, 191k rows read, 921 ms
+     * per call on mylook - paid once per re-listed card on every uncached
+     * render, and once per product by the shop's re-listing job. Measured
+     * against that search over all 1,699 assigned products that had left
+     * their feed: it found 391 successors, the two lookups here find 390
+     * of those and 240 it missed.
+     *
+     * Deliberately no fuzzy matching. A near-miss here does not show a
+     * slightly wrong product, it sends a reader to one.
+     *
+     * @param array $product The product as the block stored it, or a row.
+     * @return array|null
+     */
+    public static function replacement_for($product) {
+        if (!is_array($product) || !class_exists('MyFeeds_DB_Manager')) {
+            return null;
+        }
+
+        global $wpdb;
+        $table = MyFeeds_DB_Manager::table_name();
+
+        $id    = (string) ($product['id'] ?? $product['external_id'] ?? '');
+        $name  = (string) ($product['title'] ?? $product['product_name'] ?? '');
+        $feed  = (int) ($product['feed_id'] ?? 0);
+
+        if (MyFeeds_DB_Manager::has_variant_key_column()) {
+            $key = (string) ($product['variant_key'] ?? '');
+            if ($key === '' && $id !== '') {
+                $key = (string) $wpdb->get_var($wpdb->prepare(
+                    "SELECT variant_key FROM {$table}
+                     WHERE external_id = %s AND variant_key IS NOT NULL
+                     ORDER BY (feed_id = %d) DESC LIMIT 1",
+                    $id,
+                    $feed
+                ));
+            }
+            if ($key === '' && $feed > 0 && $name !== '' && !empty($product['image_url'])) {
+                $key = self::variant_key(
+                    $feed,
+                    $name,
+                    (string) $product['image_url'],
+                    (string) ($product['brand'] ?? ''),
+                    (string) ($product['colour'] ?? $product['color'] ?? '')
+                );
+            }
+
+            if ($key !== '') {
+                $row = $wpdb->get_row($wpdb->prepare(
+                    "SELECT * FROM {$table}
+                     WHERE variant_key = %s AND status = %s AND external_id <> %s
+                     ORDER BY in_stock DESC LIMIT 1",
+                    $key,
+                    'active',
+                    $id
+                ), ARRAY_A);
+
+                if ($row) {
+                    return MyFeeds_DB_Manager::product_from_row($row);
+                }
+            }
+        }
+
+        if ($name !== '' && $feed > 0) {
+            $row = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$table}
+                 WHERE product_name = %s AND feed_id = %d AND status = %s AND external_id <> %s
+                 ORDER BY in_stock DESC LIMIT 1",
+                $name,
+                $feed,
+                'active',
+                $id
+            ), ARRAY_A);
+
+            if ($row) {
+                return MyFeeds_DB_Manager::product_from_row($row);
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Which of these external ids have a buyable sibling.
      *
      * The dashboard classifies hundreds of ids at once; asking per id

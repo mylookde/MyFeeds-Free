@@ -1,6 +1,6 @@
 <?php
 /**
- * MyFeeds Pro — Image rendering helpers.
+ * MyFeeds — Image rendering helpers.
  *
  * Best-effort upgrade of merchant image URLs to a sharper variant
  * before they go into the <img src="…"> attribute, plus the matching

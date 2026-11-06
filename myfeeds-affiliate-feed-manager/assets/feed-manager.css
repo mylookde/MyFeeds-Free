@@ -193,8 +193,7 @@
 /* ── Content Health card (dead-product report) ───────────────────
    Read-only banner that appears between the intro stats and the
    feed list when published posts reference products no longer in
-   the user's feed. Plain text — no edit links — by design (Pro keeps
-   the click-through-and-replace flow as differentiation).
+   the user's feed. Plain text — no edit links — by design.
    Palette mirrors .feed-status-importing (warm orange) so the card
    reads as the same "in-progress / needs attention" cue used for
    single-feed imports elsewhere on the page. */
