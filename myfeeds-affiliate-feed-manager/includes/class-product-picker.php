@@ -132,6 +132,16 @@ class MyFeeds_Product_Picker {
             wp_set_script_translations('myfeeds-product-picker-editor', 'myfeeds-affiliate-feed-manager');
         }
         
+        // The Amazon tab of the sidebar, scoped under .myfeeds-amz. A style
+        // the editor's iframe gets, so a dependency of the block's own.
+        $amz_css_path = MYFEEDS_PLUGIN_DIR . 'assets/amazon-picker.css';
+        wp_register_style(
+            'myfeeds-amazon-picker',
+            MYFEEDS_PLUGIN_URL . 'assets/amazon-picker.css',
+            [],
+            file_exists($amz_css_path) ? filemtime($amz_css_path) : MYFEEDS_VERSION
+        );
+
         // The texts of a recommendation card or comparison table. A style
         // the editor's iframe gets, so a dependency of the block's own.
         $pick_css_path = MYFEEDS_PLUGIN_DIR . 'assets/pick-panel.css';
@@ -146,7 +156,7 @@ class MyFeeds_Product_Picker {
         $editor_style_registered = wp_register_style(
             'myfeeds-product-picker-editor',
             MYFEEDS_PLUGIN_URL . 'assets/editor.css',
-            ['myfeeds-pick-panel'],
+            ['myfeeds-amazon-picker', 'myfeeds-pick-panel'],
             $editor_css_ver
         );
         
@@ -200,6 +210,9 @@ class MyFeeds_Product_Picker {
             'pluginUrl' => MYFEEDS_PLUGIN_URL,
             'nonce' => wp_create_nonce('wp_rest'),
             'displays' => class_exists('MyFeeds_Picker_Displays') ? MyFeeds_Picker_Displays::editor_config() : null,
+            // The Amazon tab: products by link or ASIN with the site's
+            // partner tag.
+            'amazon' => class_exists('MyFeeds_Amazon_Modules') ? MyFeeds_Amazon_Modules::picker_config() : array('allowed' => false),
         ];
         if (wp_script_is('myfeeds-picker-inspector', 'registered')) {
             wp_localize_script('myfeeds-picker-inspector', 'myfeedsData', $localize_data);
@@ -292,6 +305,24 @@ class MyFeeds_Product_Picker {
     public function render_callback($attrs) {
         $products = isset($attrs['selectedProducts']) ? $attrs['selectedProducts'] : array();
 
+        // Amazon products are stored apart and carry an ASIN only, plus
+        // the author's own words for the card (brand, name, note) - never
+        // anything copied from Amazon. After the feed products, which is
+        // the order the editor shows them in.
+        if (!empty($attrs['amazonProducts']) && is_array($attrs['amazonProducts'])
+            && class_exists('MyFeeds_Amazon_Modules') && MyFeeds_Amazon_Modules::links_active()) {
+            foreach ($attrs['amazonProducts'] as $entry) {
+                $id = is_array($entry) && isset($entry['id']) ? (string) $entry['id'] : '';
+                if ($id !== '' && MyFeeds_Amazon_Compliance::is_amazon_id($id)) {
+                    $products[] = array('id' => $id, 'amz_manual' => array(
+                        'brand' => isset($entry['brand']) ? sanitize_text_field((string) $entry['brand']) : '',
+                        'name'  => isset($entry['name'])  ? sanitize_text_field((string) $entry['name'])  : '',
+                        'note'  => isset($entry['note'])  ? sanitize_text_field((string) $entry['note'])  : '',
+                    ));
+                }
+            }
+        }
+
         if (empty($products)) {
             return '<div' . self::wrapper_attributes($attrs, 'myfeeds-no-products') . '>' . esc_html__('No products selected.', 'myfeeds-affiliate-feed-manager') . '</div>';
         }
@@ -314,6 +345,10 @@ class MyFeeds_Product_Picker {
         $render_card = function ($product) use ($placeholder_url, $cached_card_design) {
             return $this->render_product_card($product, $placeholder_url, $cached_card_design);
         };
+        $click_block = $is_carousel ? 'picker-carousel' : 'picker-grid';
+        if ($pick_style !== '') {
+            $click_block = MyFeeds_Picker_Displays::click_block($pick_style);
+        }
 
         $output = $is_carousel
             ? MyFeeds_Picker_Carousel::open($attrs)
@@ -334,6 +369,27 @@ class MyFeeds_Product_Picker {
             // What a label or favourite is stored by, whatever the card
             // resolves to below.
             $slot_id      = $requested_id;
+
+            if (class_exists('MyFeeds_Amazon_Compliance') && MyFeeds_Amazon_Compliance::is_amazon_id($requested_id)) {
+                // The author's own card, linked with the partner tag. One
+                // without a name, or without a tag for its Amazon site, has
+                // nothing to show a reader and is left out (rule 17).
+                $own_words = isset($current_item['amz_manual']) && is_array($current_item['amz_manual']) ? $current_item['amz_manual'] : array();
+                if ($pick_style !== '') {
+                    if (trim((string) ($own_words['name'] ?? '')) !== '' && MyFeeds_Amazon_Card::can_link($requested_id)) {
+                        $pick_items[] = MyFeeds_Picker_Displays::item($slot_id, array('id' => $requested_id), 'text', $own_words);
+                    }
+                    continue;
+                }
+                $text_card = (!empty($own_words) && class_exists('MyFeeds_Amazon_Card'))
+                    ? MyFeeds_Amazon_Card::render_text_card($requested_id, $own_words, array('click_block' => $click_block))
+                    : '';
+                if ($text_card !== '') {
+                    $output .= $is_carousel ? MyFeeds_Picker_Carousel::slide($text_card) : $text_card;
+                    $rendered_count++;
+                }
+                continue;
+            }
             
             // Use multi-source resolver (single DB query in DB mode)
             if (class_exists('MyFeeds_Product_Resolver')) {
@@ -447,9 +503,8 @@ class MyFeeds_Product_Picker {
                 $pick_style,
                 isset($products[0]['id']) ? (string) $products[0]['id'] : '',
                 $render_card,
-                // Every item here is a feed product or its saved copy.
-                function () {
-                    return '';
+                function ($item, $pick) use ($click_block) {
+                    return MyFeeds_Amazon_Card::render_text_card($item['key'], $item['manual'], array('click_block' => $click_block, 'pick' => $pick));
                 },
                 self::wrapper_attributes($attrs, MyFeeds_Picker_Displays::wrapper_classes($pick_style))
             );

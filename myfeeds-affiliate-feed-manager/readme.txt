@@ -72,7 +72,7 @@ Install MyFeeds, paste one feed URL, and make your next post shoppable.
 
 = Related paid plugin =
 
-This plugin is fully functional on its own. A separate, independent paid plugin called **MyFeeds Pro** is available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins), in two plans: Pro and Shop. It adds things like a visual card designer with Google Fonts, auto-play and arrow colours for the carousel, Amazon products by link or ASIN and through Amazon's Creators API, click analytics per post and product, and, on the Shop plan, a full multi-feed shop system. It is not required to use this plugin.
+This plugin is fully functional on its own. A separate, independent paid plugin called **MyFeeds Pro** is available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins), in two plans: Pro and Shop. It adds things like a visual card designer with Google Fonts, auto-play and arrow colours for the carousel, Amazon's own picture, price and catalogue search through Amazon's Creators API, click analytics per post and product, and, on the Shop plan, a full multi-feed shop system. It is not required to use this plugin.
 
 == Installation ==
 
@@ -191,6 +191,8 @@ The terms and privacy policy of the site you take the photo from apply, and so d
 = Links on a product card =
 
 Every product card, and every point of a Look, links to the affiliate link from your feed. A request to your affiliate network or the merchant happens only when a reader clicks it. Sample products, if you use them, link to a page on myfeeds.site.
+
+An Amazon product you add by its link or ASIN links to its product page on the Amazon site of your partner tag, with that tag. Your site sends Amazon nothing while it builds or shows the page; the reader's browser goes to Amazon only when they click. The card shows the name and note you typed, never anything copied from Amazon, and the post keeps only the ASIN. The "Available at Amazon" badge, if you choose one, is an image from your own media library. Amazon's terms and privacy policy apply on Amazon's site.
 
 Apart from the above, the plugin sends nothing anywhere: it has no analytics, no tracking and no usage reporting. Links in the plugin's admin screens (to myfeeds.site, to the review page on WordPress.org, to the checkout of the paid plugin) open only when you click them.
 

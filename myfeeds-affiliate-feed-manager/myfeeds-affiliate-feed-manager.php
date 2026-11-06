@@ -454,6 +454,17 @@ function myfeeds_load_includes() {
         'myfeeds-picker-attributes.php' => 'Picker attributes (the one list of the block\'s attributes, for the render and the editor)',
         'class-picker-carousel.php' => 'Picker Carousel (the carousel frame, its Splide options and assets)',
         'class-picker-displays.php' => 'Picker Displays (recommendation card and comparison table)',
+        // Amazon by link or ASIN: the site's partner tag and Amazon site, the
+        // text card and the Look's Amazon point, linked straight to Amazon.
+        // Only the ASIN is kept; nothing is asked of Amazon. The door is
+        // last because it names the others.
+        'amazon/class-amazon-locales.php' => 'Amazon Locales (the Amazon stores a link can go to)',
+        'amazon/class-amazon-link-settings.php' => 'Amazon Link Settings (partner tag, Amazon site, visitors abroad, badge)',
+        'amazon/class-amazon-compliance.php' => 'Amazon Compliance (the id of an Amazon product and its tagged /dp/ link)',
+        'amazon/class-amazon-rest.php' => 'Amazon REST (the route that saves the partner tag)',
+        'amazon/class-amazon-card.php' => 'Amazon Card (the text card by link or ASIN, kept out of the structured data)',
+        'amazon/class-amazon-admin.php' => 'Amazon Admin (the Amazon window on the Feeds screen)',
+        'amazon/class-amazon-modules.php' => 'Amazon Modules (Amazon by link or ASIN)',
         'class-look-block.php' => 'Look Block (own photo with numbered points linking to the products in it)',
         'class-product-picker.php' => 'Product Picker Class',
         'class-product-resolver.php' => 'Product Resolver (Multi-Source Fallback)',
@@ -639,6 +650,13 @@ class MyFeeds_Affiliate_Product_Picker {
             // starts itself when its file loads.
             if (class_exists('MyFeeds_Picker_Displays')) {
                 MyFeeds_Picker_Displays::init();
+            }
+
+            // Amazon by link or ASIN: the window on the Feeds screen, the
+            // route that saves the partner tag, the card's styles and the
+            // Look's answer.
+            if (class_exists('MyFeeds_Amazon_Modules')) {
+                MyFeeds_Amazon_Modules::init();
             }
             
             // Initialize Batch Importer

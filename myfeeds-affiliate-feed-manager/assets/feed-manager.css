@@ -636,10 +636,14 @@ tr.myfeeds-feed-inactive .button-link-delete {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
     margin-bottom: 10px;
 }
+/* The heading takes the slack so any number of action buttons
+   stays grouped on the right instead of being spread apart. */
 .myfeeds-feeds-table-header h2 {
     margin: 0;
+    flex: 1 1 auto;
 }
 .myfeeds-feeds-table {
     background: #fff;

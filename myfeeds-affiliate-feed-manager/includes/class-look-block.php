@@ -35,6 +35,8 @@
  *   myfeeds_look_not_found       (answer, $url) a pasted shop address that no
  *                                               feed sells
  *   myfeeds_hide_prices          (false)        the page shows no prices
+ *   myfeeds_amazon_stamp         ('', $id, $at, $tag, $class)  the time
+ *                                               beside Amazon's price
  *
  * Shared by both plugins, apart from the text domain.
  */
@@ -632,14 +634,19 @@ class MyFeeds_Look_Block {
                 . '</span>';
         }
         // An Amazon price carries the time it was fetched, and the page's
-        // script re-reads price and time on every view (amazon-live.js):
-        // the licence's two rules, as on the Amazon card. The struck
-        // price is always there, hidden when empty, so a refresh that
-        // brings one has a place to put it.
+        // script re-reads price and time on every view: the licence's two
+        // rules, as on the Amazon card. Whoever brings Amazon's price
+        // brings its stamp (myfeeds_amazon_stamp); without one there is no
+        // price. The struck price is always there, hidden when empty, so a
+        // refresh that brings one has a place to put it.
+        $stamp = (string) apply_filters('myfeeds_amazon_stamp', '', $amazon['id'], (int) $amazon['fetched_at'], 'span', 'myfeeds-look__stamp');
+        if ($stamp === '') {
+            return '';
+        }
         return '<span class="myfeeds-look__price"><span class="myfeeds-look__now">' . esc_html($item['price']) . '</span>'
             . ' <s class="myfeeds-look__was"' . ($was === '' ? ' hidden' : '') . '>' . esc_html($was) . '</s>'
             . '</span>'
-            . (class_exists('MyFeeds_Amazon_Card') ? MyFeeds_Amazon_Card::stamp_html($amazon['id'], (int) $amazon['fetched_at'], 'span', 'myfeeds-look__stamp') : '');
+            . $stamp;
     }
 
     private static function label_html(array $item) {
