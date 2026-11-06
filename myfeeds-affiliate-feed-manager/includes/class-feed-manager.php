@@ -90,11 +90,8 @@ class MyFeeds_Feed_Manager {
      * keeps the feed with the most products placed in posts (the first on
      * a tie, which is the one an older version kept) and sets every other
      * entry aside, unchanged, in myfeeds_feeds_set_aside: nothing about
-     * them is lost, and the plugin that wrote them takes them back.
-     *
-     * An entry fetched from a network's API cannot be updated here and
-     * goes aside too, even when it is the only one: left in the list, its
-     * snapshot would only grow older.
+     * them is lost, and the plugin that wrote them takes them back. A list
+     * of one is never touched, whatever kind of feed it is.
      *
      * Until 1.1.0 the list was cut to its first entry instead, and every
      * other feed was gone for good.
@@ -117,9 +114,7 @@ class MyFeeds_Feed_Manager {
             if (!self::is_listed_entry($entry)) {
                 continue;
             }
-            if (!empty($entry['api']) && is_array($entry['api'])) {
-                $aside[$i] = $entry;
-            } elseif (class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($entry)) {
+            if (class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($entry)) {
                 // The sample products are no source; they stay only while
                 // nothing else is there.
                 $aside[$i] = $entry;
@@ -127,15 +122,12 @@ class MyFeeds_Feed_Manager {
                 $keepable[$i] = $entry;
             }
         }
-        // Nothing but the samples: they stay.
-        if (empty($keepable) && empty(array_filter($aside, function ($e) { return !empty($e['api']); }))) {
-            return 0;
-        }
-        if (count($keepable) <= 1 && count($aside) === 0) {
+        // One feed, or nothing but the samples: nothing to choose.
+        if (count($keepable) === 0 || (count($keepable) === 1 && count($aside) === 0)) {
             return 0;
         }
 
-        $keep_index = null;
+        $keep_index = key($keepable);
         if (count($keepable) > 1) {
             $placed = self::placed_count_by_feed();
             $best   = -1;
@@ -146,8 +138,6 @@ class MyFeeds_Feed_Manager {
                     $keep_index = $i;
                 }
             }
-        } elseif (count($keepable) === 1) {
-            $keep_index = key($keepable);
         }
         foreach ($keepable as $i => $entry) {
             if ($i !== $keep_index) {
@@ -166,10 +156,9 @@ class MyFeeds_Feed_Manager {
             }
         }
         update_option(self::SET_ASIDE_OPTION, $kept_aside, false);
-        update_option(self::OPTION_KEY, $keep_index === null ? array() : array($raw[$keep_index]));
+        update_option(self::OPTION_KEY, array($raw[$keep_index]));
 
-        myfeeds_log('Feeds: one product source per site - kept '
-            . ($keep_index === null ? 'none' : '"' . (string) $raw[$keep_index]['name'] . '"')
+        myfeeds_log('Feeds: one product source per site - kept "' . (string) $raw[$keep_index]['name'] . '"'
             . ', set aside ' . count($aside) . ' (' . implode(', ', array_map(function ($e) {
                 return '"' . (string) $e['name'] . '"';
             }, $aside)) . ')', 'info');
