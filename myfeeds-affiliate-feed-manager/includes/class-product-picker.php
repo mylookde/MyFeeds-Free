@@ -393,9 +393,8 @@ class MyFeeds_Product_Picker {
             // card whose size has gone lands on exactly the size that is
             // gone. The card here keeps rendering either way - what
             // changes is that it now leads somewhere they can buy.
-            if (isset($product_data['in_stock']) && (int) $product_data['in_stock'] === 0
-                && class_exists('MyFeeds_Variants')) {
-                $sibling = MyFeeds_Variants::buyable_sibling($product_data);
+            if (isset($product_data['in_stock']) && (int) $product_data['in_stock'] === 0) {
+                $sibling = class_exists('MyFeeds_Variants') ? MyFeeds_Variants::buyable_sibling($product_data) : null;
                 if ($sibling) {
                     myfeeds_log('PP_variant_swap: ' . ($product_data['id'] ?? '?')
                         . ' -> ' . ($sibling['id'] ?? '?'), 'info');
@@ -404,6 +403,18 @@ class MyFeeds_Product_Picker {
                     // deliberate swap a mismatch and render a
                     // placeholder where the card should be.
                     $requested_id = (string) ($sibling['id'] ?? $requested_id);
+                } elseif ($pick_style !== ''
+                    && (!isset($product_data['status']) || $product_data['status'] === 'active')) {
+                    // A recommendation card or comparison table names a
+                    // pick and prices the others against it: a statement
+                    // about products a reader can buy, so one sold out in
+                    // every size is left out (rule 17), as the other
+                    // MyFeeds plugin does. The grid and the carousel keep
+                    // such a card, as this plugin's grid always has; this
+                    // plugin marks nothing in the editor that would tell
+                    // the author a card went missing. An archived row
+                    // renders as it was, sold out or not (rule 12).
+                    continue;
                 }
             }
 

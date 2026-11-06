@@ -93,12 +93,18 @@ class MyFeeds_Feed_Manager {
      * them is lost, and the plugin that wrote them takes them back. A list
      * of one is never touched, whatever kind of feed it is.
      *
+     * A feed a network's API wrote (an entry with an 'api' block) is a
+     * snapshot only the plugin that fetched it refreshes; kept here, its
+     * prices and stock would stay as they are for good. Beside a feed this
+     * plugin can import, it is set aside whatever its posts hold.
+     *
      * Until 1.1.0 the list was cut to its first entry instead, and every
      * other feed was gone for good.
      *
-     * Their products leave the importer's sight with them: what a post
-     * still shows is archived and renders as it was (rule 12), the rest
-     * goes with the next full import, as for any feed no longer listed.
+     * Their products stay in the table, ids and all, so the feeds come
+     * back whole: the live ones are archived (out of the search; what a
+     * post shows renders as it was, rule 12), and the orphan sweep leaves
+     * a feed set aside alone (MyFeeds_DB_Manager::set_aside_feed_ids()).
      *
      * @return int How many entries were set aside.
      */
@@ -127,11 +133,15 @@ class MyFeeds_Feed_Manager {
             return 0;
         }
 
-        $keep_index = key($keepable);
-        if (count($keepable) > 1) {
+        $importable = array_filter($keepable, function ($entry) {
+            return !self::is_snapshot_entry($entry);
+        });
+        $candidates = !empty($importable) ? $importable : $keepable;
+        $keep_index = key($candidates);
+        if (count($candidates) > 1) {
             $placed = self::placed_count_by_feed();
             $best   = -1;
-            foreach ($keepable as $i => $entry) {
+            foreach ($candidates as $i => $entry) {
                 $count = (int) ($placed[(int) ($entry['stable_id'] ?? 0)] ?? 0);
                 if ($count > $best) {
                     $best = $count;
@@ -157,12 +167,57 @@ class MyFeeds_Feed_Manager {
         }
         update_option(self::SET_ASIDE_OPTION, $kept_aside, false);
         update_option(self::OPTION_KEY, array($raw[$keep_index]));
+        $archived = self::archive_rows_of($aside);
 
         myfeeds_log('Feeds: one product source per site - kept "' . (string) $raw[$keep_index]['name'] . '"'
             . ', set aside ' . count($aside) . ' (' . implode(', ', array_map(function ($e) {
                 return '"' . (string) $e['name'] . '"';
-            }, $aside)) . ')', 'info');
+            }, $aside)) . '); ' . $archived . ' of their live products archived, none deleted', 'info');
         return count($aside);
+    }
+
+    /** An entry a network's API wrote: a snapshot this plugin cannot refresh. */
+    private static function is_snapshot_entry($entry) {
+        return is_array($entry) && !empty($entry['api']) && is_array($entry['api']);
+    }
+
+    /**
+     * The live rows of feeds just set aside leave the product search -
+     * nothing refreshes them here any more - without leaving the table:
+     * archived, a card a post shows keeps rendering with its last values,
+     * and every row keeps its id for the feed's way back. The samples are
+     * left to the sweep, which takes them as before.
+     *
+     * @return int rows archived
+     */
+    private static function archive_rows_of(array $entries) {
+        $ids = array();
+        foreach ($entries as $entry) {
+            if (class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($entry)) {
+                continue;
+            }
+            $sid = (int) ($entry['stable_id'] ?? 0);
+            if ($sid > 0) {
+                $ids[] = $sid;
+            }
+        }
+        if (empty($ids) || !class_exists('MyFeeds_DB_Manager') || !MyFeeds_DB_Manager::table_exists()) {
+            return 0;
+        }
+        global $wpdb;
+        $table = MyFeeds_DB_Manager::table_name();
+        $ph    = implode(',', array_fill(0, count($ids), '%d'));
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders + table name are safe
+        $archived = (int) $wpdb->query($wpdb->prepare(
+            "UPDATE {$table} SET status = 'archived' WHERE feed_id IN ({$ph}) AND status = 'active'",
+            $ids
+        ));
+        delete_transient('myfeeds_active_count_cache');
+        delete_transient('myfeeds_feed_counts_cache');
+        if ($archived > 0 && class_exists('MyFeeds_Search_Engine')) {
+            MyFeeds_Search_Engine::flush_query_caches();
+        }
+        return $archived;
     }
 
     /** The same entry by its stable_id, or by its URL where it has none. */
@@ -369,6 +424,7 @@ class MyFeeds_Feed_Manager {
 
         // Handle messages
         $this->display_admin_messages();
+        echo $this->set_aside_note_html($feeds); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped where it is built
 
         ?>
         <div class="wrap">
@@ -1478,6 +1534,76 @@ class MyFeeds_Feed_Manager {
         <?php
     }
     
+    /**
+     * What keep_one_source() did, said where the list is: which feed stays
+     * and which ones wait, unchanged. Without it the other feeds vanish
+     * from the list and their products from the search, and nothing says
+     * why. Shown as long as feeds are set aside.
+     *
+     * @param array $feeds The list as the screen shows it.
+     * @return string
+     */
+    public function set_aside_note_html($feeds) {
+        $aside = get_option(self::SET_ASIDE_OPTION, array());
+        if (!is_array($aside)) {
+            return '';
+        }
+        $names = array();
+        foreach ($aside as $entry) {
+            if (!self::is_listed_entry($entry)
+                || (class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($entry))) {
+                continue;
+            }
+            $names[] = '"' . trim((string) $entry['name']) . '"';
+        }
+        if (empty($names)) {
+            return '';
+        }
+        $kept = '';
+        foreach ((array) $feeds as $feed) {
+            if (self::is_listed_entry($feed)
+                && !(class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($feed))) {
+                $kept = trim((string) $feed['name']);
+                break;
+            }
+        }
+        $count = count($names);
+        $list  = implode(', ', $names);
+        if ($kept !== '') {
+            $first = sprintf(
+                /* translators: 1: the feed that stays, 2: how many feeds were set aside, 3: their names */
+                _n(
+                    'MyFeeds keeps one product source up to date. This site had more, so it kept "%1$s", the feed your posts use most, and set %2$d other feed aside: %3$s.',
+                    'MyFeeds keeps one product source up to date. This site had more, so it kept "%1$s", the feed your posts use most, and set %2$d other feeds aside: %3$s.',
+                    $count,
+                    'myfeeds-affiliate-feed-manager'
+                ),
+                $kept,
+                $count,
+                $list
+            );
+        } else {
+            $first = sprintf(
+                /* translators: 1: how many feeds were set aside, 2: their names */
+                _n(
+                    'MyFeeds keeps one product source up to date. %1$d feed of this site is set aside: %2$s.',
+                    'MyFeeds keeps one product source up to date. %1$d feeds of this site are set aside: %2$s.',
+                    $count,
+                    'myfeeds-affiliate-feed-manager'
+                ),
+                $count,
+                $list
+            );
+        }
+        $second = _n(
+            'Nothing about it was deleted. Its products are out of the product search, and the ones your posts show keep showing as they were.',
+            'Nothing about them was deleted. Their products are out of the product search, and the ones your posts show keep showing as they were.',
+            $count,
+            'myfeeds-affiliate-feed-manager'
+        );
+        return '<div class="notice notice-info myfeeds-set-aside-note"><p>' . esc_html($first) . '</p><p>' . esc_html($second) . '</p></div>';
+    }
+
     private function display_admin_messages() {
         // Notice payloads are written by our own redirect_with_success/error
         // helpers, but $_GET is still untrusted, so sanitize on read.

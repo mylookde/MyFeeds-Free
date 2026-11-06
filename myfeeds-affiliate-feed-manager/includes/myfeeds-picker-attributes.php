@@ -16,7 +16,7 @@
  * carries it a second time, in case the inline script is stripped by an
  * optimiser.
  *
- * Shared byte for byte by both plugins (FREE-SYNC.md).
+ * Shared byte for byte by both plugins.
  */
 
 if (!defined('ABSPATH')) {

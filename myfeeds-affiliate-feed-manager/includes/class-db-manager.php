@@ -735,9 +735,35 @@ class MyFeeds_DB_Manager {
     }
 
     /**
+     * stable_ids of the feeds in myfeeds_feeds_set_aside: out of the list,
+     * not deleted, so the orphan sweep leaves their rows alone. The sample
+     * products are no feed to keep.
+     *
+     * @return int[]
+     */
+    public static function set_aside_feed_ids() {
+        $aside = get_option('myfeeds_feeds_set_aside', array());
+        $ids = array();
+        if (!is_array($aside)) {
+            return $ids;
+        }
+        foreach ($aside as $entry) {
+            if (!is_array($entry) || !empty($entry['is_demo'])) {
+                continue;
+            }
+            $sid = intval($entry['stable_id'] ?? 0);
+            if ($sid > 0 && !in_array($sid, $ids, true)) {
+                $ids[] = $sid;
+            }
+        }
+        return $ids;
+    }
+
+    /**
      * Delete products whose feed_id belongs to no configured feed.
-     * Safe: does nothing if no feeds are configured, and nothing while any
-     * configured feed is still without a stable_id.
+     * Stands down when the feed list cannot be read and while any
+     * configured feed is still without a stable_id, and leaves the feeds
+     * set aside alone. An empty list is read as "every feed was deleted".
      * Returns number of deleted rows.
      */
 
@@ -798,6 +824,10 @@ class MyFeeds_DB_Manager {
 
         $present_ids = $wpdb->get_col("SELECT DISTINCT feed_id FROM {$table}");
         $orphan_ids = self::orphaned_feed_ids($feeds, $present_ids);
+        // A feed set aside left the list without being deleted, and its
+        // rows are what makes it whole again when it comes back: every
+        // product, under the ids shop assignments hang on. Not an orphan.
+        $orphan_ids = array_values(array_diff($orphan_ids, self::set_aside_feed_ids()));
 
         if (empty($orphan_ids)) {
             myfeeds_log("DB Cleanup: Nothing to delete (configured feeds: " . count($feeds) . ", feed_ids in table: " . implode(',', array_map('intval', $present_ids)) . ")", 'info');

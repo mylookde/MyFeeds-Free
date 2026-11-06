@@ -15,7 +15,7 @@
  *   myfeeds_carousel_options     ($options, $attrs)  the Splide options
  *   myfeeds_carousel_arrow_color ('#333333', $attrs) a hex colour
  *
- * Shared byte for byte by both plugins (FREE-SYNC.md).
+ * Shared byte for byte by both plugins.
  */
 
 if (!defined('ABSPATH')) {

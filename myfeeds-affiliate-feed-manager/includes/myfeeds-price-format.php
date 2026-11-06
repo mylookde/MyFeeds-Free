@@ -73,7 +73,7 @@
  *    the host runs, so a price never breaks across two lines.
  *
  * No translatable strings in here, so the file is byte-identical in both
- * plugins (FREE-SYNC.md).
+ * plugins.
  */
 
 if (!defined('ABSPATH')) {

@@ -38,7 +38,7 @@
  *     "tested", "sustainable", "we love". A block would be saying them in
  *     its author's voice, on the author's page.
  *
- * Shared by both plugins, apart from the text domain (FREE-SYNC.md).
+ * Shared by both plugins, apart from the text domain.
  */
 
 if (!defined('ABSPATH')) {

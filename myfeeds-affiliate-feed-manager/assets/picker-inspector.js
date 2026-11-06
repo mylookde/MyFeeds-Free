@@ -25,7 +25,7 @@
  * isSelected }; extras also get { tab, setTab, wrapperRef } - wrapperRef is
  * the element around the bundle's block.
  *
- * Shared byte for byte by both plugins (FREE-SYNC.md).
+ * Shared byte for byte by both plugins.
  */
 ;(function () {
   "use strict";

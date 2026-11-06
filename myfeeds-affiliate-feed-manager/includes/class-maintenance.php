@@ -163,9 +163,11 @@ class MyFeeds_Maintenance {
      * post is showing, as STATUS_ARCHIVED, so live cards do not go blank.
      * A read-time filter on feed_id would drop exactly those.
      *
-     * Safe to run unattended: it deletes nothing when the feed list is
-     * empty, and stands down entirely if a configured feed has no
-     * stable_id.
+     * Safe to run unattended: it stands down when the feed list cannot be
+     * read or a configured feed has no stable_id, and it leaves the feeds
+     * set aside alone. An empty list is NOT "nothing to do": it reads as
+     * "every feed was deleted", and the unplaced products of every feed
+     * the list does not hold go.
      *
      * @return int
      */

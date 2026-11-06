@@ -36,7 +36,7 @@
  *                                               feed sells
  *   myfeeds_hide_prices          (false)        the page shows no prices
  *
- * Shared by both plugins, apart from the text domain (FREE-SYNC.md).
+ * Shared by both plugins, apart from the text domain.
  */
 
 if (!defined('ABSPATH')) {
