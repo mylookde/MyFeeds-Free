@@ -8,8 +8,18 @@
  * stood above the plans and above a feature page (Marlon, 2026-11-06). So
  * on those screens every notice callback that is not MyFeeds' own comes
  * off the four notice hooks, just before WordPress prints them. Every
- * other admin screen is left exactly as it was, and so are the notices
- * themselves: they show on the next screen that is not ours.
+ * other admin screen is left exactly as it was.
+ *
+ * A notice that comes off is not deleted; its callback just does not run
+ * here. Whether it is seen later is up to the plugin that made it. One it
+ * works out on every request, or keeps stored until it has been shown
+ * once (WordPress' update and recovery-mode notices do), stands on the
+ * next screen that is not ours. One its plugin clears before it is
+ * printed is not seen at all. Whatever else a plugin prints on these
+ * hooks, a script or a style that is no notice, is left out with it.
+ *
+ * The notices that stay stand in one place: above the page, under the
+ * account tab bar where there is one (mark_header_end()).
  *
  * "Own" is decided by where a callback's code lives, not by its name: in
  * this plugin's folder, outside vendor/. A name prefix would keep a
@@ -37,6 +47,45 @@ class MyFeeds_Notice_Scope {
         // The last thing before admin-header.php prints the notices, so a
         // notice added late in the request is still seen.
         add_action('in_admin_header', array(__CLASS__, 'apply'), PHP_INT_MAX);
+        // After every notice and right before the page.
+        add_action('all_admin_notices', array(__CLASS__, 'mark_header_end'), PHP_INT_MAX);
+        add_action('admin_enqueue_scripts', array(__CLASS__, 'align_notices'));
+    }
+
+    /**
+     * Above the page, WordPress gives a notice the margins of a screen
+     * without .wrap: 13px further in on the left than the page, 5px further
+     * out on the right, 2px above the page. These line it up with the
+     * page's own .wrap and give it room. Below 783px WordPress' own margins
+     * already fit and stay.
+     */
+    public static function align_notices() {
+        if (!self::is_own_screen()) {
+            return;
+        }
+        wp_add_inline_style('common', '@media screen and (min-width: 783px) {'
+            . ' #wpbody-content > .wp-header-end ~ div.notice,'
+            . ' #wpbody-content > .wp-header-end ~ div.updated,'
+            . ' #wpbody-content > .wp-header-end ~ div.error { margin: 12px 20px 12px 2px; } }');
+    }
+
+    /**
+     * WordPress' common.js moves every notice behind the first
+     * .wp-header-end on the screen, or without one behind the first h1 or
+     * h2 inside .wrap. On a MyFeeds screen that heading opens a designed
+     * header, so the license notice stood between "Choose your plan" and
+     * its subtitle, and Free's review request inside a feature page's hero
+     * (2026-11-06). This line comes after the last notice printed, so the
+     * script moves nothing anywhere you could see, and a notice the page
+     * prints itself (a "saved" message) joins the others up here.
+     *
+     * Exactly one per screen: the script copies each notice behind every
+     * line it finds. MyFeeds pages draw none of their own.
+     */
+    public static function mark_header_end() {
+        if (self::is_own_screen()) {
+            echo '<hr class="wp-header-end">';
+        }
     }
 
     public static function apply() {

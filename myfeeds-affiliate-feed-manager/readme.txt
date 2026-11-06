@@ -72,7 +72,7 @@ Install MyFeeds, paste one feed URL, and make your next post shoppable.
 
 = Related paid plugin =
 
-This plugin is fully functional on its own. A separate, independent paid plugin called **MyFeeds Pro** is available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins), in two plans: Pro and Shop. It adds things like a carousel block, a visual card designer with Google Fonts, Amazon products by link or ASIN and through Amazon's Creators API, click and conversion analytics, and, on the Shop plan, a full multi-feed shop system. It is not required to use this plugin.
+This plugin is fully functional on its own. A separate, independent paid plugin called **MyFeeds Pro** is available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins), in two plans: Pro and Shop. It adds things like a carousel block, a visual card designer with Google Fonts, Amazon products by link or ASIN and through Amazon's Creators API, click analytics per post and product, and, on the Shop plan, a full multi-feed shop system. It is not required to use this plugin.
 
 == Installation ==
 

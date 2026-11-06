@@ -152,7 +152,7 @@ class MyFeeds_Feature_Previews {
             'eyebrow'    => __('Shop feature', 'myfeeds-affiliate-feed-manager'),
             'tier'       => 'SHOP',
             'title'      => __('Turn your blog into an affiliate shop.', 'myfeeds-affiliate-feed-manager'),
-            'subtitle'   => __('A blog post earns once. A shop earns every day. Every product you already import becomes a browsable storefront on your own domain. Visitors browse it. Search engines index it. You earn from both.', 'myfeeds-affiliate-feed-manager'),
+            'subtitle'   => __('Every product you already import can become a storefront on your own domain, next to your posts. Visitors browse it by category, filter it and click out through your affiliate links. Its category pages carry their own titles and meta tags and are listed in your sitemap, so search engines can find them.', 'myfeeds-affiliate-feed-manager'),
             'cta_label'  => __('Start free trial', 'myfeeds-affiliate-feed-manager'),
             'cta_url'    => self::CHECKOUT_SHOP_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=shop',
             'cta_note'   => __('Cancel anytime from your dashboard', 'myfeeds-affiliate-feed-manager'),
@@ -169,11 +169,11 @@ class MyFeeds_Feature_Previews {
                 ),
             ),
             'benefits' => array(
-                __('Your blog gets a real storefront on its own domain. Visitors browse, click out, and you keep the commission.', 'myfeeds-affiliate-feed-manager'),
-                __('Category pages search engines actually pick up. You edit titles, slugs and meta tags in bulk from one screen.', 'myfeeds-affiliate-feed-manager'),
-                __('Smart sidebar filtering shaped to your catalog. Visitors find what they want without bouncing.', 'myfeeds-affiliate-feed-manager'),
+                __('Your blog gets a real storefront on its own domain. Visitors browse, and every click out goes through your own affiliate link.', 'myfeeds-affiliate-feed-manager'),
+                __('Category pages built for search engines. You edit titles, slugs and meta tags in bulk from one screen.', 'myfeeds-affiliate-feed-manager'),
+                __('Smart sidebar filtering shaped to your catalog, so visitors can narrow it down to what they want.', 'myfeeds-affiliate-feed-manager'),
                 __('Schema, OpenGraph, sitemap and robots.txt handled in the background. You write, the shop stays indexable.', 'myfeeds-affiliate-feed-manager'),
-                __('Best-converting products surface first, so the visitor sees what already pays.', 'myfeeds-affiliate-feed-manager'),
+                __('By default the products you feature come first. Visitors can also sort by newest, by price or, with click counting on, by the most clicked of the last 30 days.', 'myfeeds-affiliate-feed-manager'),
                 __('Built on the same feeds you already import. Nothing new to set up.', 'myfeeds-affiliate-feed-manager'),
             ),
         ));
@@ -184,7 +184,7 @@ class MyFeeds_Feature_Previews {
             'eyebrow'    => __('Pro feature', 'myfeeds-affiliate-feed-manager'),
             'tier'       => 'PRO',
             'title'      => __('Make product cards look like your brand.', 'myfeeds-affiliate-feed-manager'),
-            'subtitle'   => __('Generic plugin cards kill conversions. Pick colours, fonts, spacing and shadows in a visual editor. Every change shows up live on real product data, on desktop and on mobile, without touching theme CSS.', 'myfeeds-affiliate-feed-manager'),
+            'subtitle'   => __('Cards in your own colours and fonts look like part of your site. Pick colours, fonts, spacing and shadows in a visual editor. Every change shows up live on real product data, on desktop and on mobile, without touching theme CSS.', 'myfeeds-affiliate-feed-manager'),
             'cta_label'  => __('Start free trial', 'myfeeds-affiliate-feed-manager'),
             'cta_url'    => self::CHECKOUT_PRO_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=card-design',
             'cta_note'   => __('Cancel anytime from your dashboard', 'myfeeds-affiliate-feed-manager'),
@@ -214,7 +214,7 @@ class MyFeeds_Feature_Previews {
             'eyebrow'    => __('Pro feature', 'myfeeds-affiliate-feed-manager'),
             'tier'       => 'PRO',
             'title'      => __('See which posts and products get the clicks.', 'myfeeds-affiliate-feed-manager'),
-            'subtitle'   => __('Clicks on your product cards are counted on your own server and shown in one dashboard, per post, product, brand and network. Earnings, where your network reports them, sit right beside them.', 'myfeeds-affiliate-feed-manager'),
+            'subtitle'   => __('Clicks on your product cards are counted on your own server and shown in one dashboard, per post, product, brand and network. For the networks MyFeeds connects to, the earnings they report sit right beside them.', 'myfeeds-affiliate-feed-manager'),
             'cta_label'  => __('Start free trial', 'myfeeds-affiliate-feed-manager'),
             'cta_url'    => self::CHECKOUT_PRO_URL . '&utm_source=wp-plugin-free&utm_medium=feature-preview&utm_term=analytics',
             'cta_note'   => __('Cancel anytime from your dashboard', 'myfeeds-affiliate-feed-manager'),
@@ -222,7 +222,7 @@ class MyFeeds_Feature_Previews {
                 array(
                     'image'       => $this->preview_image_url('analytics-overview.png'),
                     'placeholder' => __('Analytics overview', 'myfeeds-affiliate-feed-manager'),
-                    'caption'     => __('Clicks and unique visitors at a glance, day by day against the period before, broken down by post, product, brand and network. Earnings and EPC show what a connected network reports. Example data. Your numbers will differ.', 'myfeeds-affiliate-feed-manager'),
+                    'caption'     => __('Clicks and unique visitors at a glance, day by day against the period before, broken down by post, product, brand and network. Earnings and EPC show what the networks MyFeeds connects to report. Example data. Your numbers will differ.', 'myfeeds-affiliate-feed-manager'),
                 ),
                 array(
                     'image'       => $this->preview_image_url('analytics-insights.png'),
@@ -235,8 +235,8 @@ class MyFeeds_Feature_Previews {
                 __('Counted on your own server. Clicks you make yourself while logged in are left out unless you include them.', 'myfeeds-affiliate-feed-manager'),
                 __('Each period against the one before, so you see what is rising and what is fading.', 'myfeeds-affiliate-feed-manager'),
                 __('Insight cards point to products that left your feed and posts that get no clicks.', 'myfeeds-affiliate-feed-manager'),
-                __('Optional: your clicks also go to Google Analytics 4 as events.', 'myfeeds-affiliate-feed-manager'),
-                __('Earnings come from your network, not from MyFeeds: where a network has a reporting API, connect it and the commissions it reports are shown beside the clicks.', 'myfeeds-affiliate-feed-manager'),
+                __('Optional: clicks on your cards also go to Google Analytics 4 as events.', 'myfeeds-affiliate-feed-manager'),
+                __('Earnings come from your network, not from MyFeeds: for the networks MyFeeds connects to, the commissions they report are shown beside the clicks.', 'myfeeds-affiliate-feed-manager'),
             ),
         ));
     }
