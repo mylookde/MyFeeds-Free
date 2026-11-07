@@ -62,7 +62,7 @@ class MyFeeds_Look_Block {
     /**
      * Registered for everyone, so a post keeps rendering its looks after a
      * downgrade (the same courtesy rule 12 gives archived products).
-     * Offered in the inserter on every plan - see enqueue_editor().
+     * Offered in the inserter on every site - see enqueue_editor().
      */
     public static function register() {
         if (!function_exists('register_block_type')) {
@@ -205,6 +205,7 @@ class MyFeeds_Look_Block {
             array('raw_data', $path),
         );
         foreach ($tries as $try) {
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $try[0] is one of the two column names written above; the value goes through prepare().
             $id = $wpdb->get_var($wpdb->prepare(
                 "SELECT external_id FROM {$table} WHERE status = 'active' AND {$try[0]} LIKE %s ORDER BY in_stock DESC LIMIT 1",
                 '%' . $wpdb->esc_like($try[1]) . '%'
@@ -301,18 +302,25 @@ class MyFeeds_Look_Block {
         if (is_wp_error($tmp)) {
             return new WP_Error('myfeeds_look_download', $tmp->get_error_message(), array('status' => 400));
         }
-        if (filesize($tmp) > self::MAX_IMAGE_BYTES || !wp_get_image_mime($tmp)) {
-            @unlink($tmp);
+        $mime = wp_get_image_mime($tmp);
+        if (filesize($tmp) > self::MAX_IMAGE_BYTES || !$mime) {
+            wp_delete_file($tmp);
             return new WP_Error('myfeeds_look_not_image', __('This is not an image MyFeeds can import (or it is larger than 15 MB).', 'myfeeds-affiliate-feed-manager'), array('status' => 400));
         }
-        $ext  = wp_get_default_extension_for_mime_type(wp_get_image_mime($tmp)) ?: 'jpg';
+        // WordPress 5.8.1 and later know every image type; before, the
+        // ones a camera or a shop hands out.
+        $ext = function_exists('wp_get_default_extension_for_mime_type') ? wp_get_default_extension_for_mime_type($mime) : '';
+        if (!$ext) {
+            $known = array('image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp');
+            $ext = isset($known[$mime]) ? $known[$mime] : 'jpg';
+        }
         $base = sanitize_file_name(pathinfo((string) wp_parse_url($url, PHP_URL_PATH), PATHINFO_FILENAME)) ?: 'look';
         $file = array('name' => $base . '.' . $ext, 'tmp_name' => $tmp);
 
         $post_id = (int) $req->get_param('post_id');
         $id = media_handle_sideload($file, $post_id > 0 ? $post_id : 0);
         if (is_wp_error($id)) {
-            @unlink($tmp);
+            wp_delete_file($tmp);
             return new WP_Error('myfeeds_look_import', $id->get_error_message(), array('status' => 400));
         }
 

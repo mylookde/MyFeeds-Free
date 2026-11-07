@@ -446,6 +446,7 @@ function myfeeds_load_includes() {
         'class-feed-upload.php' => 'Feed File Upload (fallback for networks that hand out a file, not a link)',
         'class-source-rules.php' => 'Product source (where the site\'s products come from; every way to add a source asks it first)',
         'class-feed-manager.php' => 'Feed Manager Class',
+        'class-source-switch.php' => 'Change source (the way from one product source to another, with what it takes out of the posts said first)',
         'class-demo-content.php' => 'Sample products for a fresh install (loaded on request only)',
         'class-upsell.php'       => 'Informational Upsell Banner',
         'class-review-ask.php'   => 'One-time wp.org review request',
@@ -639,6 +640,9 @@ class MyFeeds_Affiliate_Product_Picker {
             if ($this->feed_manager && method_exists($this->feed_manager, 'init')) {
                 myfeeds_log("Initializing feed_manager");
                 $this->feed_manager->init();
+            }
+            if (class_exists('MyFeeds_Source_Switch')) {
+                MyFeeds_Source_Switch::init();
             }
             
             if ($this->product_picker && method_exists($this->product_picker, 'init')) {

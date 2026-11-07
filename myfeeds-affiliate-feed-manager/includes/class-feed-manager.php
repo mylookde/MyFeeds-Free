@@ -361,6 +361,42 @@ class MyFeeds_Feed_Manager {
         return $archived;
     }
 
+    /**
+     * The rows archived when these entries were set aside are theirs
+     * again: live, so search and picker see them before the import that
+     * refreshes them. That import marks what the feed no longer has
+     * (last_updated is left as it was for exactly that). The same
+     * statement the other MyFeeds plugin runs when it brings entries back.
+     *
+     * @return int rows made live
+     */
+    public static function bring_rows_back(array $entries) {
+        $ids = array();
+        foreach ($entries as $entry) {
+            $sid = is_array($entry) ? (int) ($entry['stable_id'] ?? 0) : 0;
+            if ($sid > 0) {
+                $ids[] = $sid;
+            }
+        }
+        if (empty($ids) || !class_exists('MyFeeds_DB_Manager') || !MyFeeds_DB_Manager::table_exists()) {
+            return 0;
+        }
+        global $wpdb;
+        $table = MyFeeds_DB_Manager::table_name();
+        $ph    = implode(',', array_fill(0, count($ids), '%d'));
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders + table name are safe
+        $live = (int) $wpdb->query($wpdb->prepare(
+            "UPDATE {$table} SET status = 'active' WHERE feed_id IN ({$ph}) AND status = 'archived'",
+            $ids
+        ));
+        delete_transient('myfeeds_active_count_cache');
+        delete_transient('myfeeds_feed_counts_cache');
+        if ($live > 0 && class_exists('MyFeeds_Search_Engine')) {
+            MyFeeds_Search_Engine::flush_query_caches();
+        }
+        return $live;
+    }
+
     /** The same entry by its stable_id, or by its URL where it has none. */
     private static function holds_entry(array $list, array $entry) {
         $sid = (int) ($entry['stable_id'] ?? 0);
@@ -555,14 +591,7 @@ class MyFeeds_Feed_Manager {
      * Render main feeds page with universal approach
      */
     public function render_feeds_page() {
-        $feeds = get_option(self::OPTION_KEY, array());
-
-        // Defensive: option storage may contain legacy data from older
-        // installs; render the first entry consistently.
-        if (count($feeds) > 1) {
-            $first_key = array_key_first($feeds);
-            $feeds = array($first_key => $feeds[$first_key]);
-        }
+        $feeds = self::get_displayable_feeds();
 
         // Handle messages
         $this->display_admin_messages();
@@ -578,8 +607,8 @@ class MyFeeds_Feed_Manager {
                 
                 <div class="myfeeds-stats-row">
                     <div class="myfeeds-stat-item">
-                        <span class="myfeeds-stat-number" id="myfeeds-active-feeds"><?php echo count($feeds); ?></span>
-                        <span class="myfeeds-stat-label">Active Feeds</span>
+                        <span class="myfeeds-stat-number" id="myfeeds-active-feeds" data-testid="product-source"><?php echo esc_html(MyFeeds_Source_Rules::label()); ?></span>
+                        <span class="myfeeds-stat-label"><?php esc_html_e('Product source', 'myfeeds-affiliate-feed-manager'); ?></span>
                     </div>
                     <div class="myfeeds-stat-item">
                         <span class="myfeeds-stat-number" data-testid="total-products" id="myfeeds-total-products"><?php
@@ -597,12 +626,6 @@ class MyFeeds_Feed_Manager {
                             echo esc_html(round($avg_confidence));
                         ?>%</span>
                         <span class="myfeeds-stat-label">Avg. Mapping Quality</span>
-                    </div>
-                    <div class="myfeeds-stat-item">
-                        <span class="myfeeds-stat-number" id="myfeeds-plan-badge" data-testid="plan-badge">
-                            <?php esc_html_e('Free', 'myfeeds-affiliate-feed-manager'); ?>
-                        </span>
-                        <span class="myfeeds-stat-label">Plan</span>
                     </div>
                 </div>
             </div>
@@ -1096,19 +1119,26 @@ class MyFeeds_Feed_Manager {
     }
     
     /**
-     * The screen of a site without a product source. Deleting the last
-     * feed reloads the page to reach it (ajax_delete_feed()).
+     * The ways in, on a site without a product source: the feed door here,
+     * the doors of other sources through myfeeds_source_doors (each looks
+     * at the kinds MyFeeds_Source_Rules::doors() names), and below them the
+     * sample offer. Above the table while the samples are loaded. Deleting
+     * the last source and "Change source" reload the page to reach it.
      */
-    private function render_empty_state() {
+    private function render_doors() {
         ?>
-        <div class="myfeeds-empty-state" style="text-align:center; padding:48px 24px; border:1px dashed #c3c4c7; border-radius:8px; background:#fff;">
-            <h3 style="margin-top:0;"><?php esc_html_e('Add your first feed', 'myfeeds-affiliate-feed-manager'); ?></h3>
-            <p style="max-width:480px; margin:8px auto 20px; color:#50575e;">
-                <?php esc_html_e('Paste the product feed URL from your affiliate network. MyFeeds auto-detects the format and maps every product field for you.', 'myfeeds-affiliate-feed-manager'); ?>
-            </p>
-            <button type="button" id="myfeeds-add-feed-btn" class="button button-primary button-hero" data-testid="add-feed-btn">
-                + <?php esc_html_e('Add your first feed', 'myfeeds-affiliate-feed-manager'); ?>
-            </button>
+        <div class="myfeeds-empty-state myfeeds-source-doors-wrap" data-testid="source-doors">
+            <p class="myfeeds-source-doors-intro"><?php esc_html_e('Choose where this site\'s products come from. You can change it later.', 'myfeeds-affiliate-feed-manager'); ?></p>
+            <div class="myfeeds-source-doors">
+                <div class="myfeeds-source-door">
+                    <h3><?php esc_html_e('Add a feed', 'myfeeds-affiliate-feed-manager'); ?></h3>
+                    <p><?php esc_html_e('Paste the product feed link from your affiliate network, or upload the file it gives you. MyFeeds detects the format and maps every field.', 'myfeeds-affiliate-feed-manager'); ?></p>
+                    <button type="button" id="myfeeds-add-feed-btn" class="button button-primary" data-testid="add-feed-btn">
+                        + <?php esc_html_e('Add a feed', 'myfeeds-affiliate-feed-manager'); ?>
+                    </button>
+                </div>
+                <?php do_action('myfeeds_source_doors', MyFeeds_Source_Rules::doors()); ?>
+            </div>
             <?php $this->render_demo_offer(); ?>
         </div>
         <?php
@@ -1220,19 +1250,39 @@ class MyFeeds_Feed_Manager {
 
     private function render_feeds_table($feeds) {
         $has_feed = !empty($feeds);
+        $source = MyFeeds_Source_Rules::current();
+        if ($source === 'feed') {
+            $kind = __('A product feed', 'myfeeds-affiliate-feed-manager');
+        } elseif ($source === 'api:rakuten') {
+            $kind = __('Rakuten Advertising', 'myfeeds-affiliate-feed-manager');
+        } elseif ($source !== '') {
+            $kind = __('An affiliate network\'s API', 'myfeeds-affiliate-feed-manager');
+        } else {
+            $kind = '';
+        }
         ?>
         <div class="myfeeds-feeds-table">
             <div class="myfeeds-feeds-table-header">
-                <h2><?php esc_html_e('Configured Feed', 'myfeeds-affiliate-feed-manager'); ?></h2>
+                <h2><?php esc_html_e('Product source', 'myfeeds-affiliate-feed-manager'); ?>
+                    <?php if ($kind !== ''): ?>
+                        <span class="myfeeds-source-kind" data-testid="source-kind"><?php echo esc_html($kind); ?></span>
+                    <?php endif; ?>
+                </h2>
                 <?php
                 // Sources that are not feed URLs add their own button here
                 // (Amazon by link or ASIN, class-amazon-admin.php).
                 do_action('myfeeds_feeds_table_actions');
                 ?>
+                <?php if ($source !== ''): ?>
+                    <button type="button" id="myfeeds-change-source-btn" class="button" data-testid="change-source-btn">
+                        <?php esc_html_e('Change source', 'myfeeds-affiliate-feed-manager'); ?>
+                    </button>
+                <?php endif; ?>
             </div>
-            <?php if (!$has_feed): ?>
-                <?php $this->render_empty_state(); ?>
-            <?php else: ?>
+            <?php if ($source === ''): ?>
+                <?php $this->render_doors(); ?>
+            <?php endif; ?>
+            <?php if ($has_feed): ?>
             <table class="wp-list-table widefat striped">
                 <thead>
                     <tr>
@@ -1262,8 +1312,15 @@ class MyFeeds_Feed_Manager {
                                 <?php endif; ?>
                             </td>
                             <td>
+                                <?php
+                                // A source that is not a URL (an API source
+                                // writes a file here) describes itself.
+                                $source_html = $is_demo ? '' : apply_filters('myfeeds_feed_row_source_html', '', $feed, $key);
+                                ?>
                                 <?php if ($is_demo): ?>
                                     <span class="myfeeds-feed-url"><?php esc_html_e('Bundled sample data', 'myfeeds-affiliate-feed-manager'); ?></span>
+                                <?php elseif ($source_html !== '') : ?>
+                                    <?php echo wp_kses_post($source_html); ?>
                                 <?php elseif (class_exists('MyFeeds_Feed_Upload') && MyFeeds_Feed_Upload::is_uploaded_url($feed['url'])): ?>
                                     <span class="myfeeds-feed-url myfeeds-feed-url-uploaded"
                                           title="<?php echo esc_attr(MyFeeds_Feed_Upload::describe_staleness($feed)); ?>">
@@ -1392,6 +1449,7 @@ class MyFeeds_Feed_Manager {
                                     data-feed-name="<?php echo esc_attr($feed['name']); ?>"
                                     data-feed-url="<?php echo esc_attr($feed['url']); ?>"
                                     data-feed-uploaded="<?php echo (class_exists('MyFeeds_Feed_Upload') && MyFeeds_Feed_Upload::is_uploaded_url($feed['url'])) ? '1' : '0'; ?>"
+                                    data-feed-source="<?php echo esc_attr(apply_filters('myfeeds_feed_source_kind', (class_exists('MyFeeds_Feed_Upload') && MyFeeds_Feed_Upload::is_uploaded_url($feed['url'])) ? 'upload' : 'url', $feed)); ?>"
                                     data-feed-format="<?php echo esc_attr($feed['format_hint'] ?? ''); ?>"
                                     data-feed-network="<?php echo esc_attr(self::network_hint_for_dialog($feed)); ?>"
                                     data-testid="edit-feed-<?php echo esc_attr($key); ?>">
@@ -1414,6 +1472,11 @@ class MyFeeds_Feed_Manager {
                                     <?php if ($is_importing): ?>disabled<?php endif; ?>>
                                     <?php esc_html_e('Delete', 'myfeeds-affiliate-feed-manager'); ?>
                                 </button>
+                                <?php
+                                // Sources that are not feed URLs add their
+                                // own row actions.
+                                do_action('myfeeds_feed_row_actions', $feed, $key);
+                                ?>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -1449,6 +1512,7 @@ class MyFeeds_Feed_Manager {
         </div>
 
         <?php $this->render_feed_modal(); ?>
+        <?php MyFeeds_Source_Switch::render_modal(); ?>
         <?php
         // Other sources hang their own window off the feeds page here.
         do_action('myfeeds_feeds_page_footer');
@@ -1846,7 +1910,9 @@ class MyFeeds_Feed_Manager {
     private function stamp_upload_fields($entry, $url, $uploaded, $existing = array()) {
         $is_upload = class_exists('MyFeeds_Feed_Upload') && MyFeeds_Feed_Upload::is_uploaded_url($url);
 
-        $entry['source'] = $is_upload ? 'upload' : 'url';
+        // An API source stores a file under the upload folder too, but it
+        // refreshes itself; its own class says so through the filter.
+        $entry['source'] = apply_filters('myfeeds_feed_source_kind', $is_upload ? 'upload' : 'url', array_merge(is_array($existing) ? $existing : array(), $entry));
 
         if (!$is_upload) {
             $entry['uploaded_at'] = '';
@@ -2056,8 +2122,8 @@ class MyFeeds_Feed_Manager {
                     'source_changed' => $source_changed,
                     'detected_network' => $detected_network,
                     'source_label' => $this->source_label_for($url, $uploaded),
-                    'source_label' => $this->source_label_for($url, $uploaded),
-                'table_html' => $this->feeds_table_html(),
+                    'product_source' => MyFeeds_Source_Rules::label(),
+                    'table_html' => $this->feeds_table_html(),
                 ));
                 return;
             }
@@ -2138,6 +2204,8 @@ class MyFeeds_Feed_Manager {
                 'feed_key' => 0,
                 'source_changed' => $source_changed,
                 'detected_network' => $detected_network,
+                'source_label' => $this->source_label_for($url, $uploaded),
+                'product_source' => MyFeeds_Source_Rules::label(),
                 'table_html' => $this->feeds_table_html(),
             ));
 
@@ -2442,17 +2510,16 @@ class MyFeeds_Feed_Manager {
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::table_exists()) {
             $total_products = MyFeeds_DB_Manager::get_active_product_count();
         }
-        $active_feeds = count($feeds);
-        $avg_quality = $active_feeds > 0 ? round(array_sum(array_column($feeds, 'mapping_confidence')) / $active_feeds) : 0;
+        $avg_quality = count($feeds) > 0 ? round(array_sum(array_column($feeds, 'mapping_confidence')) / count($feeds)) : 0;
 
         MyFeeds_Logger::info("Feed '{$feed_name}' deleted. Removed {$deleted_products} products from DB.");
-        
+
         wp_send_json_success(array(
             'message' => sprintf('Feed "%s" deleted. %s products removed.', $feed_name, number_format_i18n($deleted_products)),
             'deleted_products' => $deleted_products,
             'total_products' => $total_products,
             'total_products_formatted' => number_format_i18n($total_products),
-            'active_feeds' => $active_feeds,
+            'product_source' => MyFeeds_Source_Rules::label(),
             'avg_quality' => $avg_quality,
             // Without a source the screen is a different one - the ways
             // in, the sample offer - and what it offers is wired when the
@@ -2475,8 +2542,8 @@ class MyFeeds_Feed_Manager {
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::table_exists()) {
             $total_products = MyFeeds_DB_Manager::get_active_product_count();
         }
-        $active_feeds = count($feeds);
-        $avg_quality = $active_feeds > 0 ? round(array_sum(array_column($feeds, 'mapping_confidence')) / $active_feeds) : 0;
+        $feeds = is_array($feeds) ? $feeds : array();
+        $avg_quality = count($feeds) > 0 ? round(array_sum(array_column($feeds, 'mapping_confidence')) / count($feeds)) : 0;
 
         // Also return last sync info for Fix 3
         $last_sync = get_option('myfeeds_last_auto_sync', null);
@@ -2484,11 +2551,11 @@ class MyFeeds_Feed_Manager {
         if ($last_sync && !empty($last_sync['time'])) {
             $last_sync_text = $last_sync['time'] . ' (' . self::get_sync_type_label($last_sync) . ')';
         }
-        
+
         wp_send_json_success(array(
             'total_products' => $total_products,
             'total_products_formatted' => number_format_i18n($total_products),
-            'active_feeds' => $active_feeds,
+            'product_source' => MyFeeds_Source_Rules::label(),
             'avg_quality' => $avg_quality,
             'last_sync_text' => $last_sync_text,
         ));

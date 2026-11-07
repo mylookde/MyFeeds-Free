@@ -924,17 +924,19 @@
                                 // line below used to look for a tr; the empty
                                 // state stopped being one a long time ago.)
                                 // The server sends the rendered table for
-                                // exactly this case.
-                                if (!$('.myfeeds-feeds-table tbody').length && response.data.table_html) {
+                                // exactly this case. The same goes while the
+                                // ways in stand above the sample row: the
+                                // first source replaces both.
+                                if ((!$('.myfeeds-feeds-table tbody').length || $('.myfeeds-source-doors').length) && response.data.table_html) {
                                     $('.myfeeds-feeds-table').replaceWith(response.data.table_html);
                                 } else {
                                     $('.myfeeds-empty-state').remove();
                                     $('.myfeeds-feeds-table tbody').append(newRow);
                                 }
                                 
-                                // Update header active feeds count
-                                var currentFeeds = parseInt($('#myfeeds-active-feeds').text()) || 0;
-                                $('#myfeeds-active-feeds').text(currentFeeds + 1);
+                                if (response.data.product_source) {
+                                    $('#myfeeds-active-feeds').text(response.data.product_source);
+                                }
                                 
                                 // Start polling for this specific feed
                                 startReimportPolling(feedKey);
@@ -1317,7 +1319,7 @@
                         });
                         
                         // Update header stats from server response
-                        $('#myfeeds-active-feeds').text(d.active_feeds);
+                        $('#myfeeds-active-feeds').text(d.product_source);
                         $('#myfeeds-total-products').text(d.total_products_formatted || formatNumber(d.total_products));
                         $('#myfeeds-avg-quality').text(d.avg_quality + '%');
                         
@@ -1342,7 +1344,7 @@
                 }).done(function(response) {
                     if (response.success) {
                         var d = response.data;
-                        $('#myfeeds-active-feeds').text(d.active_feeds);
+                        $('#myfeeds-active-feeds').text(d.product_source);
                         $('#myfeeds-total-products').text(d.total_products_formatted || formatNumber(d.total_products));
                         $('#myfeeds-avg-quality').text(d.avg_quality + '%');
                         if (d.last_sync_text) {

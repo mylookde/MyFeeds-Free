@@ -537,6 +537,50 @@ tr.myfeeds-feed-inactive .button-link-delete {
     margin: 0;
 }
 
+/* The ways in on a site without a product source: one card per kind of
+   source, then the sample offer. Above the sample row while the samples
+   are loaded. */
+.myfeeds-source-doors-wrap {
+    margin-bottom: 20px;
+}
+.myfeeds-source-doors-wrap .myfeeds-source-doors-intro {
+    margin: 0 0 16px;
+    font-size: 14px;
+    color: #1d2327;
+}
+.myfeeds-source-doors {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+}
+.myfeeds-source-doors-wrap .myfeeds-source-door {
+    padding: 20px;
+    border: 1px dashed #c3c4c7;
+    border-radius: 8px;
+    background: #fff;
+}
+.myfeeds-source-doors-wrap .myfeeds-source-door h3 {
+    margin: 0 0 8px;
+    color: #1d2327;
+}
+.myfeeds-source-doors-wrap .myfeeds-source-door p {
+    margin: 0 0 16px;
+    color: #50575e;
+}
+.myfeeds-source-kind {
+    display: block;
+    margin-top: 4px;
+    font-size: 13px;
+    font-weight: normal;
+    color: #50575e;
+}
+.myfeeds-change-source-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: 20px 0 0;
+}
+
 /* Quality Modal */
 /* The dialog itself no longer scrolls. A scrollbar inside a form hides
    fields and its scroll position fights the page. The overlay scrolls

@@ -1,0 +1,420 @@
+<?php
+/**
+ * "Change source" on the Feeds screen: the way from one product source to
+ * another.
+ *
+ * Changing the source removes the old one as deleting a feed does - what
+ * a published post shows becomes unavailable, everything else of the
+ * source is deleted - after a window that says what that takes out of the
+ * site's posts. The same window brings a source that is set aside back
+ * ("Use this source instead"): the current one goes, the one set aside
+ * returns with its products.
+ *
+ * The page loads again afterwards. What a source offers on the screen is
+ * wired when the page loads, so swapping parts of it would leave the
+ * screen of the source that was there before.
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+class MyFeeds_Source_Switch {
+
+    public static function init() {
+        add_action('wp_ajax_myfeeds_source_preview', array(__CLASS__, 'ajax_preview'));
+        add_action('wp_ajax_myfeeds_source_change', array(__CLASS__, 'ajax_change'));
+        // Before the sample products' own handler (priority 10): it reads the
+        // feed list only, and the site's source is more than the list.
+        add_action('admin_post_myfeeds_load_demo', array(__CLASS__, 'refuse_samples'), 1);
+        add_action('admin_enqueue_scripts', array(__CLASS__, 'enqueue'));
+    }
+
+    public static function enqueue($hook) {
+        if ($hook !== 'toplevel_page_myfeeds-feeds') {
+            return;
+        }
+        $rel = 'assets/source-switch.js';
+        wp_enqueue_script(
+            'myfeeds-source-switch',
+            MYFEEDS_PLUGIN_URL . $rel,
+            array(),
+            function_exists('myfeeds_asset_ver') ? myfeeds_asset_ver($rel) : (string) filemtime(MYFEEDS_PLUGIN_DIR . $rel),
+            true
+        );
+        wp_localize_script('myfeeds-source-switch', 'myfeedsSourceSwitch', array(
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'nonce'   => wp_create_nonce('myfeeds_nonce'),
+            'pageUrl' => admin_url('admin.php?page=myfeeds-feeds'),
+            'i18n'    => array(
+                'counting'    => __('Counting what this changes ...', 'myfeeds-affiliate-feed-manager'),
+                'serverError' => __('Server error. Please try again.', 'myfeeds-affiliate-feed-manager'),
+            ),
+        ));
+    }
+
+    /**
+     * The window, rendered once with the other dialogs of the screen. Its
+     * text comes from preview(), counted when it opens.
+     */
+    public static function render_modal() {
+        ?>
+        <div id="myfeeds-change-source-modal" class="myfeeds-modal-overlay" style="display:none;" data-testid="change-source-modal">
+            <div class="myfeeds-modal-content" role="dialog" aria-modal="true" aria-labelledby="myfeeds-change-source-title">
+                <div class="myfeeds-modal-header">
+                    <h3 id="myfeeds-change-source-title"><?php esc_html_e('Change the product source', 'myfeeds-affiliate-feed-manager'); ?></h3>
+                    <button type="button" class="myfeeds-modal-close" data-myfeeds-source-cancel>&times;</button>
+                </div>
+                <div class="myfeeds-modal-body">
+                    <div id="myfeeds-change-source-text" aria-live="polite"></div>
+                    <p class="myfeeds-change-source-actions">
+                        <button type="button" class="button" data-myfeeds-source-cancel><?php esc_html_e('Cancel', 'myfeeds-affiliate-feed-manager'); ?></button>
+                        <button type="button" class="button button-primary" id="myfeeds-change-source-confirm" disabled><?php esc_html_e('Remove this source', 'myfeeds-affiliate-feed-manager'); ?></button>
+                    </p>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * The value of 'target' in a request: '' (no source comes back) or a
+     * group of myfeeds_feeds_set_aside, as the note on the Feeds screen
+     * names it. Null for anything else.
+     *
+     * @return array{0:string,1:array[]}|null [target, the entries it names]
+     */
+    private static function requested_target() {
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- both callers check the nonce first.
+        $target = isset($_POST['target']) ? sanitize_text_field(wp_unslash($_POST['target'])) : '';
+        if ($target === '') {
+            return array('', array());
+        }
+        $group = self::set_aside_group($target);
+        return $group === array() ? null : array($target, $group);
+    }
+
+    /**
+     * The entries of myfeeds_feeds_set_aside a target names: 'feed:<id>'
+     * one feed by its stable_id, 'api:rakuten' every advertiser of
+     * Rakuten's API, which are one source.
+     *
+     * @param string $target
+     * @return array[] Empty when it names nothing set aside.
+     */
+    private static function set_aside_group($target) {
+        $aside = get_option(MyFeeds_Feed_Manager::SET_ASIDE_OPTION, array());
+        if (!is_array($aside)) {
+            return array();
+        }
+        $feed = preg_match('/^feed:([1-9][0-9]*)$/', (string) $target, $m) ? (int) $m[1] : 0;
+        if ($feed === 0 && $target !== 'api:rakuten') {
+            return array();
+        }
+        $group = array();
+        foreach ($aside as $entry) {
+            if (!self::is_source_entry($entry)) {
+                continue;
+            }
+            $network = self::network_of($entry);
+            if ($feed > 0 ? ($network === '' && (int) ($entry['stable_id'] ?? 0) === $feed) : $network === 'rakuten') {
+                $group[] = $entry;
+            }
+        }
+        return $feed > 0 ? array_slice($group, 0, 1) : $group;
+    }
+
+    /** An entry that is part of a product source: named, with a URL, no sample. */
+    private static function is_source_entry($entry) {
+        return is_array($entry)
+            && trim((string) ($entry['name'] ?? '')) !== ''
+            && trim((string) ($entry['url'] ?? '')) !== ''
+            && !(class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($entry));
+    }
+
+    /** '' for a feed, the network for an entry a network's API wrote. */
+    private static function network_of(array $entry) {
+        if (empty($entry['api']) || !is_array($entry['api'])) {
+            return '';
+        }
+        $network = sanitize_key((string) ($entry['api']['network'] ?? ''));
+        return $network !== '' ? $network : 'other';
+    }
+
+    /** The entries of the site's product source: every real entry of the list. */
+    private static function source_entries() {
+        $list = get_option(MyFeeds_Feed_Manager::OPTION_KEY, array());
+        $out = array();
+        foreach (is_array($list) ? $list : array() as $entry) {
+            if (self::is_source_entry($entry)) {
+                $out[] = $entry;
+            }
+        }
+        return $out;
+    }
+
+    /** The key of this entry in the list now: by stable_id, by URL and name where it has none. */
+    private static function key_of(array $entry) {
+        $list = get_option(MyFeeds_Feed_Manager::OPTION_KEY, array());
+        $sid = (int) ($entry['stable_id'] ?? 0);
+        foreach (is_array($list) ? $list : array() as $key => $have) {
+            if (!is_array($have)) {
+                continue;
+            }
+            if ($sid > 0 ? (int) ($have['stable_id'] ?? 0) === $sid
+                : ((string) ($have['url'] ?? '') === (string) ($entry['url'] ?? '') && (string) ($have['name'] ?? '') === (string) ($entry['name'] ?? ''))) {
+                return $key;
+            }
+        }
+        return null;
+    }
+
+    /** The same entry by its stable_id, or by its URL - as the other plugin brings feeds back. */
+    private static function holds(array $list, array $entry) {
+        $sid = (int) ($entry['stable_id'] ?? 0);
+        $url = (string) ($entry['url'] ?? '');
+        foreach ($list as $have) {
+            if (!is_array($have)) {
+                continue;
+            }
+            if (($sid > 0 && (int) ($have['stable_id'] ?? 0) === $sid) || ($url !== '' && (string) ($have['url'] ?? '') === $url)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * What the window says before anything happens: which source goes,
+     * how many of its products leave how many published posts (counted as
+     * the delete path will take them, MyFeeds_Feed_Manager::leaving()),
+     * and which source comes back. Built here, so every sentence stays
+     * translatable and the script knows none.
+     *
+     * @param array[] $back The entries that come back, or none.
+     * @return array{kind:string,label:string,products:int,posts:int,html:string,confirm:string}
+     */
+    public static function preview(array $back = array()) {
+        $old = self::source_entries();
+        $current = MyFeeds_Source_Rules::current();
+        $leaving = !empty($old) ? MyFeeds_Feed_Manager::leaving($old) : array('products' => 0, 'posts' => 0);
+        $products = (int) $leaving['products'];
+        $posts = (int) $leaving['posts'];
+
+        $lines = array();
+        if (!empty($back)) {
+            if (self::network_of($back[0]) === '') {
+                /* translators: %s: the name of the feed that comes back */
+                $lines[] = sprintf(__('“%s” comes back with its products.', 'myfeeds-affiliate-feed-manager'), (string) $back[0]['name']);
+            } else {
+                $lines[] = __('Rakuten Advertising comes back with its advertisers and their products.', 'myfeeds-affiliate-feed-manager');
+            }
+        }
+        if (!empty($old)) {
+            if ($current === 'feed') {
+                $name = '';
+                foreach ($old as $entry) {
+                    if (self::network_of($entry) === '') {
+                        $name = (string) $entry['name'];
+                        break;
+                    }
+                }
+                /* translators: %s: the name of the feed */
+                $lines[] = sprintf(__('“%s” stops being this site\'s product source.', 'myfeeds-affiliate-feed-manager'), $name);
+            } elseif ($current === 'api:rakuten') {
+                $lines[] = __('Rakuten Advertising stops being this site\'s product source, with all its advertisers.', 'myfeeds-affiliate-feed-manager');
+            } else {
+                $lines[] = __('These feeds stop being this site\'s product source.', 'myfeeds-affiliate-feed-manager');
+            }
+            if ($products > 0) {
+                $lines[] = sprintf(
+                    /* translators: 1: "3 products", 2: "2 published posts" */
+                    __('It has %1$s in %2$s. They leave those posts, as when a feed is deleted: readers no longer see them, and the Content health card on this screen lists the posts so you can replace them. Every other product of this source is deleted, including products in drafts and scheduled posts. This cannot be undone.', 'myfeeds-affiliate-feed-manager'),
+                    /* translators: %s: a number of products */
+                    sprintf(_n('%s product', '%s products', $products, 'myfeeds-affiliate-feed-manager'), number_format_i18n($products)),
+                    /* translators: %s: a number of published posts */
+                    sprintf(_n('%s published post', '%s published posts', $posts, 'myfeeds-affiliate-feed-manager'), number_format_i18n($posts))
+                );
+            } else {
+                $lines[] = __('None of its products is placed in a published post. Its products are deleted, including any in drafts and scheduled posts. This cannot be undone.', 'myfeeds-affiliate-feed-manager');
+            }
+        }
+
+        $html = '';
+        foreach ($lines as $line) {
+            $html .= '<p>' . esc_html($line) . '</p>';
+        }
+        return array(
+            'kind'     => $current,
+            'label'    => MyFeeds_Source_Rules::label($current),
+            'products' => $products,
+            'posts'    => $posts,
+            'html'     => $html,
+            'confirm'  => !empty($back)
+                ? __('Use this source instead', 'myfeeds-affiliate-feed-manager')
+                : __('Remove this source', 'myfeeds-affiliate-feed-manager'),
+        );
+    }
+
+    /**
+     * Removes the site's product source the way deleting a feed does, and
+     * brings $back in its place if given.
+     *
+     * One read of the placed products for every entry, one sweep after
+     * the last: each read walks every published post. The entries are
+     * found by stable_id each time, because every delete shifts the keys
+     * after it.
+     *
+     * @param array[] $back The entries that come back, or none.
+     * @return array{message:string,reload:bool,redirect:string}|WP_Error
+     */
+    public static function change(array $back = array()) {
+        if (MyFeeds_Feed_Manager::import_running()) {
+            return new WP_Error('myfeeds_import_running', __('An import is running. Change the source when it has finished.', 'myfeeds-affiliate-feed-manager'));
+        }
+        $old = self::source_entries();
+        if (empty($old) && empty($back)) {
+            return new WP_Error('myfeeds_no_source', __('This site has no product source to remove.', 'myfeeds-affiliate-feed-manager'));
+        }
+
+        if (!empty($old)) {
+            $placed = class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()
+                ? MyFeeds_DB_Manager::placed_product_ids()
+                : null;
+            foreach ($old as $entry) {
+                $key = self::key_of($entry);
+                if ($key !== null) {
+                    MyFeeds_Feed_Manager::delete_entry_at($key, $placed, false);
+                }
+            }
+            MyFeeds_Feed_Manager::after_deletion($placed);
+        }
+
+        if (empty($back)) {
+            $message = __('The product source was removed. Choose a new one below.', 'myfeeds-affiliate-feed-manager');
+        } else {
+            $updating = self::bring_back($back);
+            if (self::network_of($back[0]) === '') {
+                /* translators: %s: the name of the feed */
+                $message = sprintf(__('“%s” is this site\'s product source again.', 'myfeeds-affiliate-feed-manager'), (string) $back[0]['name']);
+            } else {
+                $message = __('Rakuten Advertising is this site\'s product source again.', 'myfeeds-affiliate-feed-manager');
+            }
+            if ($updating) {
+                $message .= ' ' . __('Its products are being updated.', 'myfeeds-affiliate-feed-manager');
+            }
+        }
+
+        return array(
+            'message'  => $message,
+            'reload'   => true,
+            'redirect' => add_query_arg('myfeeds_success', rawurlencode($message), admin_url('admin.php?page=myfeeds-feeds')),
+        );
+    }
+
+    /**
+     * The entries come back from myfeeds_feeds_set_aside: into the list
+     * (none twice, matched as the other plugin matches them), then out of
+     * the option - in that order, so a request that ends in between leaves
+     * an entry in both, never in neither. The samples make room (rule 21),
+     * the rows archived when the entries were set aside are live again,
+     * and a feed is imported for what changed meanwhile.
+     *
+     * @param array[] $back
+     * @return bool Whether an import was scheduled.
+     */
+    private static function bring_back(array $back) {
+        if (class_exists('MyFeeds_Demo_Content')) {
+            MyFeeds_Demo_Content::remove_if_active();
+        }
+        $list = get_option(MyFeeds_Feed_Manager::OPTION_KEY, array());
+        $list = is_array($list) ? array_values($list) : array();
+        $returned = array();
+        foreach ($back as $entry) {
+            if (!self::holds($list, $entry)) {
+                $list[] = $entry;
+                $returned[] = $entry;
+            }
+        }
+        update_option(MyFeeds_Feed_Manager::OPTION_KEY, $list);
+
+        $aside = get_option(MyFeeds_Feed_Manager::SET_ASIDE_OPTION, array());
+        $rest = array();
+        foreach (is_array($aside) ? $aside : array() as $entry) {
+            if (!is_array($entry) || !self::holds($back, $entry)) {
+                $rest[] = $entry;
+            }
+        }
+        if (empty($rest)) {
+            delete_option(MyFeeds_Feed_Manager::SET_ASIDE_OPTION);
+        } else {
+            update_option(MyFeeds_Feed_Manager::SET_ASIDE_OPTION, $rest, false);
+        }
+
+        MyFeeds_Feed_Manager::bring_rows_back($returned);
+        if (class_exists('MyFeeds_Dead_Products')) {
+            MyFeeds_Dead_Products::bust_cache();
+        }
+
+        $scheduled = false;
+        foreach ($returned as $entry) {
+            if (self::network_of($entry) !== '' || !class_exists('MyFeeds_Batch_Importer')) {
+                continue;
+            }
+            $key = self::key_of($entry);
+            if ($key !== null && (new MyFeeds_Batch_Importer())->schedule_new_feed_import($key, true)) {
+                $scheduled = true;
+            }
+        }
+        return $scheduled;
+    }
+
+    public static function ajax_preview() {
+        check_ajax_referer('myfeeds_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Permission denied', 'myfeeds-affiliate-feed-manager')), 403);
+            return;
+        }
+        $target = self::requested_target();
+        if ($target === null) {
+            wp_send_json_error(array('message' => __('There is no such source set aside on this site.', 'myfeeds-affiliate-feed-manager')), 400);
+            return;
+        }
+        if ($target[0] === '' && empty(self::source_entries())) {
+            wp_send_json_error(array('message' => __('This site has no product source to remove.', 'myfeeds-affiliate-feed-manager')));
+            return;
+        }
+        wp_send_json_success(self::preview($target[1]));
+    }
+
+    public static function ajax_change() {
+        check_ajax_referer('myfeeds_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Permission denied', 'myfeeds-affiliate-feed-manager')), 403);
+            return;
+        }
+        $target = self::requested_target();
+        if ($target === null) {
+            wp_send_json_error(array('message' => __('There is no such source set aside on this site.', 'myfeeds-affiliate-feed-manager')), 400);
+            return;
+        }
+        $done = self::change($target[1]);
+        if (is_wp_error($done)) {
+            wp_send_json_error(array('message' => $done->get_error_message()));
+            return;
+        }
+        wp_send_json_success($done);
+    }
+
+    /**
+     * The sample products are offered while the site has no product
+     * source; a request to load them beside one is turned down.
+     */
+    public static function refuse_samples() {
+        if (MyFeeds_Source_Rules::current() === '') {
+            return;
+        }
+        wp_safe_redirect(add_query_arg('myfeeds_error', rawurlencode(MyFeeds_Source_Rules::refusal()), admin_url('admin.php?page=myfeeds-feeds')));
+        exit;
+    }
+}
