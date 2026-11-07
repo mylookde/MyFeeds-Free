@@ -83,6 +83,7 @@ class MyFeeds_DB_Manager {
             in_stock TINYINT(1) DEFAULT 1,
             status VARCHAR(20) DEFAULT 'active',
             last_updated DATETIME,
+            unavailable_since DATETIME NULL,
             raw_data LONGTEXT,
             search_text TEXT DEFAULT NULL,
             variant_key CHAR(32) DEFAULT NULL,
@@ -219,6 +220,52 @@ class MyFeeds_DB_Manager {
 
         update_option(self::VARIANT_KEY_FLAG, 1, false);
         self::$variant_key_ready = true;
+        return true;
+    }
+
+    const UNAVAILABLE_SINCE_FLAG = 'myfeeds_products_unavailable_since_v1';
+
+    /**
+     * Add unavailable_since to a table this plugin created before it had
+     * the column (up to 1.0.52; the other MyFeeds plugin's table always
+     * had it). Every statement that marks a row unavailable writes it, and
+     * failed without it: a deleted feed's placed rows stayed live, the
+     * sweep after the delete archived them, and they kept showing in the
+     * posts. Once per site, under a flag; instant where the server can.
+     *
+     * @return bool true when the column is there afterwards.
+     */
+    public static function ensure_unavailable_since_column() {
+        if (get_option(self::UNAVAILABLE_SINCE_FLAG)) {
+            return true;
+        }
+        global $wpdb;
+        $table = self::table_name();
+        if (!self::table_exists()) {
+            return false;
+        }
+        // A column added while the storage job copies the table would
+        // break its INSERT ... SELECT *. Wait for it.
+        if (class_exists('MyFeeds_Storage_Job') && MyFeeds_Storage_Job::is_active()) {
+            return false;
+        }
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is safe
+        if (!$wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM {$table} LIKE %s", 'unavailable_since'))) {
+            $suppress = $wpdb->suppress_errors(true);
+            $wpdb->last_error = '';
+            $r = $wpdb->query("ALTER TABLE {$table} ADD COLUMN unavailable_since DATETIME NULL, ALGORITHM=INSTANT");
+            if ($r === false || $wpdb->last_error !== '') {
+                $wpdb->last_error = '';
+                $r = $wpdb->query("ALTER TABLE {$table} ADD COLUMN unavailable_since DATETIME NULL");
+            }
+            $wpdb->suppress_errors($suppress);
+            if ($r === false || $wpdb->last_error !== '') {
+                myfeeds_log('unavailable_since: could not add the column, tried again on the next admin request: ' . $wpdb->last_error, 'error');
+                return false;
+            }
+            myfeeds_log("unavailable_since: column added on {$table}", 'info');
+        }
+        update_option(self::UNAVAILABLE_SINCE_FLAG, 1, false);
         return true;
     }
 

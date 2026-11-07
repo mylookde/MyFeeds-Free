@@ -398,6 +398,13 @@ add_action('admin_init', function() {
             update_option('myfeeds_products_index_prune_v1', 1, false);
         }
 
+        // The column every "unavailable" writes, which tables this plugin
+        // created up to 1.0.52 lack. Same reason as above for a flag of its
+        // own; admin_init runs before any delete (admin-ajax.php too).
+        if (method_exists('MyFeeds_DB_Manager', 'ensure_unavailable_since_column')) {
+            MyFeeds_DB_Manager::ensure_unavailable_since_column();
+        }
+
         // One product, many sizes: the variant_key column and its
         // backfill. Only scheduled here - the ALTER and the row pass run
         // in the background, never inside an admin page load.
