@@ -17,6 +17,11 @@ class MyFeeds_Feed_Manager {
     const INDEX_FILE = 'myfeeds-feed-index.json';
     /** Feed entries kept unchanged, out of the list, when a site holds more than one source. */
     const SET_ASIDE_OPTION = 'myfeeds_feeds_set_aside';
+    /**
+     * Set once the live rows of every entry set aside are archived. Read on
+     * every request that may import, so it is autoloaded and costs nothing.
+     */
+    const ROWS_ARCHIVED_FLAG = 'myfeeds_set_aside_rows_archived';
 
     private $smart_mapper;
 
@@ -95,16 +100,17 @@ class MyFeeds_Feed_Manager {
     /**
      * This plugin keeps one product source up to date. A list that holds
      * more - the feeds of an earlier setup with the other MyFeeds plugin -
-     * keeps the feed with the most products placed in posts (the first on
-     * a tie, which is the one an older version kept) and sets every other
-     * entry aside, unchanged, in myfeeds_feeds_set_aside: nothing about
-     * them is lost, and the plugin that wrote them takes them back. A list
-     * of one is never touched, whatever kind of feed it is.
+     * keeps one source and sets every other entry aside, unchanged, in
+     * myfeeds_feeds_set_aside: nothing about them is lost, and the plugin
+     * that wrote them takes them back. A list of one source is never
+     * touched, whatever kind it is.
      *
-     * A feed a network's API wrote (an entry with an 'api' block) is a
-     * snapshot only the plugin that fetched it refreshes; kept here, its
-     * prices and stock would stay as they are for good. Beside a feed this
-     * plugin can import, it is set aside whatever its posts hold.
+     * A feed this plugin imports from a link or a file comes first: of
+     * several, the one with the most products placed in posts (the first
+     * on a tie, which is the one an older version kept). The entries of a
+     * network's API stay together - its advertisers are one source - and
+     * are kept only where no such feed is; of several networks, again the
+     * one with the most placed products.
      *
      * Until 1.1.0 the list was cut to its first entry instead, and every
      * other feed was gone for good.
@@ -114,16 +120,29 @@ class MyFeeds_Feed_Manager {
      * post shows renders as it was, rule 12), and the orphan sweep leaves
      * a feed set aside alone (MyFeeds_DB_Manager::set_aside_feed_ids()).
      *
+     * Nothing is set aside while an import runs - the importer addresses
+     * the list by key - nor before the reset of archived rows has run,
+     * which would turn the rows archived here into unavailable ones. Both
+     * are tried again on the next request.
+     *
+     * @param bool $at_activation The plugin is being activated: the moment
+     *                            a site comes back from the other MyFeeds
+     *                            plugin, which may have changed the list and
+     *                            the rows since this one last looked.
      * @return int How many entries were set aside.
      */
-    public static function keep_one_source() {
+    public static function keep_one_source($at_activation = false) {
+        if (!self::heal_set_aside_rows($at_activation)) {
+            return 0;
+        }
+
         $raw = get_option(self::OPTION_KEY, array());
         if (!is_array($raw) || empty($raw)) {
             return 0;
         }
 
-        $keepable = array();
-        $aside    = array();
+        $sources = array();
+        $aside   = array();
         foreach ($raw as $i => $entry) {
             if (!self::is_listed_entry($entry)) {
                 continue;
@@ -133,33 +152,47 @@ class MyFeeds_Feed_Manager {
                 // nothing else is there.
                 $aside[$i] = $entry;
             } else {
-                $keepable[$i] = $entry;
+                $sources[self::source_of($entry, $i)][] = $i;
             }
         }
-        // One feed, or nothing but the samples: nothing to choose.
-        if (count($keepable) === 0 || (count($keepable) === 1 && count($aside) === 0)) {
+        // One source, or nothing but the samples: nothing to choose.
+        if (count($sources) === 0 || (count($sources) === 1 && count($aside) === 0)) {
+            return 0;
+        }
+        if (self::import_running() || !self::archived_reset_done()) {
             return 0;
         }
 
-        $importable = array_filter($keepable, function ($entry) {
-            return !self::is_snapshot_entry($entry);
-        });
-        $candidates = !empty($importable) ? $importable : $keepable;
-        $keep_index = key($candidates);
+        $importable = array();
+        foreach ($sources as $source => $keys) {
+            if (strpos($source, 'feed:') === 0) {
+                $importable[$source] = $keys;
+            }
+        }
+        $candidates = !empty($importable) ? $importable : $sources;
+        $keep = key($candidates);
         if (count($candidates) > 1) {
             $placed = self::placed_count_by_feed();
             $best   = -1;
-            foreach ($candidates as $i => $entry) {
-                $count = (int) ($placed[(int) ($entry['stable_id'] ?? 0)] ?? 0);
+            foreach ($candidates as $source => $keys) {
+                $count = 0;
+                foreach ($keys as $i) {
+                    $count += (int) ($placed[(int) ($raw[$i]['stable_id'] ?? 0)] ?? 0);
+                }
                 if ($count > $best) {
                     $best = $count;
-                    $keep_index = $i;
+                    $keep = $source;
                 }
             }
         }
-        foreach ($keepable as $i => $entry) {
-            if ($i !== $keep_index) {
-                $aside[$i] = $entry;
+        $kept = array();
+        foreach ($sources as $source => $keys) {
+            foreach ($keys as $i) {
+                if ($source === $keep) {
+                    $kept[] = $raw[$i];
+                } else {
+                    $aside[$i] = $raw[$i];
+                }
             }
         }
         ksort($aside);
@@ -174,14 +207,86 @@ class MyFeeds_Feed_Manager {
             }
         }
         update_option(self::SET_ASIDE_OPTION, $kept_aside, false);
-        update_option(self::OPTION_KEY, array($raw[$keep_index]));
+        update_option(self::OPTION_KEY, $kept);
         $archived = self::archive_rows_of($aside);
+        if ($archived === false) {
+            // The flag says every entry set aside is archived; without it
+            // the next request archives them.
+            delete_option(self::ROWS_ARCHIVED_FLAG);
+        } else {
+            update_option(self::ROWS_ARCHIVED_FLAG, 1, true);
+        }
 
-        myfeeds_log('Feeds: one product source per site - kept "' . (string) $raw[$keep_index]['name'] . '"'
-            . ', set aside ' . count($aside) . ' (' . implode(', ', array_map(function ($e) {
+        $names = function ($entries) {
+            return implode(', ', array_map(function ($e) {
                 return '"' . (string) $e['name'] . '"';
-            }, $aside)) . '); ' . $archived . ' of their live products archived, none deleted', 'info');
+            }, $entries));
+        };
+        myfeeds_log('Feeds: one product source per site - kept ' . $names($kept)
+            . ', set aside ' . count($aside) . ' (' . $names($aside) . '); '
+            . (int) $archived . ' of their live products archived, none deleted', 'info');
         return count($aside);
+    }
+
+    /**
+     * Archives the live rows of entries that are set aside already. 1.0.52
+     * set feeds aside before it archived anything, so their rows stayed
+     * live: in the product search, in the count on the Feeds screen, and
+     * the note there said they were out. Before any early return of
+     * keep_one_source(), so a list that is empty by now heals too.
+     *
+     * Once per site, under an autoloaded flag that keep_one_source()
+     * keeps standing; on activation once more, since the other MyFeeds
+     * plugin may have run in between.
+     *
+     * @param bool $again Look even though the flag is set.
+     * @return bool False while the rows cannot be archived yet (the reset
+     *              of archived rows has not run): nothing may be archived
+     *              on this request.
+     */
+    private static function heal_set_aside_rows($again = false) {
+        if (!$again && get_option(self::ROWS_ARCHIVED_FLAG)) {
+            return true;
+        }
+        if (!class_exists('MyFeeds_DB_Manager') || !MyFeeds_DB_Manager::table_exists()) {
+            return true;
+        }
+        $aside = get_option(self::SET_ASIDE_OPTION, array());
+        if (is_array($aside) && !empty($aside)) {
+            if (!self::archived_reset_done()) {
+                return false;
+            }
+            $healed = self::archive_rows_of($aside);
+            if ($healed === false) {
+                return false;
+            }
+            if ($healed > 0) {
+                myfeeds_log('Feeds: ' . $healed . ' live products of feeds set aside earlier archived; they had stayed in the product search', 'info');
+            }
+        }
+        update_option(self::ROWS_ARCHIVED_FLAG, 1, true);
+        return true;
+    }
+
+    /**
+     * Has the reset of archived rows run (MyFeeds_Maintenance)? It runs
+     * once, on init 5 - after keep_one_source_early() - and turns every
+     * archived row into an unavailable one, which a post no longer shows.
+     * Rows archived here before it would go with them, and the other
+     * MyFeeds plugin brings back only archived rows. So it runs here
+     * first; where it cannot run yet, nothing is archived.
+     *
+     * @return bool
+     */
+    private static function archived_reset_done() {
+        if (!class_exists('MyFeeds_Maintenance') || get_option(MyFeeds_Maintenance::ARCHIVED_RESET_FLAG)) {
+            return true;
+        }
+        if (!class_exists('MyFeeds_DB_Manager') || !MyFeeds_DB_Manager::table_exists()) {
+            return true;
+        }
+        MyFeeds_Maintenance::reset_archived_from_deletions();
+        return (bool) get_option(MyFeeds_Maintenance::ARCHIVED_RESET_FLAG);
     }
 
     /** An entry a network's API wrote: a snapshot this plugin cannot refresh. */
@@ -190,22 +295,39 @@ class MyFeeds_Feed_Manager {
     }
 
     /**
-     * The live rows of feeds just set aside leave the product search -
-     * nothing refreshes them here any more - without leaving the table:
-     * archived, a card a post shows keeps rendering with its last values,
-     * and every row keeps its id for the feed's way back. The samples are
-     * left to the sweep, which takes them as before.
+     * The source an entry belongs to, named as MyFeeds_Source_Rules names
+     * it: a feed is a source of its own, the entries of a network's API
+     * are one ('api:rakuten').
      *
-     * @return int rows archived
+     * @param array      $entry
+     * @param int|string $key   Its key in the list.
+     * @return string
+     */
+    private static function source_of($entry, $key) {
+        if (!self::is_snapshot_entry($entry)) {
+            return 'feed:' . $key;
+        }
+        $network = isset($entry['api']['network']) ? sanitize_key((string) $entry['api']['network']) : '';
+        return 'api:' . ($network !== '' ? $network : 'other');
+    }
+
+    /**
+     * The live rows of feeds set aside leave the product search - nothing
+     * refreshes them here any more - without leaving the table: archived,
+     * a card a post shows keeps rendering with its last values, and every
+     * row keeps its id for the feed's way back. The samples are left to
+     * the sweep, which takes them as before.
+     *
+     * @return int|false rows archived, false when the statement failed
      */
     private static function archive_rows_of(array $entries) {
         $ids = array();
         foreach ($entries as $entry) {
-            if (class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($entry)) {
+            if (!is_array($entry) || (class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($entry))) {
                 continue;
             }
             $sid = (int) ($entry['stable_id'] ?? 0);
-            if ($sid > 0) {
+            if ($sid > 0 && !in_array($sid, $ids, true)) {
                 $ids[] = $sid;
             }
         }
@@ -216,14 +338,25 @@ class MyFeeds_Feed_Manager {
         $table = MyFeeds_DB_Manager::table_name();
         $ph    = implode(',', array_fill(0, count($ids), '%d'));
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders + table name are safe
-        $archived = (int) $wpdb->query($wpdb->prepare(
+        $archived = $wpdb->query($wpdb->prepare(
             "UPDATE {$table} SET status = 'archived' WHERE feed_id IN ({$ph}) AND status = 'active'",
             $ids
         ));
+        if ($archived === false) {
+            myfeeds_log('Feeds: the live products of the feeds set aside could not be archived, tried again on the next request: ' . (string) ($wpdb->last_error ?? ''), 'error');
+            return false;
+        }
+        $archived = (int) $archived;
         delete_transient('myfeeds_active_count_cache');
         delete_transient('myfeeds_feed_counts_cache');
-        if ($archived > 0 && class_exists('MyFeeds_Search_Engine')) {
-            MyFeeds_Search_Engine::flush_query_caches();
+        if ($archived > 0) {
+            if (class_exists('MyFeeds_Search_Engine')) {
+                MyFeeds_Search_Engine::flush_query_caches();
+            }
+            // The content health card keeps its report for an hour.
+            if (class_exists('MyFeeds_Dead_Products')) {
+                MyFeeds_Dead_Products::bust_cache();
+            }
         }
         return $archived;
     }
@@ -247,8 +380,9 @@ class MyFeeds_Feed_Manager {
     }
 
     /**
-     * Placed products per feed (stable_id => count): every product a post
-     * shows, read the way the importer reads posts (picker and Look).
+     * Placed products per feed (stable_id => count): every product a place
+     * shows, from the one read of the site's content a request makes
+     * (MyFeeds_Batch_Importer::placements(), as the delete path reads it).
      *
      * @return array<int,int>
      */
@@ -287,7 +421,7 @@ class MyFeeds_Feed_Manager {
             || (function_exists('wp_doing_cron') && wp_doing_cron())
             || (defined('WP_CLI') && WP_CLI);
         if ($may_import) {
-            self::keep_one_source();
+            self::keep_one_source(false);
         }
     }
     
@@ -1004,9 +1138,13 @@ class MyFeeds_Feed_Manager {
      * Shown only while no feed exists. Loading the demo creates one, so
      * the offer removes itself and needs no "already seen" flag to
      * remember anything across updates.
+     *
+     * can_offer() is shared and reads the feed list only; whether the site
+     * has a product source is MyFeeds_Source_Rules' answer, asked here.
      */
     private function render_demo_offer() {
-        if (!class_exists('MyFeeds_Demo_Content') || !MyFeeds_Demo_Content::can_offer()) {
+        if (!class_exists('MyFeeds_Demo_Content') || !MyFeeds_Demo_Content::can_offer()
+            || MyFeeds_Source_Rules::current() !== '') {
             return;
         }
         ?>
@@ -1319,10 +1457,18 @@ class MyFeeds_Feed_Manager {
     }
     
     /**
-     * What keep_one_source() did, said where the list is: which feed stays
-     * and which ones wait, unchanged. Without it the other feeds vanish
-     * from the list and their products from the search, and nothing says
-     * why. Shown as long as feeds are set aside.
+     * What keep_one_source() did, said where the list is: which source
+     * stays and which ones wait, unchanged. Without it the other feeds
+     * vanish from the list and their products from the search, and
+     * nothing says why. Shown as long as feeds are set aside.
+     *
+     * One line per source, as keep_one_source() grouped them - a feed on
+     * its own, the advertisers of a network's API together - each with
+     * the button that opens "Change source" on it (data-target, the value
+     * that window takes back).
+     *
+     * "Out of the product search" only once their rows are archived
+     * (heal_set_aside_rows()); until then the note does not say it.
      *
      * @param array $feeds The list as the screen shows it.
      * @return string
@@ -1332,60 +1478,105 @@ class MyFeeds_Feed_Manager {
         if (!is_array($aside)) {
             return '';
         }
-        $names = array();
-        foreach ($aside as $entry) {
+        $sources = array();
+        $count   = 0;
+        foreach ($aside as $i => $entry) {
             if (!self::is_listed_entry($entry)
                 || (class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($entry))) {
                 continue;
             }
-            $names[] = '"' . trim((string) $entry['name']) . '"';
+            $sources[self::source_of($entry, $i)][] = $entry;
+            $count++;
         }
-        if (empty($names)) {
+        if (empty($sources)) {
             return '';
         }
+
         $kept = '';
         foreach ((array) $feeds as $feed) {
-            if (self::is_listed_entry($feed)
-                && !(class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($feed))) {
-                $kept = trim((string) $feed['name']);
-                break;
+            if (!self::is_listed_entry($feed)
+                || (class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($feed))) {
+                continue;
             }
+            if (!self::is_snapshot_entry($feed)) {
+                $kept = '"' . trim((string) $feed['name']) . '"';
+            } elseif (self::source_of($feed, 0) === 'api:rakuten') {
+                $kept = __('the Rakuten feeds', 'myfeeds-affiliate-feed-manager');
+            } else {
+                $kept = __('the feeds of a network\'s API', 'myfeeds-affiliate-feed-manager');
+            }
+            break;
         }
-        $count = count($names);
-        $list  = implode(', ', $names);
         if ($kept !== '') {
             $first = sprintf(
-                /* translators: 1: the feed that stays, 2: how many feeds were set aside, 3: their names */
+                /* translators: %s: the source that stays - a feed's name in quotes, or "the Rakuten feeds" */
                 _n(
-                    'MyFeeds keeps one product source up to date. This site had more, so it kept "%1$s", the feed your posts use most, and set %2$d other feed aside: %3$s.',
-                    'MyFeeds keeps one product source up to date. This site had more, so it kept "%1$s", the feed your posts use most, and set %2$d other feeds aside: %3$s.',
-                    $count,
+                    'MyFeeds keeps one product source up to date. This site had more, so it kept %s and set this one aside:',
+                    'MyFeeds keeps one product source up to date. This site had more, so it kept %s and set these aside:',
+                    count($sources),
                     'myfeeds-affiliate-feed-manager'
                 ),
-                $kept,
-                $count,
-                $list
+                $kept
             );
         } else {
-            $first = sprintf(
-                /* translators: 1: how many feeds were set aside, 2: their names */
-                _n(
-                    'MyFeeds keeps one product source up to date. %1$d feed of this site is set aside: %2$s.',
-                    'MyFeeds keeps one product source up to date. %1$d feeds of this site are set aside: %2$s.',
-                    $count,
-                    'myfeeds-affiliate-feed-manager'
-                ),
-                $count,
-                $list
+            $first = _n(
+                'MyFeeds keeps one product source up to date. This source of the site is set aside:',
+                'MyFeeds keeps one product source up to date. These sources of the site are set aside:',
+                count($sources),
+                'myfeeds-affiliate-feed-manager'
             );
         }
-        $second = _n(
-            'Nothing about it was deleted. Its products are out of the product search, and the ones your posts show keep showing as they were.',
-            'Nothing about them was deleted. Their products are out of the product search, and the ones your posts show keep showing as they were.',
-            $count,
-            'myfeeds-affiliate-feed-manager'
-        );
-        return '<div class="notice notice-info myfeeds-set-aside-note"><p>' . esc_html($first) . '</p><p>' . esc_html($second) . '</p></div>';
+
+        $items = '';
+        foreach ($sources as $source => $entries) {
+            $names = implode(', ', array_map(function ($entry) {
+                return '"' . trim((string) $entry['name']) . '"';
+            }, $entries));
+            $target = '';
+            $button = '';
+            if (strpos($source, 'feed:') === 0) {
+                $text = $names;
+                $sid  = (int) ($entries[0]['stable_id'] ?? 0);
+                if ($sid > 0) {
+                    $target = 'feed:' . $sid;
+                    $button = __('Use this source instead', 'myfeeds-affiliate-feed-manager');
+                }
+            } elseif ($source === 'api:rakuten') {
+                $n = count($entries);
+                /* translators: %s: the names of the Rakuten feeds, in quotes */
+                $text   = sprintf(_n('Rakuten feed: %s', 'Rakuten feeds: %s', $n, 'myfeeds-affiliate-feed-manager'), $names);
+                $target = $source;
+                $button = _n('Use this Rakuten feed instead', 'Use these Rakuten feeds instead', $n, 'myfeeds-affiliate-feed-manager');
+            } else {
+                /* translators: %s: the names of the feeds, in quotes */
+                $text = sprintf(__('Feeds of a network\'s API: %s', 'myfeeds-affiliate-feed-manager'), $names);
+            }
+            $items .= '<li>' . esc_html($text);
+            if ($button !== '') {
+                $items .= ' <button type="button" class="button button-small myfeeds-use-source" data-target="' . esc_attr($target) . '">'
+                    . esc_html($button) . '</button>';
+            }
+            $items .= '</li>';
+        }
+
+        if (get_option(self::ROWS_ARCHIVED_FLAG)) {
+            $second = _n(
+                'Nothing about it was deleted. Its products are out of the product search, and the ones your posts show keep showing as they were.',
+                'Nothing about them was deleted. Their products are out of the product search, and the ones your posts show keep showing as they were.',
+                $count,
+                'myfeeds-affiliate-feed-manager'
+            );
+        } else {
+            $second = _n(
+                'Nothing about it was deleted, and the products your posts show keep showing as they were.',
+                'Nothing about them was deleted, and the products your posts show keep showing as they were.',
+                $count,
+                'myfeeds-affiliate-feed-manager'
+            );
+        }
+        return '<div class="notice notice-info myfeeds-set-aside-note"><p>' . esc_html($first) . '</p>'
+            . '<ul class="myfeeds-set-aside-sources">' . $items . '</ul>'
+            . '<p>' . esc_html($second) . '</p></div>';
     }
 
     private function display_admin_messages() {

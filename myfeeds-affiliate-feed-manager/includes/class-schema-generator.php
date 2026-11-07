@@ -79,6 +79,14 @@ class MyFeeds_Schema_Generator {
         // one that resolves to nothing.
         $url = myfeeds_repair_saved_link($url);
 
+        // A sample card looks like a product to the reader and should; it
+        // must not tell a search engine there is one. Invented brands and
+        // prices as Product markup are exactly the structured data that
+        // costs a site its rich results.
+        if (class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_sample_link($url)) {
+            return null;
+        }
+
         // Pricing: prefer sale price when it's a real discount, fall back
         // to the regular price. Mirrors the same logic used in the visual
         // card so the schema matches what the user sees.

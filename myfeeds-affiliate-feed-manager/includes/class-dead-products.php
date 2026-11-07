@@ -203,9 +203,17 @@ class MyFeeds_Dead_Products {
 
     /**
      * Resolve each id to one of:
-     *   active   — at least one row in wp_myfeeds_products with status='active'
-     *   dead     — rows exist but none are active
+     *   active   — at least one row in wp_myfeeds_products that is
+     *              'active' or 'archived'
+     *   dead     — rows exist but none of them is (they are unavailable:
+     *              the merchant dropped the product, or its feed was
+     *              deleted)
      *   unknown  — no row at all (e.g. never imported, or wrong id format)
+     *
+     * An archived row is the product of a feed set aside: a post shows it
+     * as it was (rule 12), so it is in no post's way. Counted as dead, the
+     * card would list every post that holds one after the feeds were set
+     * aside.
      *
      * Unknown is treated as not-dead by the caller. Flagging "no data"
      * as "no longer in feeds" is a false positive: a product that never
@@ -224,12 +232,12 @@ class MyFeeds_Dead_Products {
         $placeholders = implode(',', array_fill(0, count($ids), '%s'));
 
         // Primary lookup: external_id (= the value the picker block
-        // saves). MAX(CASE WHEN status='active' ...) handles the
-        // multi-row case (re-imports leave older rows behind).
+        // saves). MAX(CASE WHEN ...) handles the multi-row case
+        // (re-imports leave older rows behind).
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders + table name are safe
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT external_id AS match_key,
-                    MAX(CASE WHEN status='active' THEN 1 ELSE 0 END) AS any_active
+                    MAX(CASE WHEN status IN ('active','archived') THEN 1 ELSE 0 END) AS any_alive
              FROM {$products_table}
              WHERE external_id IN ({$placeholders})
              GROUP BY external_id",
@@ -237,7 +245,7 @@ class MyFeeds_Dead_Products {
         ), ARRAY_A);
         foreach ((array) $rows as $r) {
             $key = (string) $r['match_key'];
-            $out[$key] = ((int) $r['any_active'] === 1) ? 'active' : 'dead';
+            $out[$key] = ((int) $r['any_alive'] === 1) ? 'active' : 'dead';
         }
 
         // Fallback: numeric PK lookup. Older block payloads stored
@@ -257,7 +265,7 @@ class MyFeeds_Dead_Products {
             // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders + table name are safe
             $pk_rows = $wpdb->get_results($wpdb->prepare(
                 "SELECT id AS match_key,
-                        MAX(CASE WHEN status='active' THEN 1 ELSE 0 END) AS any_active
+                        MAX(CASE WHEN status IN ('active','archived') THEN 1 ELSE 0 END) AS any_alive
                  FROM {$products_table}
                  WHERE id IN ({$pk_placeholders})
                  GROUP BY id",
@@ -265,7 +273,7 @@ class MyFeeds_Dead_Products {
             ), ARRAY_A);
             foreach ((array) $pk_rows as $r) {
                 $key   = (string) (int) $r['match_key'];
-                $alive = (int) $r['any_active'] === 1;
+                $alive = (int) $r['any_alive'] === 1;
                 if ($alive || !isset($out[$key])) {
                     $out[$key] = $alive ? 'active' : 'dead';
                 }

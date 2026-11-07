@@ -778,7 +778,7 @@ class MyFeeds_Affiliate_Product_Picker {
             // than one product source; the extra ones are set aside before
             // a first import could touch them.
             if (class_exists('MyFeeds_Feed_Manager')) {
-                MyFeeds_Feed_Manager::keep_one_source();
+                MyFeeds_Feed_Manager::keep_one_source(true);
             }
             
             // Schedule daily feed update at 03:00 AM
