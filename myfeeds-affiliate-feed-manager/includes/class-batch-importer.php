@@ -564,37 +564,23 @@ class MyFeeds_Batch_Importer {
             : "'post', 'page'";
         MyFeeds_Logger::debug("Discovery: post types [{$types_sql}]");
 
-        $posts = array();
+        $widget_count = 0;
+        $posts = $this->discovery_places($widget_count);
         if ($types_sql !== '') {
             // =====================================================================
             // STEP 1: Count total publish posts (diagnostic)
             // =====================================================================
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $types_sql is myfeeds_discovery_post_types_sql(): names cleaned to [a-z0-9_-] by myfeeds_clean_post_types(), each quoted.
             $total_publish = $wpdb->get_var(
                 "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ({$types_sql})"
             );
             MyFeeds_Logger::debug("Discovery: Total published posts in DB: {$total_publish}");
 
             // =====================================================================
-            // STEP 2: Search for content with MyFeeds markers
-            // DIAGNOSTIC: Log which LIKE patterns matched
-            // =====================================================================
-            $posts = $wpdb->get_results(
-                "SELECT ID, post_content FROM {$wpdb->posts}
-                 WHERE post_status = 'publish'
-                 AND post_type IN ({$types_sql})
-                 AND post_content != ''
-                 AND (
-                     post_content LIKE '%wp:myfeeds%'
-                     OR post_content LIKE '%[myfeeds%'
-                     OR post_content LIKE '%wp:product-picker%'
-                 )"
-            );
-            $posts = is_array($posts) ? $posts : array();
-
-            // =====================================================================
             // DIAGNOSTIC: Also check what we're MISSING - posts with other patterns
             // This helps identify if block names differ from expected
             // =====================================================================
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $types_sql is myfeeds_discovery_post_types_sql(): names cleaned to [a-z0-9_-] by myfeeds_clean_post_types(), each quoted.
             $posts_with_any_block = $wpdb->get_var(
                 "SELECT COUNT(*) FROM {$wpdb->posts}
                  WHERE post_status = 'publish'
@@ -604,6 +590,7 @@ class MyFeeds_Batch_Importer {
             MyFeeds_Logger::debug("Discovery: Posts with ANY Gutenberg blocks: {$posts_with_any_block}");
 
             // Check for myfeeds/product-picker pattern specifically (diagnostic)
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $types_sql is myfeeds_discovery_post_types_sql(): names cleaned to [a-z0-9_-] by myfeeds_clean_post_types(), each quoted.
             $posts_with_my_product_picker = $wpdb->get_var(
                 "SELECT COUNT(*) FROM {$wpdb->posts}
                  WHERE post_status = 'publish'
@@ -613,107 +600,11 @@ class MyFeeds_Batch_Importer {
             MyFeeds_Logger::debug("Discovery DIAGNOSTIC: Posts with 'myfeeds' block in content: {$posts_with_my_product_picker}");
         }
 
-        // Block widgets are not posts: they live in one option. Read with
-        // the same three markers as the query above, then through the same
-        // resolvers - an id in the log says which widget it was.
-        $widget_count = 0;
-        if (function_exists('myfeeds_block_widget_contents')) {
-            foreach (myfeeds_block_widget_contents() as $widget_id => $content) {
-                if (strpos($content, 'wp:myfeeds') === false
-                    && strpos($content, '[myfeeds') === false
-                    && strpos($content, 'wp:product-picker') === false) {
-                    continue;
-                }
-                $posts[] = (object) array('ID' => $widget_id, 'post_content' => $content);
-                $widget_count++;
-            }
-        }
-
         $discovery_stats['posts_scanned'] = count($posts);
         MyFeeds_Logger::debug("Discovery SQL: Found " . (count($posts) - $widget_count) . " posts and {$widget_count} block widgets matching LIKE patterns (wp:myfeeds, [myfeeds, wp:product-picker)");
 
-        if (!empty($posts)) {
-            foreach ($posts as $post) {
-                $post_ids_before = count($product_ids);
-                
-                // Check if post_content is empty (diagnostic for builder detection)
-                if (empty(trim($post->post_content))) {
-                    $discovery_stats['posts_empty_content']++;
-                    MyFeeds_Logger::debug("Discovery Post #{$post->ID}: post_content is empty (may use page builder meta)");
-                    continue;
-                }
-                
-                // =====================================================================
-                // RESOLVER 1: Parse Gutenberg blocks (MOST RELIABLE)
-                // DIAGNOSTIC: Log actual block names found
-                // =====================================================================
-                if (function_exists('has_blocks') && has_blocks($post->post_content)) {
-                    $discovery_stats['posts_with_blocks']++;
-                    $blocks = parse_blocks($post->post_content);
-                    
-                    // DIAGNOSTIC: Collect all block names for analysis
-                    $this->collect_block_names_diagnostic($blocks, $discovery_stats['block_names_found']);
-                    
-                    $ids_before = count($product_ids);
-                    $this->extract_ids_from_blocks($blocks, $product_ids, $post->ID);
-                    $ids_found = count($product_ids) - $ids_before;
-                    
-                    if ($ids_found > 0) {
-                        $discovery_stats['resolver_gutenberg_blocks'] += $ids_found;
-                        MyFeeds_Logger::debug("Discovery Post #{$post->ID}: Gutenberg resolver found {$ids_found} IDs");
-                    }
-                }
-                
-                // =====================================================================
-                // RESOLVER 2: Parse MyFeeds Shortcodes ONLY
-                // =====================================================================
-                preg_match_all('/\[myfeeds[^\]]*\b(?:id|ids|product_id|product_ids)\s*=\s*["\']?([^"\'\]]+)["\']?[^\]]*\]/i', 
-                    $post->post_content, $shortcode_matches);
-                
-                if (!empty($shortcode_matches[1])) {
-                    foreach ($shortcode_matches[1] as $match) {
-                        $ids = array_filter(array_map('trim', explode(',', $match)));
-                        foreach ($ids as $id) {
-                            if ($this->is_valid_product_id($id)) {
-                                if (!isset($product_ids[$id])) {
-                                    $discovery_stats['resolver_shortcodes']++;
-                                }
-                                $product_ids[$id] = true;
-                            }
-                        }
-                    }
-                    MyFeeds_Logger::debug("Discovery Post #{$post->ID}: Shortcode resolver found " . count($shortcode_matches[1]) . " matches");
-                }
-                
-                // =====================================================================
-                // RESOLVER 3: Parse JSON attributes in Gutenberg block comments
-                // =====================================================================
-                preg_match_all('/<!--\s*wp:(?:myfeeds|product-picker)[^\s]*\s+(\{[^}]+\})\s*-->/i', 
-                    $post->post_content, $block_matches);
-                
-                if (!empty($block_matches[1])) {
-                    $ids_before = count($product_ids);
-                    foreach ($block_matches[1] as $json_str) {
-                        $attrs = json_decode($json_str, true);
-                        if (is_array($attrs)) {
-                            $id_attrs = array('productId', 'product_id', 'ids', 'productIds', 'selectedProducts', 'id');
-                            foreach ($id_attrs as $attr) {
-                                if (isset($attrs[$attr])) {
-                                    $this->extract_ids_from_value($attrs[$attr], $product_ids);
-                                }
-                            }
-                        }
-                    }
-                    $ids_found = count($product_ids) - $ids_before;
-                    $discovery_stats['resolver_json_attrs'] += $ids_found;
-                    MyFeeds_Logger::debug("Discovery Post #{$post->ID}: JSON attr resolver found {$ids_found} IDs");
-                }
-                
-                $post_total = count($product_ids) - $post_ids_before;
-                if ($post_total > 0) {
-                    MyFeeds_Logger::debug("Discovery Post #{$post->ID}: Total {$post_total} unique IDs extracted");
-                }
-            }
+        foreach ($posts as $post) {
+            $this->read_place($post, $product_ids, $discovery_stats);
         }
         
         // Only for Full Update: Also get IDs from existing index
@@ -841,6 +732,275 @@ class MyFeeds_Batch_Importer {
     }
 
     /**
+     * Where products can be placed, each as an object with ID and
+     * post_content: published content of every discovery post type that
+     * carries one of the three markers, then the block widgets with them
+     * (keyed "block-<n>"). The one input of get_active_product_ids() and
+     * placements(), so the importer, the delete path and the count before
+     * "Change source" never read different places.
+     *
+     * @param int $widget_count Set to the number of block widgets among them.
+     * @return object[]
+     */
+    private function discovery_places(&$widget_count = 0) {
+        global $wpdb;
+
+        $types_sql = function_exists('myfeeds_discovery_post_types_sql')
+            ? myfeeds_discovery_post_types_sql()
+            : "'post', 'page'";
+
+        $posts = array();
+        if ($types_sql !== '') {
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $types_sql is myfeeds_discovery_post_types_sql(): names cleaned to [a-z0-9_-] by myfeeds_clean_post_types(), each quoted.
+            $posts = $wpdb->get_results(
+                "SELECT ID, post_content FROM {$wpdb->posts}
+                 WHERE post_status = 'publish'
+                 AND post_type IN ({$types_sql})
+                 AND post_content != ''
+                 AND (
+                     post_content LIKE '%wp:myfeeds%'
+                     OR post_content LIKE '%[myfeeds%'
+                     OR post_content LIKE '%wp:product-picker%'
+                 )"
+            );
+            $posts = is_array($posts) ? $posts : array();
+        }
+
+        // Block widgets are not posts: they live in one option. Read with
+        // the same three markers as the query above, then through the same
+        // resolvers - an id in the log says which widget it was.
+        $widget_count = 0;
+        if (function_exists('myfeeds_block_widget_contents')) {
+            foreach (myfeeds_block_widget_contents() as $widget_id => $content) {
+                if (strpos($content, 'wp:myfeeds') === false
+                    && strpos($content, '[myfeeds') === false
+                    && strpos($content, 'wp:product-picker') === false) {
+                    continue;
+                }
+                $posts[] = (object) array('ID' => $widget_id, 'post_content' => $content);
+                $widget_count++;
+            }
+        }
+        return $posts;
+    }
+
+    /**
+     * The feed products one place holds, added to $product_ids as keys:
+     * its blocks, its shortcodes and the JSON of its block comments.
+     *
+     * @param object $post  ID and post_content.
+     * @param array  $product_ids id => true
+     * @param array  $discovery_stats Counters for the discovery summary.
+     */
+    private function read_place($post, array &$product_ids, array &$discovery_stats) {
+        $post_ids_before = count($product_ids);
+        
+        // Check if post_content is empty (diagnostic for builder detection)
+        if (empty(trim($post->post_content))) {
+            $discovery_stats['posts_empty_content']++;
+            MyFeeds_Logger::debug("Discovery Post #{$post->ID}: post_content is empty (may use page builder meta)");
+            return;
+        }
+        
+        // =====================================================================
+        // RESOLVER 1: Parse Gutenberg blocks (MOST RELIABLE)
+        // DIAGNOSTIC: Log actual block names found
+        // =====================================================================
+        if (function_exists('has_blocks') && has_blocks($post->post_content)) {
+            $discovery_stats['posts_with_blocks']++;
+            $blocks = parse_blocks($post->post_content);
+            
+            // DIAGNOSTIC: Collect all block names for analysis
+            $this->collect_block_names_diagnostic($blocks, $discovery_stats['block_names_found']);
+            
+            $ids_before = count($product_ids);
+            $this->extract_ids_from_blocks($blocks, $product_ids, $post->ID);
+            $ids_found = count($product_ids) - $ids_before;
+            
+            if ($ids_found > 0) {
+                $discovery_stats['resolver_gutenberg_blocks'] += $ids_found;
+                MyFeeds_Logger::debug("Discovery Post #{$post->ID}: Gutenberg resolver found {$ids_found} IDs");
+            }
+        }
+        
+        // =====================================================================
+        // RESOLVER 2: Parse MyFeeds Shortcodes ONLY
+        // =====================================================================
+        preg_match_all('/\[myfeeds[^\]]*\b(?:id|ids|product_id|product_ids)\s*=\s*["\']?([^"\'\]]+)["\']?[^\]]*\]/i', 
+            $post->post_content, $shortcode_matches);
+        
+        if (!empty($shortcode_matches[1])) {
+            foreach ($shortcode_matches[1] as $match) {
+                $ids = array_filter(array_map('trim', explode(',', $match)));
+                foreach ($ids as $id) {
+                    if ($this->is_valid_product_id($id)) {
+                        if (!isset($product_ids[$id])) {
+                            $discovery_stats['resolver_shortcodes']++;
+                        }
+                        $product_ids[$id] = true;
+                    }
+                }
+            }
+            MyFeeds_Logger::debug("Discovery Post #{$post->ID}: Shortcode resolver found " . count($shortcode_matches[1]) . " matches");
+        }
+        
+        // =====================================================================
+        // RESOLVER 3: Parse JSON attributes in Gutenberg block comments
+        // =====================================================================
+        preg_match_all('/<!--\s*wp:(?:myfeeds|product-picker)[^\s]*\s+(\{[^}]+\})\s*-->/i', 
+            $post->post_content, $block_matches);
+        
+        if (!empty($block_matches[1])) {
+            $ids_before = count($product_ids);
+            foreach ($block_matches[1] as $json_str) {
+                $attrs = json_decode($json_str, true);
+                if (is_array($attrs)) {
+                    $id_attrs = array('productId', 'product_id', 'ids', 'productIds', 'selectedProducts', 'id');
+                    foreach ($id_attrs as $attr) {
+                        if (isset($attrs[$attr])) {
+                            $this->extract_ids_from_value($attrs[$attr], $product_ids);
+                        }
+                    }
+                }
+            }
+            $ids_found = count($product_ids) - $ids_before;
+            $discovery_stats['resolver_json_attrs'] += $ids_found;
+            MyFeeds_Logger::debug("Discovery Post #{$post->ID}: JSON attr resolver found {$ids_found} IDs");
+        }
+        
+        $post_total = count($product_ids) - $post_ids_before;
+        if ($post_total > 0) {
+            MyFeeds_Logger::debug("Discovery Post #{$post->ID}: Total {$post_total} unique IDs extracted");
+        }
+    }
+
+    /** No per-block diagnostics while placements() reads every place. */
+    private $quiet = false;
+
+    /** @var array|null placements(), as read in this request */
+    private static $placements = null;
+
+    /** @var int When it was read. */
+    private static $placements_at = 0;
+
+    /**
+     * Every place that holds products - a post, a page, a pattern, a
+     * template, a block widget - with what it holds: its feed products
+     * (read as get_active_product_ids() reads them) and its Amazon
+     * products, each with the name the author gave it ('' without one: a
+     * card without a name does not render). 'announced' are the ids the
+     * filter myfeeds_active_product_ids adds that no place holds.
+     *
+     * Read once per request and remembered for a minute: the delete path,
+     * the sweep after it and the count before "Change source" all need it,
+     * and each read walks every published post.
+     *
+     * @return array{places: array<int|string, array{feed: string[], amazon: array<string,string>}>, announced: string[]}
+     */
+    public static function placements() {
+        if (self::$placements !== null && time() - self::$placements_at < MINUTE_IN_SECONDS) {
+            return self::$placements;
+        }
+        $reader = new self();
+        $reader->quiet = true;
+        $stats = array(
+            'resolver_gutenberg_blocks' => 0,
+            'resolver_shortcodes' => 0,
+            'resolver_json_attrs' => 0,
+            'posts_with_blocks' => 0,
+            'posts_empty_content' => 0,
+            'block_names_found' => array(),
+        );
+
+        $places = array();
+        $found = array();
+        foreach ($reader->discovery_places() as $place) {
+            $ids = array();
+            $reader->read_place($place, $ids, $stats);
+            $amazon = array();
+            if (function_exists('has_blocks') && has_blocks($place->post_content)) {
+                $reader->extract_amazon_ids_from_blocks(parse_blocks($place->post_content), $amazon);
+            }
+            if (empty($ids) && empty($amazon)) {
+                continue;
+            }
+            $feed = array_map('strval', array_keys($ids));
+            foreach ($feed as $id) {
+                $found[$id] = true;
+            }
+            $places[$place->ID] = array('feed' => $feed, 'amazon' => $amazon);
+        }
+
+        $found = array_map('strval', array_keys($found));
+        $announced = array_values(array_diff($reader->add_announced_product_ids($found, false), $found));
+
+        self::$placements = array('places' => $places, 'announced' => $announced);
+        self::$placements_at = time();
+        return self::$placements;
+    }
+
+    /**
+     * placements() as one list: every feed product a place holds, then
+     * the announced ones - what get_active_product_ids(false) returns.
+     *
+     * @return string[]
+     */
+    public static function placed_ids() {
+        $read = self::placements();
+        $ids = array();
+        foreach ($read['places'] as $place) {
+            foreach ($place['feed'] as $id) {
+                $ids[$id] = true;
+            }
+        }
+        foreach ($read['announced'] as $id) {
+            $ids[$id] = true;
+        }
+        return array_map('strval', array_keys($ids));
+    }
+
+    /**
+     * The Amazon products in these blocks, id => the name the author gave
+     * it: a picker's Amazon list and a Look's Amazon points. An id
+     * that stands somewhere without a name keeps '' - there it does not
+     * render.
+     *
+     * @param array $blocks parse_blocks()
+     * @param array $amazon id => name
+     */
+    private function extract_amazon_ids_from_blocks($blocks, array &$amazon) {
+        $add = function ($id, $name) use (&$amazon) {
+            $id = trim((string) $id);
+            if ($id === '' || !$this->is_valid_product_id($id)) {
+                return;
+            }
+            $name = trim((string) $name);
+            if (!isset($amazon[$id]) || $name === '') {
+                $amazon[$id] = $name;
+            }
+        };
+        foreach ((array) $blocks as $block) {
+            $block_name = $block['blockName'] ?? '';
+            if ($block_name === 'myfeeds/look') {
+                if (class_exists('MyFeeds_Look_Block')) {
+                    foreach (MyFeeds_Look_Block::amazon_points($block) as $point) {
+                        $add($point['id'], $point['title']);
+                    }
+                }
+            } elseif (strpos((string) $block_name, 'myfeeds') !== false && !empty($block['attrs']['amazonProducts']) && is_array($block['attrs']['amazonProducts'])) {
+                foreach ($block['attrs']['amazonProducts'] as $item) {
+                    if (is_array($item) && isset($item['id']) && is_scalar($item['id'])) {
+                        $add($item['id'], isset($item['name']) && is_scalar($item['name']) ? $item['name'] : '');
+                    }
+                }
+            }
+            if (!empty($block['innerBlocks'])) {
+                $this->extract_amazon_ids_from_blocks($block['innerBlocks'], $amazon);
+            }
+        }
+    }
+
+    /**
      * DIAGNOSTIC ONLY: Collect all block names recursively for analysis
      * This helps identify if block names differ from expected patterns
      */
@@ -950,7 +1110,9 @@ class MyFeeds_Batch_Importer {
             } elseif (strpos($block_name, 'myfeeds') !== false) {
                 // Check block name for MyFeeds blocks
                 MyFeeds_Logger::debug("=== BLOCK ATTR DIAGNOSIS (Post #{$post_id}) ===");
-                MyFeeds_Logger::info("BLOCK_DIAG Post #{$post_id}: blockName='{$block_name}', attrs_keys=[" . (!empty($block['attrs']) ? implode(', ', array_keys($block['attrs'])) : 'EMPTY') . "], selectedProducts_count=" . (isset($block['attrs']['selectedProducts']) ? count($block['attrs']['selectedProducts']) : 'N/A'));
+                if (!$this->quiet) {
+                    MyFeeds_Logger::info("BLOCK_DIAG Post #{$post_id}: blockName='{$block_name}', attrs_keys=[" . (!empty($block['attrs']) ? implode(', ', array_keys($block['attrs'])) : 'EMPTY') . "], selectedProducts_count=" . (isset($block['attrs']['selectedProducts']) ? count($block['attrs']['selectedProducts']) : 'N/A'));
+                }
                 MyFeeds_Logger::debug("Block: name='{$block_name}'");
                 
                 // Extract from block attributes

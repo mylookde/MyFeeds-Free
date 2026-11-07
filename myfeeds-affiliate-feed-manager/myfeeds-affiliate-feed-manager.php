@@ -125,7 +125,7 @@ function myfeeds_infer_format_from_url($url) {
         }
     }
 
-    $path = parse_url($lower, PHP_URL_PATH);
+    $path = wp_parse_url($lower, PHP_URL_PATH);
     if (is_string($path)) {
         $ext_map = array(
             '.csv.gz'    => 'csv',
@@ -444,6 +444,7 @@ function myfeeds_load_includes() {
         'class-universal-mapper-ui.php' => 'Universal Mapper UI Class',
         'class-smart-mapper.php' => 'Smart Mapper Class',
         'class-feed-upload.php' => 'Feed File Upload (fallback for networks that hand out a file, not a link)',
+        'class-source-rules.php' => 'Product source (where the site\'s products come from; every way to add a source asks it first)',
         'class-feed-manager.php' => 'Feed Manager Class',
         'class-demo-content.php' => 'Sample products for a fresh install (loaded on request only)',
         'class-upsell.php'       => 'Informational Upsell Banner',

@@ -37,17 +37,25 @@ class MyFeeds_Feed_Manager {
     }
 
     /**
-     * Persist the feed entry.
+     * Persist the feed entry as the list.
+     *
+     * Never over entries a network's API wrote: the list would keep the
+     * one entry and lose every advertiser of that source. The save paths
+     * turn such a request down before it gets here (save_refusal()); this
+     * holds for any other caller.
+     *
+     * @return bool Whether the entry was stored.
      */
     public function save_feed(array $entry) {
+        $list = get_option(self::OPTION_KEY, array());
+        foreach (is_array($list) ? $list : array() as $have) {
+            if (self::is_snapshot_entry($have)) {
+                myfeeds_log('Feeds: "' . (string) ($entry['name'] ?? '') . '" was not saved; the list holds the entries of a network\'s API, which a feed must not replace.', 'error');
+                return false;
+            }
+        }
         update_option(self::OPTION_KEY, array($entry));
-    }
-
-    /**
-     * Delete the configured feed.
-     */
-    public function delete_feed() {
-        update_option(self::OPTION_KEY, array());
+        return true;
     }
 
     /**
@@ -954,13 +962,8 @@ class MyFeeds_Feed_Manager {
     }
     
     /**
-     * Render simplified feeds table
-     */
-    /**
-     * Its own method because deleting the last feed has to put it back
-     * without a page load. ajax_delete_feed() renders this and hands it
-     * to the browser, so the markup and its translations stay here
-     * rather than being rebuilt a second time in JavaScript.
+     * The screen of a site without a product source. Deleting the last
+     * feed reloads the page to reach it (ajax_delete_feed()).
      */
     private function render_empty_state() {
         ?>
@@ -975,12 +978,6 @@ class MyFeeds_Feed_Manager {
             <?php $this->render_demo_offer(); ?>
         </div>
         <?php
-    }
-
-    public function empty_state_html() {
-        ob_start();
-        $this->render_empty_state();
-        return ob_get_clean();
     }
 
     /**
@@ -1407,6 +1404,32 @@ class MyFeeds_Feed_Manager {
     }
     
     /**
+     * Why the feed dialog's save is turned down, or '' when it may go on.
+     * Asked before anything is stored, so an upload never reaches the disk
+     * for a feed that will not be saved.
+     *
+     * An entry a network's API wrote is edited in its own window: this
+     * dialog would replace it with a feed, and the list with that one
+     * entry. A new feed beside the site's product source waits for
+     * "Change source". Editing the feed the site has is always allowed.
+     *
+     * @param array $existing The entry get_feed() returned, or array().
+     * @param bool  $editing  The dialog was opened on an existing entry.
+     * @return string
+     */
+    private static function save_refusal(array $existing, $editing) {
+        if ($editing && self::is_snapshot_entry($existing)) {
+            return __('This feed comes from an API. Edit it in its own window.', 'myfeeds-affiliate-feed-manager');
+        }
+        $is_feed = !empty($existing) && !self::is_snapshot_entry($existing)
+            && !(class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($existing));
+        if (!$is_feed && !MyFeeds_Source_Rules::can_connect('feed')) {
+            return MyFeeds_Source_Rules::refusal();
+        }
+        return '';
+    }
+
+    /**
      * Handle simplified feed save (legacy form submit fallback)
      */
     public function handle_save_feed() {
@@ -1419,12 +1442,18 @@ class MyFeeds_Feed_Manager {
             $url = isset($_POST['feed_url']) ? esc_url_raw(wp_unslash($_POST['feed_url'])) : '';
             $format_hint = isset($_POST['feed_format_hint']) ? sanitize_text_field(wp_unslash($_POST['feed_format_hint'])) : '';
             $network_hint = isset($_POST['feed_network_hint']) ? sanitize_text_field(wp_unslash($_POST['feed_network_hint'])) : '';
+            $editing = isset($_POST['feed_key']) && sanitize_text_field(wp_unslash($_POST['feed_key'])) !== '';
 
-            // Free is single-feed: there is no $feeds array and no $key here,
-            // the one configured feed comes from get_feed().
+            // There is no $feeds array and no $key here: the one entry this
+            // screen edits comes from get_feed().
             $existing = $this->get_feed();
             if (!is_array($existing)) {
                 $existing = array();
+            }
+            $refused = self::save_refusal($existing, $editing);
+            if ($refused !== '') {
+                $this->redirect_with_error($refused);
+                return;
             }
             $source = $this->resolve_feed_source($url, $name, $existing);
             if (is_wp_error($source)) {
@@ -1719,12 +1748,18 @@ class MyFeeds_Feed_Manager {
             $url = esc_url_raw(wp_unslash($_POST['feed_url'] ?? ''));
             $format_hint = sanitize_text_field(wp_unslash($_POST['feed_format_hint'] ?? ''));
             $network_hint = sanitize_text_field(wp_unslash($_POST['feed_network_hint'] ?? ''));
+            $editing = sanitize_text_field(wp_unslash($_POST['feed_key'] ?? '')) !== '';
 
-            // Free is single-feed: there is no $feeds array and no $key here,
-            // the one configured feed comes from get_feed().
+            // There is no $feeds array and no $key here: the one entry this
+            // screen edits comes from get_feed().
             $existing = $this->get_feed();
             if (!is_array($existing)) {
                 $existing = array();
+            }
+            $refused = self::save_refusal($existing, $editing);
+            if ($refused !== '') {
+                wp_send_json_error(array('message' => $refused));
+                return;
             }
             $source = $this->resolve_feed_source($url, $name, $existing);
             if (is_wp_error($source)) {
@@ -2058,6 +2093,131 @@ class MyFeeds_Feed_Manager {
     }
 
     /**
+     * Is an import running? The importer addresses feeds by their key in
+     * the list and writes the list back at feed boundaries; a feed taken
+     * out of the list meanwhile shifts every key after it.
+     *
+     * @return bool
+     */
+    public static function import_running() {
+        $status = get_option('myfeeds_import_status', array());
+        return is_array($status) && ($status['status'] ?? '') === 'running';
+    }
+
+    /**
+     * Delete the entry at $feed_key with its products. The one way an
+     * entry leaves the list for good: the AJAX delete calls it, and so
+     * does any other path that removes a source - none copies it.
+     *
+     * What a published post holds stays as an unavailable row (rule 13),
+     * everything else of the feed goes. The list of placed products is
+     * read once and handed on, because reading it walks every post:
+     * whoever deletes several entries in one request reads it once,
+     * passes it each time with $finish false, and calls after_deletion()
+     * after the last one.
+     *
+     * @param int        $feed_key Key in myfeeds_feeds.
+     * @param array|null $placed   placed_product_ids(), when already read.
+     * @param bool       $finish   Sweep, clear the page caches and the content health report now.
+     * @return array{entry:array,deleted:int}|null Null when there is no such entry.
+     */
+    public static function delete_entry_at($feed_key, ?array $placed = null, $finish = true) {
+        $feeds = get_option(self::OPTION_KEY, array());
+        if (!is_array($feeds) || !isset($feeds[$feed_key]) || !is_array($feeds[$feed_key])) {
+            return null;
+        }
+        $entry = $feeds[$feed_key];
+        $deleted = 0;
+
+        $db = class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode();
+        if ($db) {
+            if ($placed === null) {
+                $placed = MyFeeds_DB_Manager::placed_product_ids();
+            }
+            // By name too, to catch rows written before the feed had its id.
+            $deleted = MyFeeds_DB_Manager::delete_products_by_feed_id((int) ($entry['stable_id'] ?? 0), (string) ($entry['name'] ?? ''), $placed);
+        }
+
+        // An uploaded feed owns a file on disk; the entry going away must
+        // take it with it.
+        //
+        // There used to be a second path, on admin_post, that dropped the
+        // entry without deleting the feed's products. It was unreachable -
+        // the Delete button is a plain <button> driven by AJAX, and no
+        // nonce for that action was ever rendered - so it never fired; a
+        // comment warned about it instead of it being removed. Removed on
+        // 2026-09-04.
+        if (class_exists('MyFeeds_Feed_Upload')) {
+            MyFeeds_Feed_Upload::delete_by_url($entry['url'] ?? '');
+        }
+
+        // A source with state of its own (a running fetch, a part file)
+        // takes it with it.
+        do_action('myfeeds_feed_deleted', $entry, $feed_key);
+
+        array_splice($feeds, $feed_key, 1);
+        update_option(self::OPTION_KEY, $feeds);
+
+        if ($finish) {
+            $deleted += self::after_deletion($placed);
+        }
+        return array('entry' => $entry, 'deleted' => $deleted);
+    }
+
+    /**
+     * After the last entry of a request is deleted: the sweep of what no
+     * entry claims any more (feed_id 0 leftovers and the like), then the
+     * cached copies of the posts that showed the products, then the
+     * content health report, which would otherwise keep its last answer
+     * for an hour and not name the posts the deleted products left.
+     *
+     * @param array|null $placed placed_product_ids(), when already read.
+     * @return int Rows the sweep deleted.
+     */
+    public static function after_deletion(?array $placed = null) {
+        $swept = 0;
+        if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
+            $swept = max(0, (int) MyFeeds_DB_Manager::cleanup_orphaned_products($placed));
+        }
+        if (class_exists('MyFeeds_Page_Cache_Purge')) {
+            MyFeeds_Page_Cache_Purge::purge_product_posts();
+        }
+        if (class_exists('MyFeeds_Dead_Products')) {
+            MyFeeds_Dead_Products::bust_cache();
+        }
+        return $swept;
+    }
+
+    /**
+     * What deleting these entries takes out of published content: the
+     * placed products that leave (they become unavailable, as when a feed
+     * is deleted) and the places they leave - posts, pages, patterns,
+     * templates, block widgets. Read from the same list the delete path
+     * reads, so the number said beforehand is the number that leaves.
+     *
+     * @param array[] $entries Feed entries.
+     * @return array{products:int,posts:int,ids:string[]}
+     */
+    public static function leaving(array $entries) {
+        if (!class_exists('MyFeeds_Batch_Importer') || !class_exists('MyFeeds_DB_Manager') || !MyFeeds_DB_Manager::table_exists()) {
+            return array('products' => 0, 'posts' => 0, 'ids' => array());
+        }
+        $read = MyFeeds_Batch_Importer::placements();
+        $ids = MyFeeds_DB_Manager::placed_in_scope($entries, MyFeeds_Batch_Importer::placed_ids());
+        $leaving = array_fill_keys($ids, true);
+        $posts = 0;
+        foreach ($read['places'] as $place) {
+            foreach ($place['feed'] as $id) {
+                if (isset($leaving[$id])) {
+                    $posts++;
+                    break;
+                }
+            }
+        }
+        return array('products' => count($ids), 'posts' => $posts, 'ids' => $ids);
+    }
+
+    /**
      * AJAX handler: Delete feed and all its products
      */
     public function ajax_delete_feed() {
@@ -2074,41 +2234,17 @@ class MyFeeds_Feed_Manager {
             wp_send_json_error(array('message' => 'Feed not found'));
             return;
         }
-        
-        $feed_name = $feeds[$feed_key]['name'] ?? 'Unknown';
-        $feed_stable_id = (int) ($feeds[$feed_key]['stable_id'] ?? 0);
-        $deleted_products = 0;
-        
-        // Delete all products from DB for this feed (by name to catch feed_id bug leftovers)
-        if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
-            $deleted_products = MyFeeds_DB_Manager::delete_products_by_feed_id($feed_stable_id, $feed_name);
-        }
-        
-        // Remove feed from config
-        // An uploaded feed owns a file on disk; the entry going away must
-        // take it with it.
-        //
-        // This is now the ONLY path that removes a feed from the option.
-        // There used to be a second, on admin_post, that dropped the entry
-        // without deleting the feed's products. It was unreachable - the
-        // Delete button is a plain <button> driven by AJAX, and no nonce
-        // for that action was ever rendered - so it never fired; a comment
-        // here warned about it instead of it being removed. Removed on
-        // 2026-09-04. A second path, if ever needed, calls this one.
-        if (class_exists('MyFeeds_Feed_Upload')) {
-            MyFeeds_Feed_Upload::delete_by_url($feeds[$feed_key]['url'] ?? '');
+
+        if (self::import_running()) {
+            wp_send_json_error(array('message' => __('An import is running. Delete the feed when it has finished.', 'myfeeds-affiliate-feed-manager')));
+            return;
         }
 
-        array_splice($feeds, $feed_key, 1);
-        update_option(self::OPTION_KEY, $feeds);
-        
-        // Cleanup any remaining orphaned products (catches feed_id=0 leftovers etc.)
-        if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
-            $orphan_cleanup = MyFeeds_DB_Manager::cleanup_orphaned_products();
-            if ($orphan_cleanup > 0) {
-                $deleted_products += $orphan_cleanup;
-            }
-        }
+        $done = self::delete_entry_at($feed_key);
+        $feed_name = (string) ($done['entry']['name'] ?? '') !== '' ? (string) $done['entry']['name'] : 'Unknown';
+        $deleted_products = (int) ($done['deleted'] ?? 0);
+        $feeds = get_option(self::OPTION_KEY, array());
+        $feeds = is_array($feeds) ? $feeds : array();
         
         // Get updated stats
         $total_products = 0;
@@ -2127,11 +2263,10 @@ class MyFeeds_Feed_Manager {
             'total_products_formatted' => number_format_i18n($total_products),
             'active_feeds' => $active_feeds,
             'avg_quality' => $avg_quality,
-            // Removing the last row leaves an empty table behind, and the
-            // way back in - Add your first feed, and the demo offer - only
-            // exists in the empty state. Rendered here so the browser can
-            // put it in place instead of asking the user to reload.
-            'empty_state_html' => $active_feeds === 0 ? $this->empty_state_html() : '',
+            // Without a source the screen is a different one - the ways
+            // in, the sample offer - and what it offers is wired when the
+            // page loads, so the browser loads it again.
+            'reload' => MyFeeds_Source_Rules::current() === '',
         ));
     }
     

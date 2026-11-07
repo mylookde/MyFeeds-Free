@@ -425,6 +425,7 @@ class MyFeeds_DB_Manager {
                 continue;
             }
             $wpdb->last_error = '';
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $index is one of the two literal index names this loop walks.
             $r = $wpdb->query("ALTER TABLE {$table} DROP INDEX {$index}");
             if ($r === false || $wpdb->last_error !== '') {
                 myfeeds_log("Index prune: could not drop {$index}: " . $wpdb->last_error, 'error');
@@ -588,54 +589,128 @@ class MyFeeds_DB_Manager {
     }
 
     /**
-     * Delete all products belonging to a specific feed — by both feed_id AND feed_name.
-     * Uses both criteria to catch products from the feed_id bug (Phase 12.7 Fix 2).
-     * Returns the number of deleted rows.
+     * The rows of one feed, as the SQL condition both the delete and the
+     * count before "Change source" use: by its id and by its name, so rows
+     * written before the feed had its id are found too. Matching on the
+     * name alone missed every row whose feed_name had been filled from the
+     * merchant field instead of the feed - "UGG DE" where the feed was
+     * called "UGG" - and matching on the id alone missed rows written
+     * before the feed had a stable_id.
+     *
+     * The name is the one thing two entries can share. Rows of another
+     * entry in the list or set aside are never in scope, whatever they are
+     * called: a set-aside namesake keeps every row it comes back with.
+     *
+     * The parentheses are not decoration: AND binds tighter than OR, so an
+     * unbracketed scope would leave the feed_id half standing on its own
+     * once a caller appends a condition, and delete exactly the rows that
+     * condition is there to protect.
+     *
+     * @param int    $feed_id   The feed's stable_id.
+     * @param string $feed_name The feed's name.
+     * @return array{0:string,1:array}|null SQL with placeholders and its values; null without id and name.
      */
-    public static function delete_products_by_feed_id($feed_id, $feed_name = '') {
+    public static function feed_scope($feed_id, $feed_name) {
+        $feed_id = intval($feed_id);
+        $feed_name = (string) $feed_name;
+
+        if ($feed_id > 0 && $feed_name !== '') {
+            $scope = '(feed_id = %d OR feed_name = %s)';
+            $args = array($feed_id, $feed_name);
+        } elseif ($feed_name !== '') {
+            $scope = '(feed_name = %s)';
+            $args = array($feed_name);
+        } elseif ($feed_id > 0) {
+            return array('(feed_id = %d)', array($feed_id));
+        } else {
+            return null;
+        }
+
+        $others = self::set_aside_feed_ids();
+        $list = get_option('myfeeds_feeds', array());
+        foreach (is_array($list) ? $list : array() as $entry) {
+            $sid = is_array($entry) ? intval($entry['stable_id'] ?? 0) : 0;
+            if ($sid > 0 && !in_array($sid, $others, true)) {
+                $others[] = $sid;
+            }
+        }
+        $others = array_values(array_diff($others, array($feed_id)));
+        if (!empty($others)) {
+            $scope = '(' . $scope . ' AND feed_id NOT IN (' . implode(',', array_fill(0, count($others), '%d')) . '))';
+            $args = array_merge($args, $others);
+        }
+        return array($scope, $args);
+    }
+
+    /**
+     * The placed products of these entries that deleting them would take
+     * out of published content: rows in their feed_scope(), a published
+     * place holds them, and they are not unavailable already (those left
+     * the posts before). Exactly the ids delete_products_by_feed_id()
+     * newly marks unavailable.
+     *
+     * @param array[]  $entries Feed entries (stable_id, name).
+     * @param string[] $placed  placed_product_ids().
+     * @return string[] Distinct external ids.
+     */
+    public static function placed_in_scope(array $entries, array $placed) {
         global $wpdb;
         $table = self::table_name();
-        
-        // DIAG LOG 7: Log feed deletion with product count before delete
-        if (!empty($feed_name) && intval($feed_id) > 0) {
-            $count_before = $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$table} WHERE feed_id = %d OR feed_name = %s",
-                intval($feed_id),
-                $feed_name
-            ));
-        } elseif (!empty($feed_name)) {
-            $count_before = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE feed_name = %s", $feed_name));
-        } else {
-            $count_before = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE feed_id = %d", intval($feed_id)));
-        }
-        myfeeds_log("DIAG feed_delete: feed_id={$feed_id}, feed_name={$feed_name}, products_found={$count_before}", 'info');
-        
-        // Both keys, not one. Matching on the name alone missed every row
-        // whose feed_name had been filled from the merchant field instead
-        // of the feed - "UGG DE" where the feed was called "UGG" - and
-        // matching on the id alone missed rows written before the feed had
-        // a stable_id. Either match is enough; a row can only belong to
-        // one feed.
-        $feed_id = intval($feed_id);
 
-        // The parentheses are not decoration: AND binds tighter than OR,
-        // so an unbracketed scope would leave the feed_id half standing
-        // on its own once the placed-products guard is appended below,
-        // and delete exactly the rows the guard is there to protect.
-        if ($feed_id > 0 && !empty($feed_name)) {
-            $scope = '(feed_id = %d OR feed_name = %s)';
-            $scope_args = array($feed_id, $feed_name);
-        } elseif (!empty($feed_name)) {
-            $scope = '(feed_name = %s)';
-            $scope_args = array($feed_name);
-        } elseif ($feed_id > 0) {
-            $scope = '(feed_id = %d)';
-            $scope_args = array($feed_id);
-        } else {
+        $scopes = array();
+        $args = array();
+        foreach ($entries as $entry) {
+            $scope = is_array($entry) ? self::feed_scope((int) ($entry['stable_id'] ?? 0), (string) ($entry['name'] ?? '')) : null;
+            if ($scope !== null) {
+                $scopes[] = $scope[0];
+                $args = array_merge($args, $scope[1]);
+            }
+        }
+        if (empty($scopes) || empty($placed)) {
+            return array();
+        }
+        $where = '(' . implode(' OR ', $scopes) . ')';
+
+        $ids = array();
+        foreach (array_chunk(array_values(array_unique(array_map('strval', $placed))), 500) as $chunk) {
+            $ph = implode(',', array_fill(0, count($chunk), '%s'));
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where joins feed_scope() conditions: fixed SQL with placeholders, its values go through prepare().
+            $found = $wpdb->get_col($wpdb->prepare(
+                "SELECT DISTINCT external_id FROM {$table} WHERE {$where} AND status <> 'unavailable' AND external_id IN ({$ph})",
+                array_merge($args, $chunk)
+            ));
+            foreach ((array) $found as $id) {
+                $ids[(string) $id] = true;
+            }
+        }
+        return array_map('strval', array_keys($ids));
+    }
+
+    /**
+     * Delete all products belonging to a specific feed (feed_scope()).
+     * Returns the number of deleted rows.
+     *
+     * @param int        $feed_id   The feed's stable_id.
+     * @param string     $feed_name The feed's name.
+     * @param array|null $placed    placed_product_ids(), when the caller has read it already.
+     */
+    public static function delete_products_by_feed_id($feed_id, $feed_name = '', ?array $placed = null) {
+        global $wpdb;
+        $table = self::table_name();
+
+        $feed_id = intval($feed_id);
+        $scope = self::feed_scope($feed_id, $feed_name);
+        if ($scope === null) {
             // Neither key: deleting on that would empty the table.
             myfeeds_log('DB: refusing to delete products without a feed id or name.', 'error');
             return 0;
         }
+        list($scope, $scope_args) = $scope;
+
+        // DIAG LOG 7: Log feed deletion with product count before delete
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $scope is feed_scope(): fixed SQL with placeholders, its values go through prepare().
+        $count_before = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE {$scope}", $scope_args));
+        myfeeds_log("DIAG feed_delete: feed_id={$feed_id}, feed_name={$feed_name}, products_found={$count_before}", 'info');
 
         // A product that is placed in a post is kept, marked unavailable.
         // The block stores nothing but the id, so a hard-deleted row
@@ -649,10 +724,13 @@ class MyFeeds_DB_Manager {
         // visible after its feed left the configuration without being
         // deleted, which is the opposite of this. The orphan sweep that
         // runs straight after the delete leaves these rows alone.
-        $placed = self::placed_product_ids();
+        if ($placed === null) {
+            $placed = self::placed_product_ids();
+        }
 
         if (!empty($placed)) {
             $ph = implode(',', array_fill(0, count($placed), '%s'));
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $scope is feed_scope(): fixed SQL with placeholders, its values go through prepare().
             $kept = $wpdb->query($wpdb->prepare(
                 "UPDATE {$table} SET status = 'unavailable', unavailable_since = %s
                  WHERE {$scope} AND external_id IN ({$ph})",
@@ -662,11 +740,13 @@ class MyFeeds_DB_Manager {
                 myfeeds_log("DELETE_FEED_PRODUCTS: kept {$kept} placed products as unavailable", 'info');
             }
 
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $scope is feed_scope(): fixed SQL with placeholders, its values go through prepare().
             $deleted = $wpdb->query($wpdb->prepare(
                 "DELETE FROM {$table} WHERE {$scope} AND external_id NOT IN ({$ph})",
                 array_merge($scope_args, $placed)
             ));
         } else {
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $scope is feed_scope(): fixed SQL with placeholders, its values go through prepare().
             $deleted = $wpdb->query($wpdb->prepare(
                 "DELETE FROM {$table} WHERE {$scope}",
                 $scope_args
@@ -782,18 +862,19 @@ class MyFeeds_DB_Manager {
     const STATUS_ARCHIVED = 'archived';
 
     /**
-     * External ids that appear in published posts and pages.
+     * External ids that appear in published content, read the way the
+     * importer reads it, and those a theme or plugin announces. One walk
+     * over the posts per request (MyFeeds_Batch_Importer::placements()).
      *
      * @return array<int,string>
      */
     public static function placed_product_ids() {
-        if (!class_exists('MyFeeds_Batch_Importer') || !class_exists('MyFeeds_Smart_Mapper')) {
+        if (!class_exists('MyFeeds_Batch_Importer')) {
             return array();
         }
 
         try {
-            $importer = new MyFeeds_Batch_Importer(new MyFeeds_Smart_Mapper());
-            $ids = $importer->get_active_product_ids(false);
+            $ids = MyFeeds_Batch_Importer::placed_ids();
         } catch (\Throwable $e) {
             // If we cannot work out what is on the site, we must not be the
             // ones deciding what to delete from it.
@@ -804,7 +885,10 @@ class MyFeeds_DB_Manager {
         return is_array($ids) ? array_values(array_unique(array_map('strval', $ids))) : array();
     }
 
-    public static function cleanup_orphaned_products() {
+    /**
+     * @param array|null $placed placed_product_ids(), when the caller has read it already.
+     */
+    public static function cleanup_orphaned_products(?array $placed = null) {
         global $wpdb;
         $table = self::table_name();
 
@@ -857,7 +941,9 @@ class MyFeeds_DB_Manager {
         // Every row no post holds goes, whatever its status - an archived
         // one too, once its last post let it go. Without the list of what
         // is placed nothing can be told apart, so then only live rows go.
-        $placed = self::placed_product_ids();
+        if ($placed === null) {
+            $placed = self::placed_product_ids();
+        }
         $archived = 0;
 
         if (!empty($placed)) {
@@ -1250,6 +1336,7 @@ class MyFeeds_DB_Manager {
 
         $placeholders = implode(',', array_fill(0, count($external_ids), '%s'));
         $query = $wpdb->prepare(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- TILE_COLUMNS is a constant list of column names; the ids go through the placeholders.
             "SELECT " . self::TILE_COLUMNS . " FROM {$table} WHERE external_id IN ({$placeholders})",
             ...$external_ids
         );
@@ -1415,6 +1502,7 @@ class MyFeeds_DB_Manager {
         // The same external_id can sit in two feeds (an archived copy
         // from a deleted feed next to the live one); the live row is the
         // one whose sizes are wanted.
+        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $vk_select is '' or the literal ', variant_key'.
         $current = $wpdb->get_row($wpdb->prepare(
             "SELECT product_name, colour, feed_id{$vk_select} FROM {$table}
              WHERE external_id = %s ORDER BY (status = 'active') DESC LIMIT 1",

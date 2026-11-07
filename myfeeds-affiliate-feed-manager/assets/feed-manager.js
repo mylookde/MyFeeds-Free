@@ -1303,18 +1303,17 @@
                     feed_key: feedKey
                 }).done(function(response) {
                     if (response.success) {
+                        var d = response.data;
+                        // Without a source the screen offers the ways in,
+                        // and what they open is wired when the page loads.
+                        if (d.reload) {
+                            window.location.reload();
+                            return;
+                        }
                         // Remove the table row
                         var $row = $btn.closest('tr');
-                        var d = response.data;
                         $row.fadeOut(300, function() {
                             $(this).remove();
-                            // Last feed gone: the table is now an empty
-                            // shell with no way back in. Swap it for the
-                            // empty state the server rendered, so nobody
-                            // has to reload to find Add your first feed.
-                            if (d.empty_state_html) {
-                                $('.myfeeds-feeds-table table').replaceWith(d.empty_state_html);
-                            }
                         });
                         
                         // Update header stats from server response
