@@ -8,9 +8,9 @@
  * the rule "a product that cannot be bought is left out" (rule 17) are the
  * same as on every other card.
  *
- * Built for the case Amazon leaves open below its ten sales: no Amazon
- * image may be shown without the Creators API, but the author's own
- * outfit photo may - and for fashion it sells better than a cut-out.
+ * Built for Amazon products linked by ASIN, which carry no picture of
+ * Amazon's: the author's own outfit photo shows them - and for fashion it
+ * sells better than a cut-out.
  *
  * What it is careful about:
  *   - SEO: the photo is an ordinary <img> from the media library inside a
@@ -19,7 +19,7 @@
  *     as a plain numbered list of links. No new URLs (rule 20); links are
  *     nofollow sponsored and counted like every card's - through
  *     /myfeeds/go/, or directly for a link to Amazon (the click tracker
- *     decides, see linked()).
+ *     decides, see point_item()).
  *   - Core Web Vitals: wp_get_attachment_image() gives width, height,
  *     srcset and WordPress's own lazy/eager decision, so no layout shift
  *     and no oversized file. The points open with <details> - no script.
@@ -29,14 +29,14 @@
  *
  * What a point can lead to beyond the site's own feeds comes in through
  * filters, so this file holds no source of its own:
- *   myfeeds_look_editor_amazon   (config)       what the editor says about Amazon
- *   myfeeds_look_amazon_products (array, $ids)  id => product, or false for an
- *                                               ASIN whose page is gone
- *   myfeeds_look_not_found       (answer, $url) a pasted shop address that no
- *                                               feed sells
- *   myfeeds_hide_prices          (false)        the page shows no prices
- *   myfeeds_amazon_stamp         ('', $id, $at, $tag, $class)  the time
- *                                               beside Amazon's price
+ *   myfeeds_look_editor_amazon   (config)          what the editor says about Amazon
+ *   myfeeds_look_amazon_items    (array, $points)  id => a point as the site
+ *                                                  draws it (point_item()), or
+ *                                                  false for an ASIN whose page
+ *                                                  is gone
+ *   myfeeds_look_not_found       (answer, $url)    a pasted shop address that no
+ *                                                  feed sells
+ *   myfeeds_hide_prices          (false)           the page shows no prices
  *
  * Shared by both plugins, apart from the text domain.
  */
@@ -98,8 +98,8 @@ class MyFeeds_Look_Block {
                 'imageAlign'     => array('type' => 'string', 'default' => 'center'),
                 'points'   => array('type' => 'array', 'default' => array()),
                 'showList' => array('type' => 'boolean', 'default' => true),
-                // Prices and pictures on the page. On by default; Amazon has
-                // both only with Amazon's API (amazon_item()).
+                // Prices and pictures on the page. On by default; an Amazon
+                // point by link has neither (amazon_item()).
                 'showPrices' => array('type' => 'boolean', 'default' => true),
                 'showImages' => array('type' => 'boolean', 'default' => true),
             ),
@@ -111,12 +111,11 @@ class MyFeeds_Look_Block {
      *
      * What a point may lead to besides the site's own feeds is told to the
      * editor as it is, by whoever offers it (myfeeds_look_editor_amazon):
-     *   allowed  Amazon is set up: a point takes an ASIN or Amazon link.
-     *   links    Amazon products by link or ASIN.
-     *   api      Amazon's API: the row may look a set point up and show
-     *            what Amazon calls it.
-     *   apiNote  Said in a switch's help when the API is not there; empty
-     *            where there is nothing to say.
+     *   allowed       Amazon is set up: a point takes an ASIN or Amazon link.
+     *   links         Amazon products by link or ASIN.
+     *   nameFromLink  false: the name is not taken from a pasted link.
+     *   texts         what the editor says about an Amazon point, in place
+     *                 of its own words (look-block.js).
      * Without it a point links to the site's own products.
      */
     public static function enqueue_editor() {
@@ -505,8 +504,7 @@ class MyFeeds_Look_Block {
      * both on by default (an older Look without the attributes shows
      * them). 'pics' says whether the list under the photo needs its
      * picture column at all - only when a picture is on and some row has
-     * one, so a Look of Amazon points without the API keeps its narrow
-     * rows.
+     * one, so a Look of Amazon points by link keeps its narrow rows.
      *
      * @return array{prices:bool,images:bool,pics:bool}
      */
@@ -547,7 +545,7 @@ class MyFeeds_Look_Block {
      * parts in the same places - number, what it is, where it goes - so
      * the CSS can lay them out on one grid whatever the text is. Brand
      * and price leave no empty element behind when there is none (an
-     * Amazon point without the API has neither).
+     * Amazon point by link has no price).
      *
      * With pictures ($show['pics'], see show_options()) every row gets a
      * fourth part after the number, the picture's cell - empty where a
@@ -579,8 +577,9 @@ class MyFeeds_Look_Block {
      * nothing below the photo competes with it or shifts the page; a card
      * picture inside a closed point is not loaded until the point opens.
      *
-     * An Amazon picture is Amazon's own address as the API gave it -
-     * shown, never resized, copied or proxied.
+     * A picture marked 'image_as_is' is shown from the address it came
+     * with - never resized, copied or proxied - where its source asks for
+     * that.
      */
     private static function picture_html(array $item, $where) {
         $url = (string) ($item['image'] ?? '');
@@ -591,7 +590,7 @@ class MyFeeds_Look_Block {
         $class = $row ? 'myfeeds-look__thumb' : 'myfeeds-look__shot';
         $dims  = $row ? ' width="56" height="56"' : ' width="220" height="140"';
 
-        if (($item['image_from'] ?? '') === 'amazon') {
+        if (!empty($item['image_as_is'])) {
             return '<img class="' . $class . '" src="' . esc_url($url) . '" alt=""' . $dims . ' loading="lazy" decoding="async">';
         }
 
@@ -616,37 +615,28 @@ class MyFeeds_Look_Block {
      * The price, and the one it replaces struck through after it. <s>,
      * not <del>: the old price was not edited out of this page, it is
      * simply no longer what the shop asks.
+     *
+     * A point whose source draws its own price ('price_html', from
+     * myfeeds_look_amazon_items: a function, asked only where the Look
+     * shows prices) shows that, with whatever its rules put beside it;
+     * myfeeds_hide_prices is about the site's feeds.
      */
     private static function price_html(array $item) {
+        if (isset($item['price_html']) && $item['price_html'] instanceof Closure) {
+            $own = call_user_func($item['price_html']);
+            return is_string($own) ? $own : '';
+        }
         if (($item['price'] ?? '') === '') {
             return '';
         }
-        $was    = (string) ($item['was'] ?? '');
-        $amazon = isset($item['amazon']) && is_array($item['amazon']) ? $item['amazon'] : null;
-        if ($amazon === null) {
-            // A price the site cannot vouch for any more (myfeeds_hide_prices).
-            // Amazon's has rules of its own: the stamp below.
-            if (apply_filters('myfeeds_hide_prices', false)) {
-                return '';
-            }
-            return '<span class="myfeeds-look__price"><span class="myfeeds-look__now">' . esc_html($item['price']) . '</span>'
-                . ($was !== '' ? ' <s class="myfeeds-look__was">' . esc_html($was) . '</s>' : '')
-                . '</span>';
-        }
-        // An Amazon price carries the time it was fetched, and the page's
-        // script re-reads price and time on every view: the licence's two
-        // rules, as on the Amazon card. Whoever brings Amazon's price
-        // brings its stamp (myfeeds_amazon_stamp); without one there is no
-        // price. The struck price is always there, hidden when empty, so a
-        // refresh that brings one has a place to put it.
-        $stamp = (string) apply_filters('myfeeds_amazon_stamp', '', $amazon['id'], (int) $amazon['fetched_at'], 'span', 'myfeeds-look__stamp');
-        if ($stamp === '') {
+        // A price the site cannot vouch for any more (myfeeds_hide_prices).
+        if (apply_filters('myfeeds_hide_prices', false)) {
             return '';
         }
+        $was = (string) ($item['was'] ?? '');
         return '<span class="myfeeds-look__price"><span class="myfeeds-look__now">' . esc_html($item['price']) . '</span>'
-            . ' <s class="myfeeds-look__was"' . ($was === '' ? ' hidden' : '') . '>' . esc_html($was) . '</s>'
-            . '</span>'
-            . $stamp;
+            . ($was !== '' ? ' <s class="myfeeds-look__was">' . esc_html($was) . '</s>' : '')
+            . '</span>';
     }
 
     private static function label_html(array $item) {
@@ -657,8 +647,8 @@ class MyFeeds_Look_Block {
     /**
      * Points as the post can show them, numbered in order. A point whose
      * product cannot be bought - gone, sold out, behind a closed
-     * programme, an Amazon ASIN with neither Amazon's data nor a name -
-     * is left out, and the numbers close up so dot and list always agree.
+     * programme, an Amazon ASIN without a name - is left out, and the
+     * numbers close up so dot and list always agree.
      */
     public static function resolve_points(array $points) {
         $clean = array();
@@ -676,18 +666,18 @@ class MyFeeds_Look_Block {
             );
         }
 
-        // Amazon ids in one call, never one per point. Without anyone to
-        // ask (myfeeds_look_amazon_products) each point is the author's
-        // own words and the link built from its ASIN.
+        // The Amazon points in one call, never one per point. Without
+        // anyone to answer (myfeeds_look_amazon_items) each point is the
+        // author's own words and the link built from its ASIN.
         $amazon = array();
-        $ids    = array();
+        $asked  = array();
         foreach ($clean as $p) {
             if (self::is_amazon($p['id'])) {
-                $ids[] = $p['id'];
+                $asked[] = $p;
             }
         }
-        if (!empty($ids)) {
-            $amazon = apply_filters('myfeeds_look_amazon_products', array(), $ids);
+        if (!empty($asked)) {
+            $amazon = apply_filters('myfeeds_look_amazon_items', array(), $asked);
             $amazon = is_array($amazon) ? $amazon : array();
         }
 
@@ -811,56 +801,34 @@ class MyFeeds_Look_Block {
     }
 
     /**
-     * With Amazon's data: Amazon's title and its own link, unaltered (the
-     * licence forbids changing it), its picture and its price - the price
-     * with the time it was fetched (price_html()). Without: the author's
-     * name and the plain tagged /dp/ link, no picture, no price.
+     * An Amazon point: the author's name and the plain tagged /dp/ link
+     * built from its ASIN, no picture, no price. Where the site knows the
+     * product (myfeeds_look_amazon_items) the point is what it answers,
+     * built with point_item().
      *
-     * @param array|false|null $product Amazon's data; false when Amazon
-     *                                  said the ASIN's page is gone.
+     * @param array|false|null $known The site's point; false when its
+     *                                page is gone.
      */
-    private static function amazon_item(array $p, $product) {
-        // Amazon said the ASIN is invalid: the link would end on a 404.
-        // Left out like a feed product that is gone (rule 17).
-        if ($product === false) {
+    private static function amazon_item(array $p, $known) {
+        // The product's page is gone: the link would end on a 404. Left
+        // out like a feed product that is gone (rule 17).
+        if ($known === false) {
             return null;
         }
         $parsed = MyFeeds_Amazon_Compliance::parse_id($p['id']);
         if (!$parsed) {
             return null;
         }
-        $track = array();
-        $from_api = is_array($product) && !empty($product['affiliate_link']);
-        if ($from_api) {
-            // The author's own title wins over Amazon's when they typed one.
-            $name  = $p['name'] !== '' ? $p['name'] : (string) ($product['title'] ?? '');
-            $brand = (string) ($product['brand'] ?? '');
-            $link  = (string) $product['affiliate_link'];
-            // Shown, never kept: the click carries the author's words only.
-            $track = array('source' => 'amazon', 'amz_manual' => array('brand' => $p['brand'], 'name' => $p['name']));
-        } else {
-            $name  = $p['name'];
-            $brand = $p['brand'];
-            $link  = MyFeeds_Amazon_Compliance::product_url($parsed['marketplace'], $parsed['asin']);
+        if (is_array($known) && isset($known['href'], $known['name']) && $known['href'] !== '' && $known['name'] !== '') {
+            return $known + array('brand' => '', 'attrs' => '', 'rel' => 'nofollow sponsored noopener', 'price' => '', 'was' => '',
+                'cta' => __('View on Amazon', 'myfeeds-affiliate-feed-manager'), 'image' => '', 'image_as_is' => false);
         }
-        if ($name === '' || $link === '') {
+        $link = MyFeeds_Amazon_Compliance::product_url($parsed['marketplace'], $parsed['asin']);
+        if ($p['name'] === '' || $link === '') {
             return null;
         }
         // "Amazon", not the market's address (Marlon, 28.10.).
-        $item = self::linked($p['id'], $brand, $name, $link, 0, '', __('View on Amazon', 'myfeeds-affiliate-feed-manager'), $track);
-        if ($from_api) {
-            $item['image']      = (string) ($product['image_url'] ?? '');
-            $item['image_from'] = 'amazon';
-            $price = (float) ($product['price'] ?? 0);
-            $old   = (float) ($product['old_price'] ?? 0);
-            if ($price > 0) {
-                $currency     = (string) ($product['currency'] ?? '') ?: 'EUR';
-                $item['price'] = myfeeds_format_price($price, $currency);
-                $item['was']   = $old > $price ? myfeeds_format_price($old, $currency) : '';
-                $item['amazon'] = array('id' => $p['id'], 'fetched_at' => (int) ($product['price_fetched_at'] ?? 0));
-            }
-        }
-        return $item;
+        return self::point_item($p['id'], $p['brand'], $p['name'], $link, 0, '', __('View on Amazon', 'myfeeds-affiliate-feed-manager'));
     }
 
     /**
@@ -909,7 +877,7 @@ class MyFeeds_Look_Block {
         $prices   = self::price_pair($product);
         $merchant = (string) ($product['merchant'] ?? '');
 
-        $item = self::linked(
+        $item = self::point_item(
             (string) ($product['id'] ?? $p['id']),
             (string) ($product['brand'] ?? $p['brand']),
             // The title the author kept or edited in the editor; the feed's
@@ -923,9 +891,8 @@ class MyFeeds_Look_Block {
                 ? sprintf(__('View at %s', 'myfeeds-affiliate-feed-manager'), $merchant)
                 : __('View product', 'myfeeds-affiliate-feed-manager')
         );
-        $item['was']        = $prices['was'];
-        $item['image']      = (string) ($product['image_url'] ?? '');
-        $item['image_from'] = 'feed';
+        $item['was']   = $prices['was'];
+        $item['image'] = (string) ($product['image_url'] ?? '');
         return $item;
     }
 
@@ -958,7 +925,18 @@ class MyFeeds_Look_Block {
         );
     }
 
-    private static function linked($id, $brand, $name, $link, $feed_id, $price, $cta, array $track = array()) {
+    /**
+     * One point as the Look draws it: the link counted like every card's
+     * (through /myfeeds/go/, or directly to Amazon - the click tracker
+     * decides), its words, its price. A source that answers
+     * myfeeds_look_amazon_items builds its points here and adds 'image'
+     * (with 'image_as_is') and 'price_html' (a function that draws the
+     * price, so nothing of it runs where the Look shows no prices).
+     *
+     * @param array $track More for the click tracker's product.
+     * @return array
+     */
+    public static function point_item($id, $brand, $name, $link, $feed_id, $price, $cta, array $track = array()) {
         $product = array_merge(
             array('id' => $id, 'title' => $name, 'brand' => $brand, 'affiliate_link' => $link, 'feed_id' => $feed_id, 'click_block' => 'look-point'),
             $track
@@ -982,8 +960,7 @@ class MyFeeds_Look_Block {
             'was'   => '',
             'cta'   => (string) $cta,
             'image' => '',
-            'image_from' => '',
-            'amazon' => null,
+            'image_as_is' => false,
         );
     }
 

@@ -10,11 +10,8 @@
  * Links keep nothing of Amazon's, so there is nothing to clear when the
  * plugin goes: the partner tag and the badge are the owner's settings.
  *
- * Amazon's API is a second level this file holds no code for. Whether a
- * site has it is the answer of the filter myfeeds_amazon_api_active
- * (false unless something says otherwise); whoever brings the API hangs
- * its own parts on the hooks of the card, the settings window, the save
- * route and the two editors.
+ * The card, the settings window, the save route and the two editors each
+ * offer hooks (named in their files), so a site can add to them.
  *
  * Shared byte for byte by both plugins.
  */
@@ -28,15 +25,6 @@ class MyFeeds_Amazon_Modules {
     /** May this site place Amazon products by link or ASIN? */
     public static function links_active() {
         return true;
-    }
-
-    /**
-     * May this site use Amazon's API? Stored credentials do not answer
-     * this: a site that stopped having the API still holds the ones it
-     * saved.
-     */
-    public static function api_active() {
-        return (bool) apply_filters('myfeeds_amazon_api_active', false);
     }
 
     public static function init() {
@@ -58,9 +46,7 @@ class MyFeeds_Amazon_Modules {
      *   marketplace  where a bare ASIN goes (one with a tag).
      *   marketplaces the Amazon sites with a tag.
      *   settingsUrl  the settings window.
-     * Whoever brings Amazon's API adds its own answers here
-     * (myfeeds_amazon_picker_config) and in the editor
-     * (myfeeds.picker.amazonApi in picker-inspector.js).
+     * A site adds its own answers through myfeeds_amazon_picker_config.
      *
      * @return array
      */
@@ -87,9 +73,7 @@ class MyFeeds_Amazon_Modules {
     /**
      * What the Look's editor is told about Amazon (myfeeds_look_editor_amazon):
      *   allowed  a partner tag is saved: a point takes an ASIN or Amazon link.
-     *   links    Amazon products by link or ASIN.
-     *   api      false: a set point is named by its author. Whoever can
-     *            look a point up says so on the same filter.
+     *   links    Amazon products by link or ASIN, named by their author.
      *
      * @param array $amazon What earlier filters said.
      * @return array
@@ -101,7 +85,6 @@ class MyFeeds_Amazon_Modules {
         return array(
             'allowed'      => !empty(MyFeeds_Amazon_Link_Settings::available_marketplaces()),
             'links'        => true,
-            'api'          => false,
             'marketplace'  => MyFeeds_Amazon_Link_Settings::link_marketplace(),
             'marketplaces' => MyFeeds_Amazon_Link_Settings::available_marketplaces(),
             'settingsUrl'  => MyFeeds_Amazon_Admin::settings_url(),

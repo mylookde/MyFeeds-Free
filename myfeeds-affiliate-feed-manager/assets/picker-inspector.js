@@ -20,9 +20,12 @@
  *   myfeeds.picker.tabBody         (null, key, ctx)      what a tab other than
  *                                                        'manual' and 'amazon' shows
  *   myfeeds.picker.extras          ([], ctx)             elements under the block
- *   myfeeds.picker.amazonApi       (null, config)        what else a site says
- *                                                        about an Amazon product
- *                                                        (see AmazonPanel)
+ *   myfeeds.picker.amazonPanel     (AmazonPanel, ctx)    the component the Amazon
+ *                                                        tab shows; it gets
+ *                                                        { attributes, setAttributes }
+ *
+ * The Amazon tab's reading of "ASIN or Amazon link" and its parts are
+ * window.myfeedsAmazonAsin, for every block that takes one.
  *
  * ctx: { attributes, setAttributes, displayMode, dynamicActive, clientId,
  * isSelected }; extras also get { tab, setTab, wrapperRef } - wrapperRef is
@@ -207,7 +210,8 @@
     var failed = failedState[0];
     var setFailed = failedState[1];
     var wordsSeenState = useState(0);
-    var priceHiddenState = useState(false);
+    // Lines the server adds about this block (myfeeds_pick_texts_notes).
+    var notesState = useState([]);
 
     var isComparison = attributes.displayMode === 'comparison';
     var texts = (attributes.pickTexts && typeof attributes.pickTexts === 'object') ? attributes.pickTexts : {};
@@ -248,7 +252,7 @@
         }).then(function (res) {
           if (cancelled) return;
           setItems((res && res.items) || []);
-          priceHiddenState[1](!!(res && res.amazon_price_hidden));
+          notesState[1](res && Array.isArray(res.notes) ? res.notes.filter(function (n) { return typeof n === 'string' && n; }) : []);
           setFailed(false);
         }).catch(function () {
           if (cancelled) return;
@@ -368,10 +372,9 @@
             : null
         );
       }),
-      priceHiddenState[0]
-        ? createElement('p', { className: 'myfeeds-pick-panel__empty' },
-            'Amazon\'s price is left out in this block. Next to other shops Amazon asks for its lowest new price, and its API does not give that out. Readers see the price on Amazon.')
-        : null,
+      notesState[0].map(function (line, i) {
+        return createElement('p', { key: 'note-' + i, className: 'myfeeds-pick-panel__empty' }, line);
+      }),
       hidden > 0
         ? createElement('p', { className: 'myfeeds-pick-panel__empty' },
             hidden === 1
@@ -458,23 +461,7 @@
   // Amazon with the site's partner tag. Amazon products live in their own
   // attribute, never in selectedProducts: a post may keep an Amazon
   // product's ASIN and nothing else of Amazon's, so there is no snapshot
-  // for the bundle's tiles to render.
-  //
-  // What else a site can say about an Amazon product hangs on one filter,
-  // asked with the config:
-  //
-  //   myfeeds.picker.amazonApi (null, config) -> null, or an object with any of
-  //     hydrate(ids)        Promise of the products it can describe, [{ id, title,
-  //                         brand, image_url, price, currency, in_stock }]
-  //     lookup(id, parsed)  Promise of { found: true } (added as it is),
-  //                         { byHand: true } (added to be named) or { error }
-  //     gone(ids)           Promise of the ids whose product page is gone
-  //     searchSource()      a source for the picker's search window, or null
-  //     texts               { needTag, byHand, note, noteLink: { url, label },
-  //                         manualTitle } in place of the panel's own
-  //
-  // Without it the panel adds by ASIN or link, lists every product to be
-  // named by hand, and asks the site nothing.
+  // for the bundle's tiles to render. The panel asks the site nothing.
   // ---------------------------------------------------------------------------
   function getAmazonConfig() {
     return (window.myfeedsData && window.myfeedsData.amazon) || { allowed: false };
@@ -560,88 +547,53 @@
     return 'amzn:' + code + ':' + asin;
   }
 
-  // One reading of "ASIN or Amazon link" for every block that takes one
-  // (the Look block asks here instead of keeping a second copy).
-  window.myfeedsAmazonAsin = { parse: parseAsinInput, id: amazonId, movedNote: movedNote };
-
-  // ASIN or Amazon link (added at once) - or words (searched).
-  function looksLikeAmazonProduct(text) {
-    var t = String(text || '').trim();
-    return (/^[A-Za-z0-9]{10}$/.test(t) && /\d/.test(t))
-      || /(^|[\/.])(amazon\.[a-z.]+|amzn\.(to|eu)|a\.co)(\/|$)/i.test(t);
-  }
-
-  function amazonMoney(product) {
-    if (!product || !product.price) {
-      return '';
-    }
-    if (typeof window.myfeedsFormatPrice === 'function') {
-      return window.myfeedsFormatPrice(product.price, product.currency || 'EUR');
-    }
-    return (Math.round(product.price * 100) / 100).toFixed(2) + ' ' + (product.currency || 'EUR');
-  }
-
-  function AmazonTile(props) {
-    var product = props.product;
-    var chosen = props.chosen;
-
-    return createElement('div', {
-      className: 'myfeeds-amz-tile' + (chosen ? ' is-chosen' : ''),
-      onClick: props.onToggle,
-      title: product.title
-    },
-      createElement('div', { className: 'myfeeds-amz-tile__img' },
-        product.image_url
-          ? createElement('img', { src: product.image_url, alt: '', loading: 'lazy', decoding: 'async' })
-          : null
-      ),
-      createElement('div', { className: 'myfeeds-amz-tile__body' },
-        product.brand
-          ? createElement('div', { className: 'myfeeds-amz-tile__brand' }, product.brand)
-          : null,
-        createElement('div', { className: 'myfeeds-amz-tile__title' }, product.title),
-        createElement('div', { className: 'myfeeds-amz-tile__price' },
-          amazonMoney(product) || 'Price on request',
-          !product.in_stock
-            ? createElement('span', { className: 'myfeeds-amz-tile__oos' }, ' out of stock')
-            : null
-        )
-      ),
-      createElement('div', { className: 'myfeeds-amz-tile__mark' }, chosen ? 'Added' : 'Add')
-    );
-  }
-
   var AMAZON_TEXTS = {
     needTag: 'Save your Amazon partner tag first. With it you add Amazon products by link or ASIN, and each card links to Amazon with your tag.',
     byHand: 'Added. Check brand and name below. The card links with your partner tag.',
     note: 'Add Amazon products by link or ASIN and name them yourself: the card shows your words and links to Amazon with your partner tag.',
-    noteLink: null,
     manualTitle: 'In this block'
+  };
+
+  // One product the author names: its ASIN, brand, name and note, and the
+  // way out. Brand and name are what the reader sees on the card; the
+  // note is optional. A plain function, not a component, so a panel can
+  // draw it in its own render.
+  function amazonManualPick(pick, onChange, onRemove) {
+    var id = String(pick.id);
+    var asin = id.split(':')[2] || id;
+    return createElement('div', { key: 'man-' + id, className: 'myfeeds-amz-manual' + (pick.name ? '' : ' is-incomplete') },
+      createElement('div', { className: 'myfeeds-amz-manual__head' },
+        createElement('code', null, asin),
+        createElement(Button, { variant: 'link', isLink: true, isDestructive: true, onClick: onRemove }, 'Remove')
+      ),
+      createElement(TextControl, { label: 'Brand', value: pick.brand || '', onChange: function (v) { onChange('brand', v); } }),
+      createElement(TextControl, { label: 'Product name', value: pick.name || '', onChange: function (v) { onChange('name', v); },
+        help: pick.name ? null : 'Needed - the card stays hidden on the page until it has a name.' }),
+      createElement(TextControl, { label: 'Your note (optional)', value: pick.note || '', onChange: function (v) { onChange('note', v); },
+        placeholder: 'e.g. runs half a size small' })
+    );
+  }
+
+  // One reading of "ASIN or Amazon link" for every block that takes one
+  // (the Look block asks here instead of keeping a second copy), and the
+  // panel's parts for a panel that takes its place (myfeeds.picker.amazonPanel).
+  window.myfeedsAmazonAsin = {
+    parse: parseAsinInput,
+    id: amazonId,
+    movedNote: movedNote,
+    manualPick: amazonManualPick,
+    texts: AMAZON_TEXTS
   };
 
   function AmazonPanel(props) {
     var attributes = props.attributes;
     var setAttributes = props.setAttributes;
     var config = getAmazonConfig();
-    var api = applyFilters('myfeeds.picker.amazonApi', null, config) || {};
-    var texts = Object.assign({}, AMAZON_TEXTS, api.texts || {});
-    var hydrate = typeof api.hydrate === 'function' ? api.hydrate : null;
-    var lookup = typeof api.lookup === 'function' ? api.lookup : null;
-    var findGone = typeof api.gone === 'function' ? api.gone : null;
+    var texts = AMAZON_TEXTS;
 
-    var chosenState = useState([]);
-    var chosenDetails = chosenState[0];
-    var setChosenDetails = chosenState[1];
-
-    // The one field: an ASIN or Amazon link is added at once, words open
-    // the search window where there is one.
     var asinState = useState('');
     var asinInput = asinState[0];
     var setAsinInput = asinState[1];
-
-    var asinBusyState = useState(false);
-    var asinBusy = asinBusyState[0];
-    var setAsinBusy = asinBusyState[1];
 
     var asinErrorState = useState('');
     var asinError = asinErrorState[0];
@@ -651,84 +603,10 @@
     var asinNote = asinNoteState[0];
     var setAsinNote = asinNoteState[1];
 
-    // Which ids the site has answered for. An id it has nothing for is
-    // named by hand below instead of waiting for a tile that will not come.
-    var loadedState = useState('');
-    var loadedKey = loadedState[0];
-    var setLoadedKey = loadedState[1];
-
-    // Products whose page is gone: the post leaves them out.
-    var goneState = useState([]);
-    var goneIds = goneState[0];
-    var setGoneIds = goneState[1];
-
-    // The picker's search window on Amazon alone: open with these words,
-    // or null; and its working selection until "Use ...".
-    var winState = useState(null);
-    var win = winState[0];
-    var setWin = winState[1];
-    var winSelState = useState([]);
-    var winSel = winSelState[0];
-    var setWinSel = winSelState[1];
-
-    var source = typeof api.searchSource === 'function' ? api.searchSource() : null;
-    var SearchWindow = window.myfeedsProductSearch && window.myfeedsProductSearch.Modal;
-
     var picks = Array.isArray(attributes.amazonProducts) ? attributes.amazonProducts : [];
     var pickIds = picks.map(function (p) { return p && p.id ? String(p.id) : ''; }).filter(Boolean);
-    var pickKey = pickIds.join(',');
 
-    // Selected tiles carry no stored data, so the panel asks what they
-    // currently are every time the id list changes.
-    useEffect(function () {
-      if (!pickIds.length) {
-        setChosenDetails([]);
-        return;
-      }
-
-      var cancelled = false;
-      if (!hydrate) {
-        setChosenDetails([]);
-        setLoadedKey(pickKey);
-        return;
-      }
-      hydrate(pickIds).then(function (items) {
-        if (!cancelled) {
-          setChosenDetails(Array.isArray(items) ? items : []);
-          setLoadedKey(pickKey);
-        }
-      }).catch(function () {
-        if (!cancelled) {
-          setChosenDetails([]);
-          setLoadedKey(pickKey);
-        }
-      });
-
-      return function () { cancelled = true; };
-    }, [pickKey]);
-
-    // Products nothing describes: the author's own card. Brand and name
-    // are what the reader sees in place of the photo; the note is optional.
-    var detailIds = chosenDetails.map(function (d) { return String(d.id); });
-    var manualPicks = loadedKey === pickKey
-      ? picks.filter(function (p) { return p && p.id && detailIds.indexOf(String(p.id)) === -1; })
-      : [];
-    var manualKey = manualPicks.map(function (p) { return String(p.id); }).join(',');
-
-    useEffect(function () {
-      if (!findGone || !manualKey) {
-        setGoneIds([]);
-        return;
-      }
-      var cancelled = false;
-      findGone(manualKey.split(',')).then(function (ids) {
-        if (!cancelled) setGoneIds(Array.isArray(ids) ? ids : []);
-      }).catch(function () {
-        if (!cancelled) setGoneIds([]);
-      });
-      return function () { cancelled = true; };
-    }, [manualKey, !!findGone]);
-
+    // The ASIN goes in as it is; the author names it.
     function addByAsin() {
       var parsed = parseAsinInput(asinInput, config.marketplace, config.marketplaces);
       if (!parsed.asin) {
@@ -743,79 +621,9 @@
       }
 
       setAsinError('');
-      setAsinNote(parsed.moved ? movedNote(parsed.moved, parsed.marketplace) : '');
-
-      // The ASIN goes in as it is; the author names it.
-      function addByHand() {
-        setAttributes({ amazonProducts: picks.concat([{ id: id, brand: '', name: parsed.name || '', note: '' }]) });
-        setAsinInput('');
-        setAsinNote(parsed.moved ? movedNote(parsed.moved, parsed.marketplace) + ' ' + texts.byHand : texts.byHand);
-      }
-
-      if (!lookup) {
-        addByHand();
-        return;
-      }
-
-      setAsinBusy(true);
-      lookup(id, parsed).then(function (answer) {
-        setAsinBusy(false);
-        if (answer && answer.found) {
-          setAttributes({ amazonProducts: picks.concat([{ id: id }]) });
-          setAsinInput('');
-          return;
-        }
-        if (answer && answer.byHand) {
-          addByHand();
-          return;
-        }
-        setAsinError((answer && answer.error) || '');
-      }).catch(function (err) {
-        setAsinBusy(false);
-        setAsinError((err && err.message) || '');
-      });
-    }
-
-    function openSearch(term) {
-      if (!source || typeof SearchWindow !== 'function') {
-        setAsinError('The product search did not load. Reload the editor and try again.');
-        return;
-      }
-      setAsinError('');
-      setWinSel(chosenDetails.slice());
-      setWin({ term: term || '' });
-    }
-
-    // Enter in the field: a product is added, words are searched.
-    function submitField() {
-      var text = asinInput.trim();
-      if (source && !looksLikeAmazonProduct(text)) {
-        openSearch(text);
-        return;
-      }
-      addByAsin();
-    }
-
-    // "Use ..." in the window: what is ticked there is the block's Amazon
-    // list, in the order it had, new ones after. Products named by hand
-    // below were never in the window, so they stay as they are. Ids only:
-    // anything else would be product data the post may not keep.
-    function useFromWindow(list) {
-      var chosenIds = [];
-      (list || []).forEach(function (p) {
-        var id = p && p.id ? String(p.id) : '';
-        if (id.indexOf('amzn:') === 0 && chosenIds.indexOf(id) === -1) chosenIds.push(id);
-      });
-      var next = picks.filter(function (p) {
-        var id = p && p.id ? String(p.id) : '';
-        return id && (detailIds.indexOf(id) === -1 || chosenIds.indexOf(id) !== -1);
-      });
-      chosenIds.forEach(function (id) {
-        if (pickIds.indexOf(id) === -1) next.push({ id: id });
-      });
-      setAttributes({ amazonProducts: next });
-      setWin(null);
+      setAttributes({ amazonProducts: picks.concat([{ id: id, brand: '', name: parsed.name || '', note: '' }]) });
       setAsinInput('');
+      setAsinNote(parsed.moved ? movedNote(parsed.moved, parsed.marketplace) + ' ' + texts.byHand : texts.byHand);
     }
 
     function updatePick(id, field, value) {
@@ -837,7 +645,7 @@
       return null;
     }
 
-    if (!hydrate && !config.hasTag) {
+    if (!config.hasTag) {
       return createElement('div', { className: 'myfeeds-amz is-embedded' },
         createElement('div', { className: 'myfeeds-amz__body' },
           createElement('p', null, texts.needTag),
@@ -852,16 +660,16 @@
     }
 
     var typed = asinInput.trim();
-    var field = createElement('div', { className: 'myfeeds-amz__controls myfeeds-amz__asin' + (source ? ' has-search' : '') },
+    var field = createElement('div', { className: 'myfeeds-amz__controls myfeeds-amz__asin' },
       createElement(TextControl, {
-        label: source ? 'Add a product or search Amazon' : 'Add one product',
-        placeholder: source ? 'ASIN, Amazon product link, or what you are looking for' : 'ASIN or Amazon product link',
+        label: 'Add one product',
+        placeholder: 'ASIN or Amazon product link',
         value: asinInput,
         onChange: function (v) { setAsinInput(v); if (asinError) setAsinError(''); },
         onKeyDown: function (e) {
           if (e.key === 'Enter') {
             e.preventDefault();
-            submitField();
+            addByAsin();
           }
         }
       }),
@@ -869,96 +677,28 @@
         variant: 'secondary',
         isSecondary: true,
         onClick: addByAsin,
-        disabled: asinBusy || !typed || (source ? !looksLikeAmazonProduct(typed) : false)
-      }, asinBusy ? 'Adding…' : 'Add'),
-      source
-        ? createElement(Button, {
-            className: 'myfeeds-amz__search-btn',
-            onClick: function () { openSearch(typed && !looksLikeAmazonProduct(typed) ? typed : ''); }
-          }, 'Search Amazon')
-        : null,
+        disabled: !typed
+      }, 'Add'),
       asinError ? createElement('div', { className: 'myfeeds-amz__error' }, asinError) : null,
       asinNote ? createElement('div', { className: 'myfeeds-amz__note' }, asinNote) : null
     );
 
-    var manualList = manualPicks.length
+    var named = picks.filter(function (p) { return p && p.id; });
+    var manualList = named.length
       ? createElement('div', { className: 'myfeeds-amz__manual' },
-          createElement('div', { className: 'myfeeds-amz__chosen-title' }, texts.manualTitle + ' (' + manualPicks.length + ')'),
-          manualPicks.map(function (p) {
+          createElement('div', { className: 'myfeeds-amz__chosen-title' }, texts.manualTitle + ' (' + named.length + ')'),
+          named.map(function (p) {
             var id = String(p.id);
-            var asin = id.split(':')[2] || id;
-            var head = createElement('div', { className: 'myfeeds-amz-manual__head' },
-              createElement('code', null, asin),
-              createElement(Button, { variant: 'link', isLink: true, isDestructive: true, onClick: function () { removePick(id); } }, 'Remove')
-            );
-            // A name would not bring it back: its link ends on a 404.
-            if (goneIds.indexOf(id) !== -1) {
-              return createElement('div', { key: 'man-' + id, className: 'myfeeds-amz-manual is-gone' },
-                head,
-                createElement('p', { className: 'myfeeds-amz-manual__gone' },
-                  'Amazon no longer has this product - its page is gone, so the published post leaves it out. Remove it and add another.')
-              );
-            }
-            return createElement('div', { key: 'man-' + id, className: 'myfeeds-amz-manual' + (p.name ? '' : ' is-incomplete') },
-              head,
-              createElement(TextControl, { label: 'Brand', value: p.brand || '', onChange: function (v) { updatePick(id, 'brand', v); } }),
-              createElement(TextControl, { label: 'Product name', value: p.name || '', onChange: function (v) { updatePick(id, 'name', v); },
-                help: p.name ? null : 'Needed - the card stays hidden on the page until it has a name.' }),
-              createElement(TextControl, { label: 'Your note (optional)', value: p.note || '', onChange: function (v) { updatePick(id, 'note', v); },
-                placeholder: 'e.g. runs half a size small' })
-            );
+            return amazonManualPick(p, function (key, value) { updatePick(id, key, value); }, function () { removePick(id); });
           })
         )
       : null;
-
-    var chosenList = null;
-    if (chosenDetails.length) {
-      chosenList = createElement('div', { className: 'myfeeds-amz__chosen' },
-        createElement('div', { className: 'myfeeds-amz__chosen-title' }, 'In this block'),
-        createElement('div', { className: 'myfeeds-amz__grid' },
-          chosenDetails.map(function (product) {
-            return createElement(AmazonTile, {
-              key: 'sel-' + product.id,
-              product: product,
-              chosen: true,
-              onToggle: function () { removePick(String(product.id)); }
-            });
-          })
-        )
-      );
-    } else if (pickIds.length && loadedKey !== pickKey) {
-      chosenList = createElement('p', { className: 'myfeeds-amz__empty' },
-        'Loading the ' + pickIds.length + ' selected products from Amazon…');
-    }
-
-    var windowEl = (win && source && typeof SearchWindow === 'function')
-      ? createElement(SearchWindow, {
-          term: win.term,
-          onTermChange: function (t) { setWin({ term: t }); },
-          selected: winSel,
-          onSelectedChange: setWinSel,
-          sources: [source],
-          source: 'amazon',
-          lockSource: true,
-          onConfirm: useFromWindow,
-          onCancel: function () { setWin(null); },
-          confirmLabel: function (n) { return n === 1 ? 'Use 1 Amazon product' : 'Use ' + n + ' Amazon products'; }
-        })
-      : null;
-
-    var link = texts.noteLink && texts.noteLink.url ? texts.noteLink : null;
-    var note = createElement('p', { className: 'myfeeds-amz__note' },
-      texts.note,
-      link ? ' ' : null,
-      link ? createElement('a', { href: link.url, target: '_blank', rel: 'noopener' }, link.label) : null);
 
     return createElement('div', { className: 'myfeeds-amz is-embedded' },
       createElement('div', { className: 'myfeeds-amz__body' },
         field,
         manualList,
-        chosenList,
-        note,
-        windowEl
+        createElement('p', { className: 'myfeeds-amz__note' }, texts.note)
       )
     );
   }
@@ -1071,7 +811,8 @@
       }
       var tabBody = function () {
         if (tab === 'amazon' && amazonAllowed && !dynamicActive) {
-          return createElement(AmazonPanel, { attributes: attributes, setAttributes: setAttributes });
+          var Panel = applyFilters('myfeeds.picker.amazonPanel', AmazonPanel, ctx);
+          return createElement(typeof Panel === 'function' ? Panel : AmazonPanel, { attributes: attributes, setAttributes: setAttributes });
         }
         return applyFilters('myfeeds.picker.tabBody', null, tab, ctx) || null;
       };

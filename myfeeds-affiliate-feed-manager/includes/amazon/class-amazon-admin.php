@@ -70,6 +70,10 @@ class MyFeeds_Amazon_Admin {
             'root'   => MyFeeds_Amazon_REST::NS,
             'nonce'  => wp_create_nonce('wp_rest'),
             'anchor' => self::ANCHOR,
+            // Each Amazon site's own tag: switching the site in the window
+            // shows that one, so a Save never puts one site's tag under
+            // another site.
+            'tags'   => (object) MyFeeds_Amazon_Link_Settings::partner_tags(),
             'i18n'   => array(
                 'saving' => __('Saving…', 'myfeeds-affiliate-feed-manager'),
                 'saved'  => __('Saved.', 'myfeeds-affiliate-feed-manager'),

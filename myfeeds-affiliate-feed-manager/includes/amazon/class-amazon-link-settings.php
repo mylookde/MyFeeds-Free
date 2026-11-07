@@ -51,6 +51,22 @@ class MyFeeds_Amazon_Link_Settings {
         return isset($stored['partner_tags']) && is_array($stored['partner_tags']) ? $stored['partner_tags'] : array();
     }
 
+    /**
+     * Every Amazon site's saved tag, by site. The window shows the one of
+     * the site it is switched to (amazon-admin.js).
+     *
+     * @return array<string,string>
+     */
+    public static function partner_tags() {
+        $out = array();
+        foreach (self::tags() as $marketplace => $tag) {
+            if (is_string($marketplace) && is_scalar($tag) && (string) $tag !== '' && MyFeeds_Amazon_Locales::exists($marketplace)) {
+                $out[$marketplace] = (string) $tag;
+            }
+        }
+        return $out;
+    }
+
     /** The Amazon site picked in the settings. */
     public static function marketplace() {
         $stored      = self::stored();

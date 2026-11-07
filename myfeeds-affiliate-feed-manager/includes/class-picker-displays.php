@@ -21,19 +21,19 @@
  *
  * Three things the rules below keep out, each for a reason:
  *   - no label from Amazon's prices. Without written approval the
- *     Associates licence forbids using the API for "aggregating,
- *     analyzing, extracting, or repurposing" (Participation 2e), and a
- *     cached "Budget pick" could contradict the live price beside it.
+ *     Associates licence forbids using Amazon's product data for
+ *     "aggregating, analyzing, extracting, or repurposing" (Participation
+ *     2e), and a cached "Budget pick" could contradict the live price.
  *     With an Amazon card in the block the labels are "Our pick" and
  *     "Alternative", and one click turns them into the author's own word.
  *   - no sentence from Amazon's features. They load in the browser, may
  *     not be altered (6a), and would shift the layout.
  *   - no Amazon price beside another shop's price. Participation 2 asks
- *     for the lowest new price in any such comparison, and the API does
- *     not give it out: it has the buy box offer, sometimes a used one, and
- *     refuses offers.summaries.lowestPrice (measured 30.10.2026). A block
- *     with both shows the Amazon card without its price, since the rule
- *     applies to a site that chooses to show one.
+ *     for the lowest new price in any such comparison, and Amazon's
+ *     product data does not carry it: it has the buy box offer, sometimes
+ *     a used one (measured 30.10.2026). A block with both shows the Amazon
+ *     card without its price, since the rule applies to a site that
+ *     chooses to show one.
  *   - none of the words that a feed uses to sell: "best", "lowest",
  *     "tested", "sustainable", "we love". A block would be saying them in
  *     its author's voice, on the author's page.
@@ -740,9 +740,14 @@ class MyFeeds_Picker_Displays {
                 'auto_reason' => $item['auto_reason'],
             );
         }
+        // Lines a site adds about this block, said under its texts in the
+        // editor (myfeeds_pick_texts_notes).
+        $notes = apply_filters('myfeeds_pick_texts_notes', array(), (array) $items);
         return rest_ensure_response(array(
-            'items'               => $out,
-            'amazon_price_hidden' => self::hides_amazon_price((array) $items),
+            'items' => $out,
+            'notes' => array_values(array_filter(is_array($notes) ? $notes : array(), function ($note) {
+                return is_string($note) && $note !== '';
+            })),
         ));
     }
 

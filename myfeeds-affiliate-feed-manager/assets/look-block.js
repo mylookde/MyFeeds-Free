@@ -11,11 +11,14 @@
   //
   // Products from beyond the site's own feeds come in through wp.hooks,
   // each a filter on null that may hand back a function:
-  //   myfeeds.look.amazonDetails  fn(id) -> Promise of what Amazon calls
-  //                               a set point, for the row only
+  //   myfeeds.look.amazonDetails  fn(id) -> Promise of { title, brand,
+  //                               image_url } for a set Amazon point, shown
+  //                               in its row and never kept in the post
   //   myfeeds.look.notInFeed      fn(url, answer, ui) -> true when it
   //                               takes over a pasted address no feed sells
   //   myfeeds.look.searchSources  ([]) more sources for the search window
+  // and the words the editor says about Amazon come with myfeedsLook.amazon
+  // (texts), so a site that knows more about Amazon products says so.
 
   if (!window.wp || !wp.blocks || !wp.element || !wp.blockEditor) {
     return;
@@ -47,22 +50,23 @@
       || /(^|[\/.])(amazon\.[a-z.]+|amzn\.(to|eu)|a\.co)(\/|$)/i.test(text);
   }
 
-  // What the site has of Amazon are two answers (class-look-block.php):
-  // amazon.links - products by link or ASIN - and amazon.api - Amazon's
-  // API, which names a product and shows its picture in the row.
-  var hasApi = amazon.api !== false;
+  // Amazon products by link or ASIN (amazon.links, class-look-block.php)
+  // are named by their author. What the editor says about them comes from
+  // the server (amazon.texts), each in place of the line here.
+  var amazonTexts = Object.assign({
+    namePlaceholder: 'Product name (needed)',
+    nameNeeded: 'Give it a name; the point stays hidden on the page until it has one.',
+    prices: '',
+    pictures: ''
+  }, amazon.texts || {});
   function settingsLink() {
     return amazon.settingsUrl ? { url: amazon.settingsUrl, label: 'Open Amazon settings' } : null;
   }
 
-  // Amazon gives a price and a picture only through its API: the second
-  // half of a switch's help, said for the state the site is in. Without
-  // the API the server says why (apiNote), in its own words.
-  function amazonNeedsApi(what) {
-    if (!amazon.links) return '';
-    if (amazon.api !== true) return amazon.apiNote ? ' ' + amazon.apiNote : '';
-    if (!amazon.apiUsable) return ' Amazon ' + what + ' appear once Amazon unlocks its API for you.';
-    return '';
+  // The second half of a switch's help, where the site says one: what an
+  // Amazon point shows of it.
+  function amazonHelp(what) {
+    return amazon.links && amazonTexts[what] ? ' ' + amazonTexts[what] : '';
   }
 
   // One line under a field: plain, as an error, or with a link behind it.
@@ -100,7 +104,8 @@
 
   // amazon.com/Adidas-Samba-OG-Sneaker/dp/B0... carries a readable name in
   // the link the author pasted. That is their text, not something fetched
-  // from Amazon, so it may fill the title while the API is not unlocked.
+  // from Amazon, so it fills the title (amazon.nameFromLink false: the site
+  // names the product itself).
   function nameFromAmazonLink(text) {
     var m = String(text).match(/\/([^\/?#]+)\/(?:dp|gp\/product)\//i);
     if (!m || m[1].indexOf('-') === -1) return '';
@@ -149,8 +154,8 @@
     var win = winState[0], setWin = winState[1];
     var pickState = useState([]);
     var pick = pickState[0], setPick = pickState[1];
-    var apiState = useState(null);
-    var api = apiState[0], setApi = apiState[1];
+    var knownState = useState(null);
+    var known = knownState[0], setKnown = knownState[1];
     var timer = useRef(null);
     var inputRef = useRef(null);
 
@@ -158,14 +163,15 @@
       if (props.focus && inputRef.current) inputRef.current.focus();
     }, [props.focus]);
 
-    // A set Amazon point asks once what Amazon calls it, for display only:
-    // the licence lets the post keep the ASIN, nothing of Amazon's text.
+    // A set Amazon point asks once what the site knows about it, where a
+    // filter answers, for the row only: the post keeps the ASIN and the
+    // author's words, nothing else.
     useEffect(function () {
-      var details = isAmazon && p.id && amazon.apiUsable ? provided('myfeeds.look.amazonDetails', null) : null;
-      if (typeof details !== 'function') { setApi(null); return; }
+      var details = isAmazon && p.id ? provided('myfeeds.look.amazonDetails', null) : null;
+      if (typeof details !== 'function') { setKnown(null); return; }
       var gone = false;
       details(p.id).then(function (hit) {
-        if (!gone) setApi(hit || null);
+        if (!gone) setKnown(hit || null);
       }).catch(function () {});
       return function () { gone = true; };
     }, [p.id]);
@@ -189,7 +195,7 @@
         }
         var r = readAsin(v);
         if (!r.id) { setMsg({ error: true, text: r.error }); return; }
-        update({ kind: 'amazon', id: r.id, brand: '', name: amazon.apiUsable ? '' : nameFromAmazonLink(v), img: '' });
+        update({ kind: 'amazon', id: r.id, brand: '', name: amazon.nameFromLink === false ? '' : nameFromAmazonLink(v), img: '' });
         setText('');
         if (r.moved) setMsg({ text: r.moved });
         return;
@@ -242,9 +248,8 @@
       var prod = list && list[0];
       closeSearch();
       if (!prod) return;
-      // From Amazon (the window's Amazon side): the ASIN only, as when
-      // one is pasted. Amazon's title and picture are shown live, never
-      // kept in the post.
+      // An Amazon product from another source of the window: the ASIN
+      // only, as when one is pasted.
       if (String(prod.id).indexOf('amzn:') === 0) {
         setMsg(null);
         update({ kind: 'amazon', id: String(prod.id), brand: '', name: '', img: '', shop: '', price: '' });
@@ -328,17 +333,16 @@
         }) : null
       );
     } else {
-      var shownBrand = p.brand || (api && api.brand) || '';
+      var shownBrand = p.brand || (known && known.brand) || '';
       var placeholder = isAmazon
-        ? (api && api.title ? api.title : (hasApi ? 'Product name (needed without Amazon\'s API)' : 'Product name (needed)'))
+        ? (known && known.title ? known.title : amazonTexts.namePlaceholder)
         : 'Product name';
-      var needed = isAmazon && !p.name && !(api && api.title);
-      // A picture only where there is one: Amazon gives none without its
-      // API, and an empty box only pushed the title out of line.
-      // With Amazon's API the row shows Amazon's picture - looked up live
-      // for the editor, never stored in the post (the licence keeps only
-      // the ASIN).
-      var thumbSrc = isAmazon ? (api && api.image_url ? api.image_url : '') : (p.img || '');
+      var needed = isAmazon && !p.name && !(known && known.title);
+      // A picture only where there is one: an Amazon point by link has
+      // none, and an empty box only pushed the title out of line. One the
+      // site knows (myfeeds.look.amazonDetails) is shown for the editor,
+      // never stored in the post.
+      var thumbSrc = isAmazon ? (known && known.image_url ? known.image_url : '') : (p.img || '');
       var thumb = thumbSrc
         ? el('span', { className: 'myfeeds-look-ed__thumb' }, el('img', { src: thumbSrc, alt: '' }))
         : null;
@@ -376,11 +380,7 @@
           onFocus: props.select
         }),
         msg ? note(msg) : null,
-        // Only a site with Amazon's API can be waiting for Amazon to
-        // unlock it; without it the name is simply the author's to give.
-        needed ? el('p', { className: 'myfeeds-look-ed__msg' }, amazon.links && hasApi
-          ? 'Amazon has not unlocked its API for you yet, so it cannot say what this product is called. Give it a name; the point stays hidden on the page until it has one.'
-          : 'Give it a name; the point stays hidden on the page until it has one.') : null,
+        needed ? el('p', { className: 'myfeeds-look-ed__msg' }, amazonTexts.nameNeeded) : null,
         isAmazon && amazon.links ? el('p', { className: 'myfeeds-look-ed__msg' }, 'Colour or size wrong on Amazon? Paste the link of the exact variant you mean - an ASIN for "all colours" opens the default one.') : null
       );
     }
@@ -663,13 +663,13 @@
         }),
         el(c.ToggleControl, {
           label: 'Show prices',
-          help: 'On the points and in the list.' + amazonNeedsApi('prices'),
+          help: 'On the points and in the list.' + amazonHelp('prices'),
           checked: a.showPrices !== false,
           onChange: function (v) { set({ showPrices: v }); }
         }),
         el(c.ToggleControl, {
           label: 'Show product images',
-          help: 'A small picture beside each product.' + amazonNeedsApi('pictures'),
+          help: 'A small picture beside each product.' + amazonHelp('pictures'),
           checked: a.showImages !== false,
           onChange: function (v) { set({ showImages: v }); }
         }),

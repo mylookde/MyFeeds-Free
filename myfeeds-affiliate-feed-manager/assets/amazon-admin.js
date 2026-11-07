@@ -143,6 +143,20 @@
         return config.i18n.failed;
     }
 
+    // Each Amazon site has its own tag. The field shows the one saved for
+    // the site it is switched to, or nothing: left as it was, a Save after
+    // a look at another site stored the first site's tag under that one,
+    // and every link there carried a tag Amazon does not credit there.
+    var tags = {};
+    Object.keys(config.tags || {}).forEach(function (key) {
+        tags[key] = String(config.tags[key]);
+    });
+    if (el.marketplace && el.tag) {
+        el.marketplace.addEventListener('change', function () {
+            el.tag.value = Object.prototype.hasOwnProperty.call(tags, el.marketplace.value) ? tags[el.marketplace.value] : '';
+        });
+    }
+
     function save() {
         say(config.i18n.saving);
         busy(true);
@@ -160,6 +174,11 @@
             method: 'POST',
             data: data
         }).then(function () {
+            if (data.partner_tag) {
+                tags[data.marketplace] = data.partner_tag;
+            } else {
+                delete tags[data.marketplace];
+            }
             saved.forEach(function (fn) { fn(); });
             say(config.i18n.saved, 'ok');
             busy(false);
