@@ -229,10 +229,11 @@ class MyFeeds_Feed_Manager {
     }
 
     /**
-     * Archives the live rows of entries that are set aside already. 1.0.52
-     * set feeds aside before it archived anything, so their rows stayed
-     * live: in the product search, in the count on the Feeds screen, and
-     * the note there said they were out. Before any early return of
+     * Archives the live rows of entries that are set aside already. A test
+     * build of this release set feeds aside before it archived anything, so
+     * their rows stayed live: in the product search, in the count on the
+     * Feeds screen, and the note there said they were out. No published
+     * release set feeds aside without archiving. Before any early return of
      * keep_one_source(), so a list that is empty by now heals too.
      *
      * Once per site, under an autoloaded flag that keep_one_source()
@@ -1458,6 +1459,7 @@ class MyFeeds_Feed_Manager {
 
                                 <button type="button" class="button button-small myfeeds-reimport-btn"
                                     data-feed-key="<?php echo esc_attr($key); ?>"
+                                    data-feed-sid="<?php echo esc_attr((int) ($feed['stable_id'] ?? 0)); ?>"
                                     data-feed-name="<?php echo esc_attr($feed['name']); ?>"
                                     data-testid="reimport-feed-<?php echo esc_attr($key); ?>"
                                     <?php if ($is_importing): ?>disabled title="<?php esc_attr_e('Import already running', 'myfeeds-affiliate-feed-manager'); ?>"<?php endif; ?>>
@@ -1466,6 +1468,7 @@ class MyFeeds_Feed_Manager {
                                 
                                 <button type="button" class="button button-small button-link-delete myfeeds-delete-feed-btn"
                                     data-feed-key="<?php echo esc_attr($key); ?>"
+                                    data-feed-sid="<?php echo esc_attr((int) ($feed['stable_id'] ?? 0)); ?>"
                                     data-feed-name="<?php echo esc_attr($feed['name']); ?>"
                                     data-product-count="<?php echo esc_attr($feed['product_count'] ?? 0); ?>"
                                     data-testid="delete-feed-<?php echo esc_attr($key); ?>"
@@ -2310,14 +2313,19 @@ class MyFeeds_Feed_Manager {
             return;
         }
         
-        $feed_key = isset($_POST['feed_key']) ? intval($_POST['feed_key']) : -1;
         $feeds = get_option(self::OPTION_KEY, array());
-        
-        if (!isset($feeds[$feed_key])) {
+        $feeds = is_array($feeds) ? $feeds : array();
+        $feed_key = self::key_of_row(
+            $feeds,
+            isset($_POST['feed_key']) ? intval($_POST['feed_key']) : -1,
+            isset($_POST['feed_sid']) ? sanitize_text_field(wp_unslash($_POST['feed_sid'])) : ''
+        );
+
+        if ($feed_key === null) {
             wp_send_json_error(array('message' => 'Feed not found'));
             return;
         }
-        
+
         // DIAG LOG 6: Log reimport request
         myfeeds_log("DIAG reimport: feed_key={$feed_key}, feed_name=" . ($feeds[$feed_key]['name'] ?? 'N/A') . ", stable_id=" . ($feeds[$feed_key]['stable_id'] ?? 'N/A'), 'info');
         
@@ -2361,6 +2369,33 @@ class MyFeeds_Feed_Manager {
     public static function import_running() {
         $status = get_option('myfeeds_import_status', array());
         return is_array($status) && ($status['status'] ?? '') === 'running';
+    }
+
+    /**
+     * The key of the entry a row's button stands for. A key is a position
+     * in the list: deleting an entry moves every one after it up, and a
+     * screen that was not loaded again since still carries the old keys,
+     * so a key alone can name the neighbour of the row that was clicked.
+     * The row carries the entry's stable_id too, and that decides.
+     *
+     * @param array  $feeds The list.
+     * @param int    $key   The key the row was rendered with.
+     * @param string $sid   The stable_id it was rendered with; '' from a caller that sends none.
+     * @return int|null Null when that entry is not in the list.
+     */
+    private static function key_of_row(array $feeds, $key, $sid) {
+        if ($sid === '') {
+            return isset($feeds[$key]) ? (int) $key : null;
+        }
+        $sid = (int) $sid;
+        foreach ($feeds as $k => $entry) {
+            // An entry without a stable_id is known by its key alone, and
+            // only while the entry there has none either.
+            if (is_array($entry) && (int) ($entry['stable_id'] ?? 0) === $sid && ($sid > 0 || (int) $k === (int) $key)) {
+                return (int) $k;
+            }
+        }
+        return null;
     }
 
     /**
@@ -2486,10 +2521,14 @@ class MyFeeds_Feed_Manager {
             return;
         }
         
-        $feed_key = isset($_POST['feed_key']) ? intval($_POST['feed_key']) : -1;
         $feeds = get_option(self::OPTION_KEY, array());
-        
-        if (!isset($feeds[$feed_key])) {
+        $feed_key = self::key_of_row(
+            is_array($feeds) ? $feeds : array(),
+            isset($_POST['feed_key']) ? intval($_POST['feed_key']) : -1,
+            isset($_POST['feed_sid']) ? sanitize_text_field(wp_unslash($_POST['feed_sid'])) : ''
+        );
+
+        if ($feed_key === null) {
             wp_send_json_error(array('message' => 'Feed not found'));
             return;
         }
@@ -2514,6 +2553,13 @@ class MyFeeds_Feed_Manager {
 
         MyFeeds_Logger::info("Feed '{$feed_name}' deleted. Removed {$deleted_products} products from DB.");
 
+        // Without a source the screen is a different one - the ways in,
+        // the sample offer - and what it offers is wired when the page
+        // loads, so the browser loads it again. With one, every row after
+        // the deleted one has moved up a key: the table comes back as it
+        // renders now.
+        $reload = MyFeeds_Source_Rules::current() === '';
+
         wp_send_json_success(array(
             'message' => sprintf('Feed "%s" deleted. %s products removed.', $feed_name, number_format_i18n($deleted_products)),
             'deleted_products' => $deleted_products,
@@ -2521,10 +2567,8 @@ class MyFeeds_Feed_Manager {
             'total_products_formatted' => number_format_i18n($total_products),
             'product_source' => MyFeeds_Source_Rules::label(),
             'avg_quality' => $avg_quality,
-            // Without a source the screen is a different one - the ways
-            // in, the sample offer - and what it offers is wired when the
-            // page loads, so the browser loads it again.
-            'reload' => MyFeeds_Source_Rules::current() === '',
+            'reload' => $reload,
+            'table_html' => $reload ? '' : $this->feeds_table_html(),
         ));
     }
     

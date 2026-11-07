@@ -1146,7 +1146,8 @@
                 $.post(ajaxUrl, {
                     action: 'myfeeds_reimport_feed',
                     nonce: nonce,
-                    feed_key: feedKey
+                    feed_key: feedKey,
+                    feed_sid: $btn.data('feed-sid')
                 }).done(function(response) {
                     if (response.success) {
                         // Update badge to importing
@@ -1160,7 +1161,7 @@
                         startStatusPolling();
                         
                         // Start feed-specific polling to update row when done
-                        startReimportPolling(feedKey);
+                        startReimportPolling(response.data.feed_key);
                     } else {
                         alert(response.data ? response.data.message : 'Failed to start reimport');
                         $btn.prop('disabled', false).text('Reimport');
@@ -1302,20 +1303,22 @@
                 $.post(ajaxUrl, {
                     action: 'myfeeds_delete_feed',
                     nonce: nonce,
-                    feed_key: feedKey
+                    feed_key: feedKey,
+                    feed_sid: $btn.data('feed-sid')
                 }).done(function(response) {
                     if (response.success) {
                         var d = response.data;
                         // Without a source the screen offers the ways in,
                         // and what they open is wired when the page loads.
-                        if (d.reload) {
+                        if (d.reload || !d.table_html) {
                             window.location.reload();
                             return;
                         }
-                        // Remove the table row
-                        var $row = $btn.closest('tr');
-                        $row.fadeOut(300, function() {
-                            $(this).remove();
+                        // Every row after the deleted one has moved up a
+                        // key; a row left with its old key would delete or
+                        // import its neighbour on the next click.
+                        $btn.closest('tr').fadeOut(300, function() {
+                            $('.myfeeds-feeds-table').replaceWith(d.table_html);
                         });
                         
                         // Update header stats from server response
