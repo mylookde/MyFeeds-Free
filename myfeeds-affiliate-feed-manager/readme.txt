@@ -172,7 +172,7 @@ The feed is provided by your affiliate network, so that network's terms of servi
 Rakuten Advertising hands out no feed link. When you connect it as your product source, your site asks Rakuten's API for the products of the advertisers you choose and keeps them in a file in your upload folder, from which they are imported like any feed.
 
 * **What is sent:** your Rakuten API details (client ID, secret and account SID) to get a sign-in token, then advertiser IDs and the categories or words of your Rakuten feeds. No visitor data is sent.
-* **When it is sent:** when you connect and test, list your advertisers, set up or edit a Rakuten feed, every night at 00:30 to refresh your Rakuten feeds, when you search in the product picker with "search Rakuten too" switched on, and when you paste a shop's address into a Look point and one of your Rakuten advertisers sells it.
+* **When it is sent:** when you connect and test, list your advertisers, set up or edit a Rakuten feed, every night at 00:30 to refresh your Rakuten feeds, when you press "Refresh now" on a Rakuten feed or bring Rakuten back with "Change source", when you search in the product picker while the "Rakuten" switch under the search is on (it is on until you turn it off), and when you paste a shop's address into a Look point and one of your Rakuten advertisers sells it.
 * **Where it is sent:** `api.linksynergy.com` (`/token`, `/v1/partnerships`, `/productsearch/1.0`).
 
 The product pictures load from the merchant, as with any feed. Rakuten Advertising's Publisher Membership Agreement (https://rakutenadvertising.com/legal-notices/publisher-membership-agreement/) and Privacy Policy (https://rakutenadvertising.com/privacy-policy/) apply; its API is documented on the Developer Portal (https://developers.rakutenadvertising.com/).
@@ -196,7 +196,7 @@ The Look block shows a photo with numbered points on it. The photo comes from yo
 * **Where it is sent:** to the host of the address you pasted, and to the host of the preview image that page names. Addresses inside your own network are refused.
 * **A linked photo:** if you choose "Link the image", the photo stays where it is and your readers' browsers load it from that server, which receives their IP address and browser details, as for any picture embedded from another website. MyFeeds tells the browser to send no referrer with it. Name that server in your privacy policy; the editor says so too.
 
-The terms and privacy policy of the site you take the photo from apply, and so do its rights: copy an image only if you may. A product address you paste into a point is looked up in your own database only.
+The terms and privacy policy of the site you take the photo from apply, and so do its rights: copy an image only if you may. A product address you paste into a point is looked up in your own database. With Rakuten Advertising as your product source, an address from one of your Rakuten advertisers that your database does not hold yet is also looked up at Rakuten, by the words in the address (see Rakuten Advertising above).
 
 = Links on a product card =
 
