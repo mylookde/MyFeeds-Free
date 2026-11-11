@@ -1,0 +1,161 @@
+/**
+ * Rakuten in the product picker (assets/source-picker.js): the line under
+ * the picker's search with its switch and question mark, and the small
+ * progress bar in the results window. Registered where Rakuten is this
+ * site's product source and loaded with the block's editor style, so it
+ * reaches the editor's canvas. Shared byte for byte by both plugins.
+ */
+
+/* Rakuten line inside the picker search section. */
+.myfeeds-rkt-line {
+    margin: 8px 0 0;
+    padding: 8px 12px;
+    border-left: 3px solid #764ba2;
+    background: #f4f2fb;
+    border-radius: 0 4px 4px 0;
+    font-size: 12px;
+    color: #50575e;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+}
+.myfeeds-rkt-line__text { color: #1d2327; }
+.myfeeds-rkt-line__feed { white-space: nowrap; }
+.myfeeds-rkt-line__feed.is-done { color: #00a32a; }
+.myfeeds-rkt-line__feed.is-failed { color: #d63638; }
+.myfeeds-rkt-line__feed.is-pulling { color: #667eea; }
+.myfeeds-rkt-line__status { color: #764ba2; margin-left: 4px; }
+.myfeeds-rkt-line__help { margin-left: 2px; }
+
+/* "Rakuten", the switch, the question mark - nothing else. */
+.myfeeds-rkt-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+.myfeeds-rkt-switch__label { font-size: 12px; font-weight: 600; color: #1d2327; }
+.myfeeds-rkt-switch__input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    pointer-events: none;
+}
+.myfeeds-rkt-switch__track {
+    position: relative;
+    display: inline-block;
+    width: 34px;
+    height: 18px;
+    border-radius: 9px;
+    background: #c3c4c7;
+    transition: background 150ms ease;
+}
+.myfeeds-rkt-switch__thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+    transition: left 150ms ease;
+}
+.myfeeds-rkt-switch.is-on .myfeeds-rkt-switch__track { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.myfeeds-rkt-switch.is-on .myfeeds-rkt-switch__thumb { left: 18px; }
+.myfeeds-rkt-switch__input:focus-visible + .myfeeds-rkt-switch__track { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #764ba2; }
+
+/* The small bar in the results window's action row. It floats over the
+   right-hand side so the buttons stay centred; the script sets `left`
+   to the midpoint between the last button and the edge. */
+.myfeeds-spacious-modal .myfeeds-modal-actions { position: relative !important; }
+.myfeeds-modal-actions .myfeeds-rkt-modal-anchor {
+    position: absolute;
+    top: 50%;
+    left: 75%;
+    transform: translate(-50%, -50%);
+    display: inline-flex;
+    align-items: center;
+    pointer-events: none;
+}
+.myfeeds-modal-actions .myfeeds-rkt-modal-anchor > * { pointer-events: auto; }
+.myfeeds-rkt-progress {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+    min-width: 150px;
+    font-size: 11px;
+    color: #50575e;
+}
+.myfeeds-rkt-progress__label { white-space: nowrap; }
+.myfeeds-rkt-progress__track {
+    display: block;
+    width: 150px;
+    height: 6px;
+    border-radius: 3px;
+    background: #e5e7eb;
+    overflow: hidden;
+}
+.myfeeds-rkt-progress__fill {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    transition: width 400ms ease;
+}
+.myfeeds-rkt-progress.is-done .myfeeds-rkt-progress__fill { background: #00a32a; }
+.myfeeds-rkt-progress.is-done .myfeeds-rkt-progress__label { color: #00a32a; }
+.myfeeds-rkt-progress.is-failed .myfeeds-rkt-progress__fill { background: #d63638; }
+.myfeeds-rkt-progress.is-failed .myfeeds-rkt-progress__label { color: #d63638; }
+
+/* The grey question mark, drawn the way the analytics screens draw
+   theirs, under names of its own: no other stylesheet loads in the editor
+   for it. */
+.myfeeds-rkt-line .myfeeds-rkt-tip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: help;
+}
+.myfeeds-rkt-line .myfeeds-rkt-tip__trigger {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #e5e7eb;
+    color: #50575e;
+    font-size: 11px;
+    line-height: 16px;
+    font-weight: 600;
+    text-align: center;
+    user-select: none;
+}
+.myfeeds-rkt-line .myfeeds-rkt-tip__content {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 10;
+    width: 260px;
+    padding: 8px 10px;
+    background: #1d2327;
+    color: #fff;
+    font-size: 12px;
+    line-height: 1.4;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity 120ms ease, transform 120ms ease;
+    white-space: normal;
+}
+.myfeeds-rkt-line .myfeeds-rkt-tip:hover .myfeeds-rkt-tip__content,
+.myfeeds-rkt-line .myfeeds-rkt-tip:focus-within .myfeeds-rkt-tip__content {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}

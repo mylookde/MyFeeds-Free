@@ -2,10 +2,14 @@
 /**
  * API source dialog on the feeds screen.
  *
- * One door, like Amazon: a button next to Add Feed opens a dialog that
- * holds the connection, its status, and the form that turns one
+ * One way in, like Amazon: "+ Add API source" opens a dialog that holds
+ * the platform, the connection, its status, and the form that turns one
  * advertiser into a feed. No submenu - a second place to edit the same
  * credentials is a second place for them to drift.
+ *
+ * The button stands in the table header, or, on a screen that offers each
+ * kind of source as a door of its own (MyFeeds_Source_Rules::doors()), in
+ * the door for API sources - never in both, it has one id.
  *
  * @package MyFeeds
  */
@@ -20,6 +24,7 @@ class MyFeeds_Source_Admin {
 
     public static function init() {
         add_action('admin_enqueue_scripts', array(__CLASS__, 'enqueue'));
+        add_action('myfeeds_source_doors', array(__CLASS__, 'render_door'));
         add_action('myfeeds_feeds_table_actions', array(__CLASS__, 'render_add_button'));
         add_action('myfeeds_feeds_page_footer', array(__CLASS__, 'render_modal'));
     }
@@ -110,12 +115,41 @@ class MyFeeds_Source_Admin {
     // Surfaces
     // =====================================================================
 
-    public static function render_add_button() {
-        $configured = MyFeeds_Rakuten_Credentials::is_configured();
+    /**
+     * The door for API sources, on a screen that offers each kind of
+     * source as a door of its own (myfeeds_source_doors, told the kinds
+     * it offers).
+     *
+     * @param mixed $doors MyFeeds_Source_Rules::doors().
+     */
+    public static function render_door($doors = array()) {
+        if (!is_array($doors) || !in_array('api', $doors, true)) {
+            return;
+        }
         ?>
-        <button type="button" id="myfeeds-add-source-btn" class="button" data-testid="add-source-btn"><?php
-            echo esc_html($configured ? __('+ Rakuten feed', 'myfeeds-affiliate-feed-manager') : __('+ Add API source', 'myfeeds-affiliate-feed-manager'));
-        ?></button>
+        <div class="myfeeds-source-door" data-testid="source-door-api">
+            <h3><?php esc_html_e('Add an API source', 'myfeeds-affiliate-feed-manager'); ?></h3>
+            <p><?php esc_html_e('For networks that hand out no feed link: connect your account and choose the advertisers whose products you want. Available today: Rakuten Advertising.', 'myfeeds-affiliate-feed-manager'); ?></p>
+            <?php self::add_button(); ?>
+        </div>
+        <?php
+    }
+
+    /**
+     * In the table header, while an API source may be connected or grow,
+     * and not where the door above already carries the button.
+     */
+    public static function render_add_button() {
+        if (!class_exists('MyFeeds_Source_Rules') || !MyFeeds_Source_Rules::can_connect('api', 'rakuten')
+            || in_array('api', (array) MyFeeds_Source_Rules::doors(), true)) {
+            return;
+        }
+        self::add_button();
+    }
+
+    private static function add_button() {
+        ?>
+        <button type="button" id="myfeeds-add-source-btn" class="button" data-testid="add-source-btn"><?php esc_html_e('+ Add API source', 'myfeeds-affiliate-feed-manager'); ?></button>
         <?php
     }
 
@@ -139,6 +173,8 @@ class MyFeeds_Source_Admin {
                     <button type="button" class="myfeeds-modal-close" id="myfeeds-source-modal-close">&times;</button>
                 </div>
                 <div class="myfeeds-modal-body">
+                    <?php self::render_platform_field(); ?>
+
                     <?php self::render_status(); ?>
 
                     <div class="myfeeds-help-text myfeeds-src-help">
@@ -286,6 +322,25 @@ class MyFeeds_Source_Admin {
             <strong><?php echo esc_html($title); ?></strong>
             <?php if ($text !== '') : ?><span><?php echo esc_html($text); ?></span><?php endif; ?>
         </div>
+        <?php
+    }
+
+    /**
+     * The dialog's first field: which network's API. One today, chosen;
+     * everything below it is that platform's form.
+     */
+    private static function render_platform_field() {
+        ?>
+        <table class="form-table myfeeds-src-fields myfeeds-src-platform" role="presentation">
+            <tr>
+                <th scope="row"><label for="mf-src-platform"><?php esc_html_e('Affiliate platform', 'myfeeds-affiliate-feed-manager'); ?></label></th>
+                <td>
+                    <select id="mf-src-platform" data-testid="source-platform">
+                        <option value="rakuten" selected><?php esc_html_e('Rakuten Advertising', 'myfeeds-affiliate-feed-manager'); ?></option>
+                    </select>
+                </td>
+            </tr>
+        </table>
         <?php
     }
 
