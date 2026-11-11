@@ -14,7 +14,7 @@ Make your blog shoppable. Import your merchants' affiliate product feed and plac
 
 **Tired of hunting for products, pasting affiliate links, fixing the ones that quietly stopped working, and earning from ads alone? Make your blog shoppable!**
 
-Embedding affiliate links by hand costs you valuable time. Time you should spend writing new posts, researching, and running your business. Instead, looking after your links eats it up: links that lead nowhere to replace, new products to find, prices to check. Most affiliates lose sales because a link went out of date without telling them, or because a plain text link just doesn't invite a click. So how do you show your products in a way readers actually want to explore?
+Embedding affiliate links by hand eats the time you should spend writing: links that lead nowhere to replace, new products to find, prices to check. Most affiliates lose sales because a link went out of date without telling them, or because a plain text link just doesn't invite a click.
 
 MyFeeds does that for you. Instead of text links that quietly go out of date inside your posts, your readers see product cards that show the merchant, the brand, the title and the price. The cards refresh every day, so the price your reader sees is the price your merchant is charging.
 
@@ -24,11 +24,7 @@ You get to stay where the value is. Writing. Instead of pasting URLs at midnight
 
 = Who is this for =
 
-MyFeeds is for anyone in affiliate marketing who earns a commission by promoting other companies' products: solo bloggers and niche sites as well as large publishers, magazines and deal sites. They use it to turn the product feed their affiliate network provides (some networks call it a datafeed) into product cards inside their posts, instead of pasting single affiliate links by hand. Larger sites can add the paid plugin below, which brings a visual card designer, click analytics and, on its Shop plan, a full shop with its own categories and filters.
-
-Whatever you cover, from clothing and gear to books, beauty, supplements, tools, baby, garden, hobbies, niche electronics, or deals: if there's an affiliate program for it, there's a product feed somewhere, and MyFeeds can read it.
-
-The block editor stays your block editor. The plugin works in the background.
+Anyone who earns a commission by promoting other companies' products, from solo bloggers and niche sites to large publishers, magazines and deal sites. If there's an affiliate program for what you cover, there's a product feed somewhere, and MyFeeds can read it. The block editor stays your block editor; the plugin works in the background.
 
 = What changes for you =
 
@@ -50,21 +46,15 @@ The next day the nightly sync refreshes what changed. The week after, a full imp
 
 = What's in the box =
 
-* Universal feed import. Almost any format your program hands you, detected automatically.
-* Smart Mapping. Automatic recognition of common feed structures, with a manual editor for anything custom.
-* Smart Search inside the block editor with synonym handling and multi-language support.
-* Native Gutenberg **Product Picker** block with live in-editor search.
-* Responsive grid of product tiles with prices, brands, shipping, and your affiliate links.
-* Background imports. Large feeds process without locking your admin.
-* Nightly auto-sync and weekly full re-import, scheduled and quiet.
-* The price and the currency come straight from the feed. Nothing is converted behind your back.
-* Works with any WordPress theme that supports the block editor.
+* Universal feed import with Smart Mapping: almost any format your program hands you, detected automatically, and a manual editor for anything custom.
+* Smart Search in the block editor, with synonyms and several languages.
+* The **Product Picker** block with live in-editor search: a grid, a carousel, a recommendation card or a comparison table, and the **Look** block.
+* Prices and currencies straight from the feed, never converted.
 
 = Good to know =
 
-* Everything happens inside WordPress, from the feed URL to the published card. There is nothing to download, upload or update by hand.
+* Everything happens inside WordPress, from your product source to the published card.
 * Self-hosted. With a feed or Rakuten, your server contacts no external service to render a product; the pictures come from the merchant's image server. Amazon's API, if you make it your product source, is the one exception (see External Services).
-* If your program publishes a feed file you can download, MyFeeds will almost certainly import it.
 
 = Get started =
 
@@ -159,21 +149,21 @@ Yes. What your site contacts depends on your product source; **External Services
 
 == External Services ==
 
-MyFeeds keeps your products in your own WordPress database. It contacts other servers in four cases: your site fetches the product feed you configured, or asks Rakuten Advertising for your advertisers' products when Rakuten is your product source, or asks Amazon's API for product data when Amazon's API is your product source; it measures the file size of a few product pictures; and it reads a photo you give a Look block by its web address. The product pictures themselves are not copied to your site, so your readers' browsers load them from the merchant. Each case is described below.
+MyFeeds keeps your products in your own WordPress database. It contacts other servers in four cases: your site fetches the product feed you configured, or asks Rakuten Advertising or Amazon's API for product data when one of them is your product source; it measures the file size of a few product pictures; and it reads a photo you give a Look block by its web address. Each case is described below.
 
 = Configured product feed URL (your affiliate network) =
 
-To import products, your site downloads the feed file from the URL you save in the Feed Manager. The URL points to your affiliate network's product feed export, in CSV, TSV, XML, or JSON format.
+To import products, your site downloads the feed file (CSV, TSV, XML or JSON) from the URL you save in the Feed Manager.
 
-* **What is sent:** an HTTP GET request to the feed URL. It carries WordPress's standard `User-Agent` header, which names your WordPress version and your site address. Anything your network put into the feed URL itself (for example a publisher ID or a key) travels with it. No visitor data is sent.
+* **What is sent:** an HTTP GET request to the feed URL, with WordPress's standard `User-Agent` header (your WordPress version and site address) and whatever your network put into the URL itself, such as a publisher ID or a key. No visitor data is sent.
 * **When it is sent:** when you add, edit, test or reimport a feed in the WordPress admin, and on the plugin's schedule (a daily sync and a weekly full import). Showing a product card to a reader never calls the feed URL.
-* **Where it is sent:** to the host in the feed URL you saved. If that address redirects, the plugin follows the redirect. The plugin does not pass the URL on to anyone else.
+* **Where it is sent:** to the host in the feed URL you saved, following any redirect. The plugin passes the URL on to no one.
 
-The feed is provided by your affiliate network, so that network's terms of service and privacy policy apply to the download.
+Your affiliate network's terms of service and privacy policy apply to the download.
 
 = Rakuten Advertising (when it is your product source) =
 
-Rakuten Advertising hands out no feed link. When you connect it as your product source, your site asks Rakuten's API for the products of the advertisers you choose and keeps them in a file in your upload folder, from which they are imported like any feed.
+Rakuten Advertising hands out no feed link. As your product source, your site asks Rakuten's API for the products of the advertisers you choose and imports them like any feed, through a file in your upload folder.
 
 * **What is sent:** your Rakuten API details (client ID, secret and account SID) to get a sign-in token, then advertiser IDs and the categories or words of your Rakuten feeds. No visitor data is sent.
 * **When it is sent:** when you connect and test, list your advertisers, set up or edit a Rakuten feed, every night at 00:30 to refresh your Rakuten feeds, when you press "Refresh now" on a Rakuten feed or bring Rakuten back with "Change source", when you search in the product picker while the "Rakuten" switch under the search is on (it is on until you turn it off), and when you paste a shop's address into a Look point and one of your Rakuten advertisers sells it.
@@ -183,13 +173,13 @@ The product pictures load from the merchant, as with any feed. Rakuten Advertisi
 
 = Amazon's Creators API (when it is your product source) =
 
-Amazon hands out no product feed. When you connect Amazon's API (the Creators API) as your product source, your site asks Amazon for the title, picture and price of the Amazon products in your posts, and searches Amazon's catalogue for you in the editor. Your post keeps only the ASIN.
+With Amazon's API as your product source, your site asks Amazon for the title, picture and price of the Amazon products in your posts, and searches Amazon's catalogue for you in the editor. Your post keeps only the ASIN.
 
-* **What is sent:** your Amazon API details (credential ID, secret and version) to get a sign-in token, then your partner tag, the Amazon site, and the product numbers (ASINs) or the words you search for. No visitor data is sent.
-* **When it is sent:** when you test the connection, search Amazon or add a product in the block editor; and when a page with Amazon products is shown and the stored data is missing or the price is more than an hour old: while the page is built, your site asks for the products whose data is missing, up to ten products per request and at most four requests per block and Amazon site; when a reader's browser opens the page, your site asks Amazon again for the prices it holds that are more than an hour old, up to ten products per request, never for a product it does not hold (`/wp-json/myfeeds/v1/amazon/live`). A sign-in token is asked for about once an hour. Amazon products added without the API cause no request.
-* **Where it is sent:** the sign-in to Login with Amazon (`api.amazon.com`, `api.amazon.co.uk` or `api.amazon.co.jp`, by the region of your Amazon site), the product requests to `creatorsapi.amazon`.
+* **What is sent:** your Amazon API details (credential ID, secret and version) for a sign-in token, then your partner tag, the Amazon site, and the product numbers (ASINs) or your search words. No visitor data is sent.
+* **When it is sent:** when you test the connection, search Amazon or add a product in the block editor; and when a page with Amazon products is shown and the stored data is missing or the price is more than an hour old: while the page is built, for the missing products, up to ten products per request and at most four requests per block and Amazon site; from the reader's browser through your own site (`/wp-json/myfeeds/v1/amazon/live`), for prices over an hour old, up to ten products per request, never for a product your site does not hold. A sign-in token is asked for about once an hour. Amazon products added without the API cause no request.
+* **Where it is sent:** the sign-in to `api.amazon.com`, `api.amazon.co.uk` or `api.amazon.co.jp` (by the region of your Amazon site), the product requests to `creatorsapi.amazon`.
 
-MyFeeds keeps Amazon's data for at most a day. A price older than an hour shows the time Amazon gave it. MyFeeds never copies Amazon's pictures: your readers' browsers load them from Amazon's image servers, which receive their IP address and browser details. Changing the product source or deactivating the plugin deletes Amazon's data from your site.
+MyFeeds keeps Amazon's data for at most a day and shows a price older than an hour with the time Amazon gave it. It never copies Amazon's pictures: your readers' browsers load them from Amazon's image servers, which receive their IP address and browser details. Changing the product source or deactivating the plugin deletes Amazon's data from your site.
 
 * **Terms and privacy:** Amazon's Associates Program IP License (https://affiliate-program.amazon.com/help/operating/policies/#Associates%20Program%20IP%20License) and Amazon's Privacy Notice (https://www.amazon.com/gp/help/customer/display.html?nodeId=468496) apply; the API is documented at https://affiliate-program.amazon.com/creatorsapi/docs/.
 
@@ -197,30 +187,30 @@ MyFeeds keeps Amazon's data for at most a day. A price older than an hour shows 
 
 A feed lists the web address of every product picture, on the merchant's own server or image CDN. MyFeeds shows the picture from that address and does not copy it to your site.
 
-* **In your readers' browsers:** when a reader opens a post with product cards, their browser requests each picture from the merchant's image server, as it does for any picture embedded from another website. That server receives what a browser always sends: the reader's IP address, browser details and, usually, the address of your site. The same happens in your own browser when you search and pick products in the block editor.
-* **From your server:** to keep your pages light, the plugin finds out whether a merchant's image server can deliver a smaller version of a picture. For this, your server asks for the first byte of a few sample pictures per image host and reads the file size from the reply. These requests carry WordPress's standard `User-Agent` header and no visitor data. The check starts after you have opened the WordPress admin, runs in the background, and does not ask a host again for at least a month once that host has answered.
+* **In your readers' browsers:** a reader's browser requests each picture from the merchant's image server, as for any picture embedded from another website; that server receives the reader's IP address, browser details and, usually, your site's address. The same happens in your own browser in the block editor.
+* **From your server:** to keep your pages light, the plugin finds out whether an image server can deliver smaller pictures: your server asks for the first byte of a few sample pictures per image host and reads the file size from the reply, with WordPress's standard `User-Agent` header and no visitor data. The check starts after you have opened the WordPress admin, runs in the background, and asks a host that answered again after a month at the earliest.
 * **Where it is sent:** to the hosts named in the picture addresses of your feed. For Amazon products with Amazon's API, the pictures come from Amazon's image servers.
 
-Which hosts these are depends on the feeds you import, and their terms and privacy policies apply. If your site uses an image optimisation or CDN plugin that rewrites picture addresses, pictures may be loaded through that service instead.
+Their terms and privacy policies apply. An image optimisation or CDN plugin that rewrites picture addresses may load them through its own service instead.
 
 = A Look photo from a web address (the site you name) =
 
 The Look block shows a photo with numbered points on it. The photo comes from your media library, or from a web address you paste under "Image from a URL".
 
-* **What is sent:** when you press "Check", your server sends an HTTP GET request to the address you pasted. If that address is a web page (a Pinterest pin, a product page), your server reads the preview image the page names and requests that image too. The first request carries a `User-Agent` header that says "MyFeeds image check" and names your site's address; the image request, and the copy below, carry WordPress's standard one, which names your WordPress version and your site address. No visitor data is sent.
+* **What is sent:** when you press "Check", your server sends an HTTP GET request to the address you pasted; if that is a web page (a Pinterest pin, a product page), it also requests the preview image the page names. The first request carries a `User-Agent` header that says "MyFeeds image check" and names your site's address; the others carry WordPress's standard one (your WordPress version and site address). No visitor data is sent.
 * **When it is sent:** only in the block editor, when you check an address and, if you choose "Copy into my media library", once more to copy the image into your media library. Showing a Look to a reader never asks your server to fetch anything.
 * **Where it is sent:** to the host of the address you pasted, and to the host of the preview image that page names. Addresses inside your own network are refused.
-* **A linked photo:** if you choose "Link the image", the photo stays where it is and your readers' browsers load it from that server, which receives their IP address and browser details, as for any picture embedded from another website. MyFeeds tells the browser to send no referrer with it. Name that server in your privacy policy; the editor says so too.
+* **A linked photo:** with "Link the image", your readers' browsers load the photo from that server, which receives their IP address and browser details; MyFeeds tells the browser to send no referrer with it. Name that server in your privacy policy; the editor says so too.
 
 The terms and privacy policy of the site you take the photo from apply, and so do its rights: copy an image only if you may. A product address you paste into a point is looked up in your own database. With Rakuten Advertising as your product source, an address from one of your Rakuten advertisers that your database does not hold yet is also looked up at Rakuten, by the words in the address (see Rakuten Advertising above).
 
 = Links on a product card =
 
-Every product card, and every point of a Look, links to the affiliate link from your feed. A request to your affiliate network or the merchant happens only when a reader clicks it. Sample products, if you use them, link to a page on myfeeds.site.
+Every product card, and every point of a Look, links to the affiliate link from your feed; your affiliate network or the merchant is asked only when a reader clicks it. Sample products, if you use them, link to a page on myfeeds.site.
 
-Without Amazon's API, an Amazon product you add by its link or ASIN links to its product page on the Amazon site of your partner tag, with that tag. Your site sends Amazon nothing while it builds or shows the page; the reader's browser goes to Amazon only when they click. The card shows the brand, name and note you typed, or the name taken from the link's own words, never anything Amazon sends, and the post keeps only the ASIN. With Amazon's API as your product source, the card shows Amazon's title, picture and price, with the time the price was read, and links with the address Amazon's API hands out, unchanged (see Amazon's Creators API above). The "Available at Amazon" badge, if you choose one, is an image from your own media library. Amazon's terms (https://affiliate-program.amazon.com/help/operating/policies/#Associates%20Program%20IP%20License) and privacy notice (https://www.amazon.com/gp/help/customer/display.html?nodeId=468496) apply on Amazon's site.
+Without Amazon's API, an Amazon product you add by its link or ASIN links to its page on the Amazon site of your partner tag, with that tag; your site sends Amazon nothing, and the reader's browser goes to Amazon only on a click. The card shows the brand, name and note you typed, or the name taken from the link's own words, never anything Amazon sends, and the post keeps only the ASIN. With Amazon's API as your product source, the card shows Amazon's title, picture and price with the time it was read, and links with the address Amazon's API hands out, unchanged. The "Available at Amazon" badge, if you choose one, is an image from your own media library. Amazon's terms (https://affiliate-program.amazon.com/help/operating/policies/#Associates%20Program%20IP%20License) and privacy notice (https://www.amazon.com/gp/help/customer/display.html?nodeId=468496) apply on Amazon's site.
 
-Apart from the above, the plugin sends nothing anywhere: it has no analytics, no tracking and no usage reporting. Links in the plugin's admin screens (to myfeeds.site, to the review page on WordPress.org, to the checkout of the paid plugin) open only when you click them.
+Apart from the above, the plugin sends nothing anywhere: no analytics, no tracking, no usage reporting. Links in its admin screens open only when you click them.
 
 == Source Code ==
 
