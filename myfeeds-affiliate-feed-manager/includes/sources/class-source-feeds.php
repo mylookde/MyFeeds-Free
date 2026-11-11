@@ -237,6 +237,12 @@ class MyFeeds_Source_Feeds {
      * @return array{key:int,stable_id:int}|WP_Error
      */
     public static function create_entry(array $pending, array $run) {
+        // Asked of the list as it is stored now: the step that ends a fetch
+        // runs for seconds, and a feed saved meanwhile in another request
+        // is not in this request's copy (the list is autoloaded, so read
+        // through 'alloptions'). Written over that copy, it would be gone.
+        wp_cache_delete(self::OPTION_KEY, 'options');
+        wp_cache_delete('alloptions', 'options');
         if (!class_exists('MyFeeds_Source_Rules') || !MyFeeds_Source_Rules::can_connect('api', 'rakuten')) {
             return new WP_Error(
                 'myfeeds_source_taken',

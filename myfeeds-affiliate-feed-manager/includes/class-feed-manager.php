@@ -22,6 +22,12 @@ class MyFeeds_Feed_Manager {
      * every request that may import, so it is autoloaded and costs nothing.
      */
     const ROWS_ARCHIVED_FLAG = 'myfeeds_set_aside_rows_archived';
+    /**
+     * Set once this plugin has ended the Rakuten fetches it found on a
+     * site (keep_one_source()). Autoloaded: read on every request that
+     * may import.
+     */
+    const LEFT_FETCHES_FLAG = 'myfeeds_left_fetches_ended';
 
     private $smart_mapper;
 
@@ -114,10 +120,14 @@ class MyFeeds_Feed_Manager {
      * are tried again on the next request.
      *
      * A Rakuten fetch the other plugin left running - a new advertiser
-     * still pending, a refresh - is stopped on activation and whenever
-     * something was set aside, unless Rakuten is the source that stayed:
-     * the nightly pass would otherwise finish it with the stored
-     * connection and make Rakuten the source without a click.
+     * still pending, a refresh - is stopped on activation, whenever
+     * something was set aside, and on the first request that runs this
+     * code on a site (an update is no activation, and earlier releases let
+     * such a fetch be), unless Rakuten is the source that stayed: the
+     * nightly pass would otherwise finish it with the stored connection
+     * and make Rakuten the source without a click. That first request is
+     * once per site, not once per update: a later update would end the
+     * site's own first fetch, which runs while the site has no source yet.
      *
      * @param bool $at_activation The plugin is being activated: the moment
      *                            a site comes back from the other MyFeeds
@@ -127,9 +137,13 @@ class MyFeeds_Feed_Manager {
      */
     public static function keep_one_source($at_activation = false) {
         $moved = self::keep_one_source_now($at_activation);
-        if (($at_activation || $moved > 0) && !MyFeeds_Source_Rules::runs('api', 'rakuten')
+        $first = !get_option(self::LEFT_FETCHES_FLAG);
+        if (($at_activation || $moved > 0 || $first) && !MyFeeds_Source_Rules::runs('api', 'rakuten')
             && class_exists('MyFeeds_Source_Fetcher')) {
             MyFeeds_Source_Fetcher::stop_all();
+        }
+        if ($first) {
+            update_option(self::LEFT_FETCHES_FLAG, 1, true);
         }
         return $moved;
     }

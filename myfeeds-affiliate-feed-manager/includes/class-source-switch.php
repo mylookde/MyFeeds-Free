@@ -437,17 +437,42 @@ class MyFeeds_Source_Switch {
 
     /**
      * Networks whose connection details are stored here and not in use:
-     * no source of theirs is the site's product source. Rakuten's are
+     * another kind of source is the site's product source. Rakuten's are
      * the only ones this screen can remove.
      *
      * @return array<string,string> network => its name
      */
     private static function unused_connections() {
         $out = array();
-        if (MyFeeds_Source_Rules::current() !== 'api:rakuten' && self::connection_stored('rakuten')) {
+        if (self::forget_refusal() === '' && self::connection_stored('rakuten')) {
             $out['rakuten'] = __('Rakuten Advertising', 'myfeeds-affiliate-feed-manager');
         }
         return $out;
+    }
+
+    /**
+     * Why Rakuten's connection details may not be removed from here now,
+     * or '' when they may. Not while Rakuten is the source, and not while
+     * the site has none: then the window behind "+ Add API source" has
+     * Disconnect of its own, and the site's first Rakuten fetch may be
+     * running on these details - it has no source until it ends. Nor
+     * while a fetch is pending or under way.
+     *
+     * @return string
+     */
+    private static function forget_refusal() {
+        $current = MyFeeds_Source_Rules::current();
+        if ($current === 'api:rakuten') {
+            return __('These connection details are in use by this site\'s product source. Change the source first.', 'myfeeds-affiliate-feed-manager');
+        }
+        if ($current === '') {
+            return __('This site has no product source yet. To remove the connection details, choose Disconnect in the window of “+ Add API source”.', 'myfeeds-affiliate-feed-manager');
+        }
+        if (class_exists('MyFeeds_Source_Fetcher')
+            && (!empty(MyFeeds_Source_Fetcher::pending()) || MyFeeds_Source_Fetcher::is_busy())) {
+            return __('Rakuten is fetching for this site. Remove the connection details when it has finished.', 'myfeeds-affiliate-feed-manager');
+        }
+        return '';
     }
 
     /**
@@ -494,8 +519,10 @@ class MyFeeds_Source_Switch {
 
     /**
      * "Remove them": the connection details of a network that is not the
-     * site's product source are deleted. Nothing of that network's can be
-     * fetched without them, so a fetch still under way ends with them.
+     * site's product source are deleted, while another kind of source is
+     * (forget_refusal(), asked here and not only by the screen). Nothing
+     * of that network's can be fetched without them, so a run left behind
+     * ends with them.
      */
     public static function ajax_forget_connection() {
         check_ajax_referer('myfeeds_nonce', 'nonce');
@@ -508,8 +535,9 @@ class MyFeeds_Source_Switch {
             wp_send_json_error(array('message' => __('There are no such connection details on this site.', 'myfeeds-affiliate-feed-manager')), 400);
             return;
         }
-        if (MyFeeds_Source_Rules::current() === 'api:rakuten') {
-            wp_send_json_error(array('message' => __('These connection details are in use by this site\'s product source. Change the source first.', 'myfeeds-affiliate-feed-manager')));
+        $refusal = self::forget_refusal();
+        if ($refusal !== '') {
+            wp_send_json_error(array('message' => $refusal));
             return;
         }
         if (class_exists('MyFeeds_Source_Fetcher')) {

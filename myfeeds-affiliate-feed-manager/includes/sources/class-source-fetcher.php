@@ -73,6 +73,9 @@ class MyFeeds_Source_Fetcher {
     /** @var array<int,array> What schedule_job() last scheduled, for tests. */
     public static $scheduled = array();
 
+    /** @var bool unschedule_jobs() waits for Action Scheduler's store. */
+    private static $unschedule_waits = false;
+
     public static function init() {
         add_action(self::HOOK, array(__CLASS__, 'run_job'));
         add_action(self::RETRY_HOOK, array(__CLASS__, 'retry_import'));
@@ -112,12 +115,25 @@ class MyFeeds_Source_Fetcher {
      * arguments nor a group; with the group and empty arguments it looks
      * for jobs whose arguments are empty, and every job here carries its
      * key and run, so nothing was cancelled.
+     *
+     * Before its store is ready (init 1) Action Scheduler cancels nothing
+     * and reports the call as made too early. stop_all() can run sooner,
+     * on init 0, so the cancel then waits for action_scheduler_init.
      */
-    private static function unschedule_jobs() {
-        if (function_exists('as_unschedule_all_actions')) {
-            as_unschedule_all_actions(self::HOOK);
-            as_unschedule_all_actions(self::RETRY_HOOK);
+    public static function unschedule_jobs() {
+        if (!function_exists('as_unschedule_all_actions')) {
+            return;
         }
+        if (class_exists('ActionScheduler') && method_exists('ActionScheduler', 'is_initialized')
+            && !ActionScheduler::is_initialized()) {
+            if (!self::$unschedule_waits) {
+                self::$unschedule_waits = true;
+                add_action('action_scheduler_init', array(__CLASS__, 'unschedule_jobs'));
+            }
+            return;
+        }
+        as_unschedule_all_actions(self::HOOK);
+        as_unschedule_all_actions(self::RETRY_HOOK);
     }
 
     /**
@@ -181,6 +197,35 @@ class MyFeeds_Source_Fetcher {
     }
 
     /**
+     * Drops this request's copies of the runs, the pending sources and
+     * the feed list. A request keeps every option it read, and a fetch
+     * step runs for seconds, Action Scheduler several in one request: a
+     * delete, "Change source", a site's first feed or a stop finished by
+     * another request meanwhile is not in that copy, and a decision or a
+     * write made from it undoes what that request did. The fetcher's
+     * options are stored without autoload and cached under their name;
+     * the feed list is autoloaded and read through 'alloptions'.
+     */
+    private static function forget_cached() {
+        wp_cache_delete(self::OPTION_RUNS, 'options');
+        wp_cache_delete(self::OPTION_PENDING, 'options');
+        wp_cache_delete(MyFeeds_Source_Feeds::OPTION_KEY, 'options');
+        wp_cache_delete('alloptions', 'options');
+    }
+
+    /** @return array<string,array> The runs as stored now, for a write. */
+    private static function stored_runs() {
+        wp_cache_delete(self::OPTION_RUNS, 'options');
+        return self::runs();
+    }
+
+    /** @return array<string,array> The pending sources as stored now, for a write. */
+    private static function stored_pending() {
+        wp_cache_delete(self::OPTION_PENDING, 'options');
+        return self::pending();
+    }
+
+    /**
      * @param string|int $key stable_id, or 'p:<token>' for a source with no entry yet.
      * @return array|null
      */
@@ -190,15 +235,37 @@ class MyFeeds_Source_Fetcher {
         return isset($runs[$key]) && is_array($runs[$key]) ? $runs[$key] : null;
     }
 
-    private static function set_run_state($key, $state) {
-        $runs = self::runs();
+    /**
+     * Writes one run into the runs as stored now, never into this
+     * request's copy: that would bring back runs another request ended
+     * meanwhile. A run is written only while it is still the one stored
+     * under its key (the same run id); one that was ended or replaced
+     * elsewhere is not written back. Only start_run() creates one.
+     *
+     * @param string|int $key
+     * @param array|null $state  Null forgets the run.
+     * @param bool       $create The run is new.
+     * @return bool Whether the run's state is stored (for null: it is gone).
+     */
+    private static function set_run_state($key, $state, $create = false) {
+        $runs = self::stored_runs();
         $key  = (string) $key;
         if ($state === null) {
-            unset($runs[$key]);
-        } else {
-            $runs[$key] = $state;
+            if (array_key_exists($key, $runs)) {
+                unset($runs[$key]);
+                self::save_runs($runs);
+            }
+            return true;
         }
+        if (!$create) {
+            $stored = isset($runs[$key]) && is_array($runs[$key]) && isset($runs[$key]['run']) ? (string) $runs[$key]['run'] : null;
+            if ($stored === null || $stored !== (isset($state['run']) ? (string) $state['run'] : '')) {
+                return false;
+            }
+        }
+        $runs[$key] = $state;
         self::save_runs($runs);
+        return true;
     }
 
     /**
@@ -351,13 +418,32 @@ class MyFeeds_Source_Fetcher {
     }
 
     /**
+     * Another request ended this run while it fetched (a delete, a stop,
+     * "Change source"): its state is not written back and it asks Rakuten
+     * nothing more. The rows it appended since are thrown away with the
+     * part, unless a new run stands under the key and writes there.
+     *
+     * @param string|int $key
+     * @param array      $state
+     */
+    private static function ended_elsewhere($key, array $state) {
+        $key  = (string) $key;
+        $runs = self::stored_runs();
+        if (!isset($runs[$key]) && isset($state['file'])) {
+            MyFeeds_Source_Snapshot::discard(self::work_path((string) $state['file'], !empty($state['partial'])));
+        }
+        self::log('run ' . (isset($state['run']) ? $state['run'] : '-') . ' for ' . (isset($state['name']) ? $state['name'] : $key)
+            . ' (' . $key . ') was ended by another request while it fetched; it asks Rakuten nothing more', 'info');
+    }
+
+    /**
      * A new source that will not become a feed: its pending record goes,
      * and with it the files it wrote.
      *
      * @param string $token
      */
     private static function drop_pending($token) {
-        $pending = self::pending();
+        $pending = self::stored_pending();
         if (!isset($pending[$token])) {
             return;
         }
@@ -818,7 +904,7 @@ class MyFeeds_Source_Fetcher {
             'step_at'    => time(),
         );
 
-        self::set_run_state($key, $state);
+        self::set_run_state($key, $state, true);
         self::schedule_job($key, $state['run'], 5, 0);
 
         return $state;
@@ -958,6 +1044,9 @@ class MyFeeds_Source_Fetcher {
      * @return array|null The run state afterwards.
      */
     public static function step($key, $budget) {
+        // Action Scheduler runs several jobs in one request; what the
+        // others did since it began counts here.
+        self::forget_cached();
         $state = self::run_state($key);
         if ($state === null || $state['status'] !== 'fetching') {
             return $state;
@@ -1002,7 +1091,10 @@ class MyFeeds_Source_Fetcher {
 
             if (is_wp_error($result)) {
                 $handled = self::handle_error($state, $result);
-                self::set_run_state($key, $state);
+                if (!self::set_run_state($key, $state)) {
+                    self::ended_elsewhere($key, $state);
+                    return null;
+                }
                 if ($handled === 'failed') {
                     self::fail($key, $state, $result->get_error_message());
                     return self::run_state($key);
@@ -1044,7 +1136,10 @@ class MyFeeds_Source_Fetcher {
             if (!empty($rows)) {
                 $fh = MyFeeds_Source_Snapshot::open_part($path, false);
                 if (is_wp_error($fh)) {
-                    self::set_run_state($key, $state);
+                    if (!self::set_run_state($key, $state)) {
+                        self::ended_elsewhere($key, $state);
+                        return null;
+                    }
                     self::fail($key, $state, $fh->get_error_message());
                     return self::run_state($key);
                 }
@@ -1090,19 +1185,29 @@ class MyFeeds_Source_Fetcher {
             }
 
             $state['step_at'] = time();
-            self::set_run_state($key, $state);
+            if (!self::set_run_state($key, $state)) {
+                // Not one more request for a run another request ended.
+                self::ended_elsewhere($key, $state);
+                return null;
+            }
         }
 
         $state['step_at'] = time();
 
         if ($state['index'] >= count($state['queue'])) {
-            self::set_run_state($key, $state);
+            if (!self::set_run_state($key, $state)) {
+                self::ended_elsewhere($key, $state);
+                return null;
+            }
             self::complete($key, $state);
             return self::run_state($key);
         }
 
         $state['hop'] = (int) $state['hop'] + 1;
-        self::set_run_state($key, $state);
+        if (!self::set_run_state($key, $state)) {
+            self::ended_elsewhere($key, $state);
+            return null;
+        }
         self::schedule_job($key, $state['run'], $state['wait'] > 0 ? $state['wait'] : 5, $state['hop']);
 
         return $state;
@@ -1155,7 +1260,10 @@ class MyFeeds_Source_Fetcher {
      */
     private static function complete($key, array $state) {
         // The feed went (deleted, set aside) or the new source was given up
-        // while the last pages came in: nothing becomes a snapshot.
+        // while the last pages came in: nothing becomes a snapshot. Asked
+        // of what is stored now, not of what this request read when it
+        // began.
+        self::forget_cached();
         $is_new = strpos((string) $key, 'p:') === 0;
         if ($is_new ? !array_key_exists((string) $key, self::pending()) : !self::run_belongs($key)) {
             self::drop_run($key, $state, 'what it was fetching for is gone');
@@ -1220,6 +1328,9 @@ class MyFeeds_Source_Fetcher {
             time() - (int) $state['started_at']
         ), 'info');
 
+        // Carrying a large snapshot over takes seconds: the entry to
+        // import into is looked up in the list as it is stored now.
+        self::forget_cached();
         $feed_key  = null;
         $stable_id = 0;
 
@@ -1323,12 +1434,12 @@ class MyFeeds_Source_Fetcher {
     private static function adopt_entry($token, $feed_key, $stable_id, array $state) {
         $state['key'] = (string) $stable_id;
 
-        $runs = self::runs();
+        $runs = self::stored_runs();
         unset($runs[(string) $token]);
         $runs[(string) $stable_id] = $state;
         self::save_runs($runs);
 
-        $pending = self::pending();
+        $pending = self::stored_pending();
         unset($pending[(string) $token]);
         self::save_pending($pending);
 
