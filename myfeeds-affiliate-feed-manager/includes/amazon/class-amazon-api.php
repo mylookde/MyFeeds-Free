@@ -20,6 +20,9 @@ class MyFeeds_Amazon_Api {
     /** The daily event that clears the cached pages showing Amazon's data. */
     const PAGE_REFRESH_HOOK = 'myfeeds_amazon_page_refresh';
 
+    /** The editor's part of the API: the Amazon tab with Amazon's data, and the Look's Amazon. */
+    const EDITOR_HANDLE = 'myfeeds-amazon-api-picker';
+
     public static function init() {
         self::filters();
 
@@ -36,6 +39,18 @@ class MyFeeds_Amazon_Api {
 
         if (self::active()) {
             MyFeeds_Amazon_Cache::maybe_create_table();
+        }
+
+        // A cached page keeps Amazon's titles and picture links for as
+        // long as the cache keeps the page; a site whose only source is
+        // Amazon's API imports nothing that would clear it.
+        add_action(self::PAGE_REFRESH_HOOK, array(__CLASS__, 'refresh_pages'));
+        if (self::pages_carry_its_data()) {
+            if (!wp_next_scheduled(self::PAGE_REFRESH_HOOK)) {
+                wp_schedule_event(self::next_four_am(), 'daily', self::PAGE_REFRESH_HOOK);
+            }
+        } elseif (wp_next_scheduled(self::PAGE_REFRESH_HOOK)) {
+            wp_clear_scheduled_hook(self::PAGE_REFRESH_HOOK);
         }
 
         // The three below decide inside what the API adds: the price
@@ -67,6 +82,20 @@ class MyFeeds_Amazon_Api {
      */
     public static function active() {
         return class_exists('MyFeeds_Source_Rules') && MyFeeds_Source_Rules::runs('amazon_api');
+    }
+
+    /**
+     * Is the API's part of the Amazon window there, with the routes that
+     * set it up? Where the API runs; where a door may make it the site's
+     * source now; and where it is the source but not set up (a partner tag
+     * missing), so it can be set up again where it was set up.
+     */
+    public static function settings_open() {
+        if (self::active()) {
+            return true;
+        }
+        return class_exists('MyFeeds_Source_Rules')
+            && (MyFeeds_Source_Rules::can_connect('amazon_api') || MyFeeds_Source_Rules::chosen('amazon_api'));
     }
 
     /**
@@ -109,6 +138,79 @@ class MyFeeds_Amazon_Api {
             'maxPage'       => MyFeeds_Amazon_Client::MAX_ITEM_PAGE,
             'perPage'       => MyFeeds_Amazon_Client::MAX_ITEM_COUNT,
         ));
+    }
+
+    /**
+     * The editor's scripts and styles of Amazon's API (amazon-api-picker.js
+     * and .css): registered, and handed to both blocks' editors only where
+     * the API runs. Elsewhere the Amazon tab is the shared one, by link or
+     * ASIN, and the editor asks none of the API's routes.
+     *
+     * @return array{scripts:string[],styles:string[]}
+     */
+    public static function editor_handles() {
+        $out = array('scripts' => array(), 'styles' => array());
+        if (!self::active()) {
+            return $out;
+        }
+
+        $js  = 'assets/amazon-api-picker.js';
+        $css = 'assets/amazon-api-picker.css';
+        if (file_exists(MYFEEDS_PLUGIN_DIR . $js)) {
+            wp_register_script(
+                self::EDITOR_HANDLE,
+                MYFEEDS_PLUGIN_URL . $js,
+                array('myfeeds-picker-inspector', 'wp-hooks', 'wp-api-fetch', 'wp-element', 'wp-components'),
+                myfeeds_asset_ver($js),
+                true
+            );
+            $out['scripts'][] = self::EDITOR_HANDLE;
+        }
+        if (file_exists(MYFEEDS_PLUGIN_DIR . $css)) {
+            wp_register_style(self::EDITOR_HANDLE, MYFEEDS_PLUGIN_URL . $css, array('myfeeds-amazon-picker'), myfeeds_asset_ver($css));
+            $out['styles'][] = self::EDITOR_HANDLE;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Do the site's pages show Amazon's data as their products? Where
+     * Amazon's API is the source the site chose, set up or not - a page
+     * cached while it ran still holds Amazon's titles - and no feed of the
+     * site's own refreshes the cached pages after its import.
+     */
+    private static function pages_carry_its_data() {
+        if (!class_exists('MyFeeds_Source_Rules') || !MyFeeds_Source_Rules::chosen('amazon_api')) {
+            return false;
+        }
+        $feeds = get_option('myfeeds_feeds', array());
+        $feeds = is_array($feeds) ? $feeds : array();
+        if (class_exists('MyFeeds_Demo_Content')) {
+            $feeds = MyFeeds_Demo_Content::without_samples($feeds);
+        }
+        return empty($feeds);
+    }
+
+    /**
+     * Once a day, at 04:00 the site's time: the cached pages that show
+     * products are cleared, so none of them shows Amazon's title or picture
+     * longer than Amazon's licence allows (a day).
+     */
+    public static function refresh_pages() {
+        if (!self::pages_carry_its_data() || !class_exists('MyFeeds_Page_Cache_Purge')) {
+            return;
+        }
+        MyFeeds_Page_Cache_Purge::purge_product_posts();
+    }
+
+    /** The next 04:00 in the site's time zone. */
+    private static function next_four_am() {
+        $at = new DateTimeImmutable('today 04:00', wp_timezone());
+        if ($at->getTimestamp() <= time()) {
+            $at = $at->modify('+1 day');
+        }
+        return $at->getTimestamp();
     }
 
     /**

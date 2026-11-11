@@ -1280,6 +1280,8 @@ class MyFeeds_Feed_Manager {
             $kind = __('A product feed', 'myfeeds-affiliate-feed-manager');
         } elseif ($source === 'api:rakuten') {
             $kind = __('Rakuten Advertising', 'myfeeds-affiliate-feed-manager');
+        } elseif ($source === 'amazon_api') {
+            $kind = __('Amazon\'s API', 'myfeeds-affiliate-feed-manager');
         } elseif ($source !== '') {
             $kind = __('An affiliate network\'s API', 'myfeeds-affiliate-feed-manager');
         } else {
@@ -1307,6 +1309,12 @@ class MyFeeds_Feed_Manager {
             <?php MyFeeds_Source_Switch::render_unused_connections(); ?>
             <?php if ($source === ''): ?>
                 <?php $this->render_doors(); ?>
+            <?php else: ?>
+                <?php
+                // A source with no entry in the list stands here, where its
+                // table would be (Amazon's API, class-amazon-api-admin.php).
+                do_action('myfeeds_source_card', $source);
+                ?>
             <?php endif; ?>
             <?php if ($has_feed): ?>
             <table class="wp-list-table widefat striped">

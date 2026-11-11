@@ -89,6 +89,10 @@ class MyFeeds_Product_Picker {
         $source_handles = class_exists('MyFeeds_Source_Modules')
             ? MyFeeds_Source_Modules::editor_handles()
             : array('scripts' => array(), 'styles' => array());
+        // Amazon's API in the Amazon tab and the Look, where it runs.
+        $amazon_handles = class_exists('MyFeeds_Amazon_Api')
+            ? MyFeeds_Amazon_Api::editor_handles()
+            : array('scripts' => array(), 'styles' => array());
 
         // The sidebar: the display (grid, carousel, recommendation card,
         // comparison table) and the texts of the last two. A dependency of
@@ -106,6 +110,7 @@ class MyFeeds_Product_Picker {
                 true
             );
             $bundle_deps[] = 'myfeeds-picker-inspector';
+            $bundle_deps = array_merge($bundle_deps, $amazon_handles['scripts']);
             // Rakuten's line under the picker's search.
             $bundle_deps = array_merge($bundle_deps, $source_handles['scripts']);
         }
@@ -162,7 +167,7 @@ class MyFeeds_Product_Picker {
         $editor_style_registered = wp_register_style(
             'myfeeds-product-picker-editor',
             MYFEEDS_PLUGIN_URL . 'assets/editor.css',
-            array_merge(['myfeeds-amazon-picker', 'myfeeds-pick-panel'], $source_handles['styles']),
+            array_merge(['myfeeds-amazon-picker'], $amazon_handles['styles'], ['myfeeds-pick-panel'], $source_handles['styles']),
             $editor_css_ver
         );
         
@@ -365,6 +370,23 @@ class MyFeeds_Product_Picker {
         $rendered_count = 0;
         $rendered_products = array();
 
+        // Amazon ids are fetched once for the whole block. Resolving them
+        // one by one would mean one API call per card against an account
+        // that starts at a single request per second.
+        $amazon_map = array();
+        if (class_exists('MyFeeds_Amazon_Compliance') && class_exists('MyFeeds_Amazon_Products')) {
+            $amazon_ids = array();
+            foreach ($products as $candidate) {
+                if (is_array($candidate) && !empty($candidate['id'])
+                    && MyFeeds_Amazon_Compliance::is_amazon_id($candidate['id'])) {
+                    $amazon_ids[] = (string) $candidate['id'];
+                }
+            }
+            if (!empty($amazon_ids)) {
+                $amazon_map = MyFeeds_Amazon_Products::get_by_ids($amazon_ids, 'missing');
+            }
+        }
+
         for ($idx = 0; $idx < count($products); $idx++) {
             $current_item = $products[$idx];
             $product_data = null;
@@ -378,28 +400,56 @@ class MyFeeds_Product_Picker {
             // What a label or favourite is stored by, whatever the card
             // resolves to below.
             $slot_id      = $requested_id;
+            $own_words    = isset($current_item['amz_manual']) && is_array($current_item['amz_manual']) ? $current_item['amz_manual'] : array();
+
+            // Amazon products came out of the batched prewarm above. They
+            // never fall back to a saved snapshot: there is none, and the
+            // licence would not let us keep one.
+            if (isset($amazon_map[$requested_id])) {
+                if ($pick_style !== '') {
+                    $pick_items[] = MyFeeds_Picker_Displays::item($slot_id, $amazon_map[$requested_id], 'amazon', $own_words);
+                    $rendered_products[] = $amazon_map[$requested_id];
+                    continue;
+                }
+                $card_html = $render_card($amazon_map[$requested_id]);
+                $output .= $is_carousel ? MyFeeds_Picker_Carousel::slide($card_html) : $card_html;
+                $rendered_products[] = $amazon_map[$requested_id];
+                $rendered_count++;
+                continue;
+            }
 
             if (class_exists('MyFeeds_Amazon_Compliance') && MyFeeds_Amazon_Compliance::is_amazon_id($requested_id)) {
-                // The author's own card, linked with the partner tag. One
-                // without a name, or without a tag for its Amazon site, has
-                // nothing to show a reader and is left out (rule 17).
-                $own_words = isset($current_item['amz_manual']) && is_array($current_item['amz_manual']) ? $current_item['amz_manual'] : array();
+                // Amazon said the ASIN is invalid: its page answers 404.
+                // Left out like a product gone from a feed (rule 17).
+                if (class_exists('MyFeeds_Amazon_Products') && MyFeeds_Amazon_Products::is_gone($requested_id)) {
+                    continue;
+                }
+                // No data from Amazon (API not unlocked, or not set up):
+                // the author's own card, linked with the partner tag.
                 if ($pick_style !== '') {
                     if (trim((string) ($own_words['name'] ?? '')) !== '' && MyFeeds_Amazon_Card::can_link($requested_id)) {
                         $pick_items[] = MyFeeds_Picker_Displays::item($slot_id, array('id' => $requested_id), 'text', $own_words);
                     }
                     continue;
                 }
-                $text_card = (!empty($own_words) && class_exists('MyFeeds_Amazon_Card'))
-                    ? MyFeeds_Amazon_Card::render_text_card($requested_id, $own_words, array('click_block' => $click_block))
+                $text_card = (!empty($current_item['amz_manual']) && class_exists('MyFeeds_Amazon_Card'))
+                    ? MyFeeds_Amazon_Card::render_text_card($requested_id, $current_item['amz_manual'], array('click_block' => $click_block))
                     : '';
                 if ($text_card !== '') {
                     $output .= $is_carousel ? MyFeeds_Picker_Carousel::slide($text_card) : $text_card;
                     $rendered_count++;
+                    continue;
                 }
+                // Nothing to show a reader: no Amazon data and no name typed
+                // yet. Left out of the post like any product that cannot
+                // be shown (rule 17), wherever the post is built - also in
+                // the admin and through REST: the editor never reads this
+                // output, a theme that loads more posts through
+                // admin-ajax.php does, and so does content.rendered of the
+                // REST API.
                 continue;
             }
-            
+
             // Use multi-source resolver (single DB query in DB mode)
             if (class_exists('MyFeeds_Product_Resolver')) {
                 $product_data = MyFeeds_Product_Resolver::resolve($requested_id, array(

@@ -6,9 +6,11 @@
  * those and nothing else - a field that is not on the page is not sent.
  * Whatever else the window holds brings its own script and hangs on
  * window.myfeedsAmazonLinks:
- *   onOpen(fn)    fn() each time the window opens (now, if it is open)
+ *   onOpen(fn)    fn(mode) each time the window opens (now, if it is open):
+ *                 '' from "+ Add Amazon", or what the element that opened
+ *                 it names (data-myfeeds-amazon-open="api")
  *   addData(fn)   fn(data) before Save sends, to add its own fields
- *   onSaved(fn)   fn() after the server accepted a Save
+ *   onSaved(fn)   fn(answer) after the server accepted a Save
  *   addButton(el) a button to disable while a request runs
  *   save()        Promise of true once saved, false if refused
  *   say(text, kind), busy(state)
@@ -29,6 +31,7 @@
     var openers = [];
     var extras = [];
     var saved = [];
+    var mode = '';
 
     var modal = document.getElementById('myfeeds-amazon-modal');
     var isOpen = function () { return !!modal && modal.style.display !== 'none'; };
@@ -51,23 +54,29 @@
 
         var closeModal = function () { modal.style.display = 'none'; };
 
-        var openModal = function () {
+        var openModal = function (how) {
+            mode = how || '';
             // flex, not block: the overlay centres its child with
             // flexbox, and an inline display:block would beat the
             // stylesheet and drop the dialog into the top left corner.
             modal.style.display = 'flex';
-            openers.forEach(function (fn) { fn(); });
+            openers.forEach(function (fn) { fn(mode); });
             if (el.tag) { el.tag.focus(); }
         };
 
         // Delegated: the button sits in the table header, which the feeds
         // screen replaces whenever a feed is added or deleted in place. A
         // listener bound to the old node would leave the new one dead.
+        // Elsewhere on the screen an element may open the window for what
+        // it offers (data-myfeeds-amazon-open), a door for instance.
         document.addEventListener('click', function (e) {
-            var openBtn = e.target && e.target.closest ? e.target.closest('#myfeeds-add-amazon-btn') : null;
-            if (!openBtn) { return; }
+            var target = e.target && e.target.closest ? e.target : null;
+            if (!target) { return; }
+            var openBtn = target.closest('#myfeeds-add-amazon-btn');
+            var door = openBtn ? null : target.closest('[data-myfeeds-amazon-open]');
+            if (!openBtn && !door) { return; }
             e.preventDefault();
-            openModal();
+            openModal(door ? door.getAttribute('data-myfeeds-amazon-open') : '');
         });
 
         // "Open Amazon settings" in the product picker and the Look
@@ -76,7 +85,7 @@
         // author to find the button - for a new site the first thing
         // anyone is told to do ("Save your Amazon partner tag first").
         if (config.anchor && window.location.hash === '#' + config.anchor) {
-            openModal();
+            openModal('');
         }
         if (closeBtn) {
             closeBtn.addEventListener('click', closeModal);
@@ -173,13 +182,13 @@
             path: '/' + config.root + '/amazon/connection',
             method: 'POST',
             data: data
-        }).then(function () {
+        }).then(function (answer) {
             if (data.partner_tag) {
                 tags[data.marketplace] = data.partner_tag;
             } else {
                 delete tags[data.marketplace];
             }
-            saved.forEach(function (fn) { fn(); });
+            saved.forEach(function (fn) { fn(answer); });
             say(config.i18n.saved, 'ok');
             busy(false);
             return true;
@@ -197,7 +206,7 @@
     window.myfeedsAmazonLinks = {
         onOpen: function (fn) {
             openers.push(fn);
-            if (isOpen()) { fn(); }
+            if (isOpen()) { fn(mode); }
         },
         addData: function (fn) { extras.push(fn); },
         onSaved: function (fn) { saved.push(fn); },

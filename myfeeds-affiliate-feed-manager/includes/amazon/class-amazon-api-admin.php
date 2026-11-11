@@ -6,8 +6,16 @@
  * site, the partner tag, where visitors abroad land, the badge, Save.
  * Where Amazon's API runs the window gets the credentials, the test, the
  * connection state and the request budget on top - through the window's
- * sections (myfeeds_amazon_modal_sections) - and where it does not, none
- * of those, not even a credential stored earlier.
+ * sections (myfeeds_amazon_modal_sections). Where it may be set up now
+ * (MyFeeds_Amazon_Api::settings_open()) the window holds both parts, and
+ * amazon-api-admin.js shows the API's only when a door opened the window
+ * for it (data-myfeeds-amazon-open="api"). Elsewhere none of it, not even
+ * a credential stored earlier.
+ *
+ * On a Feeds screen that offers each kind of product source as a door of
+ * its own, the door to Amazon's API is here (myfeeds_source_doors), and
+ * so is the card that stands where a feed's table would, once Amazon's
+ * API is the site's source (myfeeds_source_card).
  *
  * Most of the API's copy is explanation rather than form. Amazon gates
  * the Creators API behind a sales threshold that has nothing to do with
@@ -27,6 +35,9 @@ class MyFeeds_Amazon_Api_Admin {
     /** The window's two filters are hung on by MyFeeds_Amazon_Api::filters(). */
     public static function init() {
         add_action('admin_enqueue_scripts', array(__CLASS__, 'enqueue'), 20);
+        // After the door for a network's API, which hangs on at 10.
+        add_action('myfeeds_source_doors', array(__CLASS__, 'render_door'), 20);
+        add_action('myfeeds_source_card', array(__CLASS__, 'render_source_card'));
     }
 
     /**
@@ -38,7 +49,7 @@ class MyFeeds_Amazon_Api_Admin {
     }
 
     public static function enqueue($hook) {
-        if (strpos((string) $hook, MyFeeds_Amazon_Admin::FEEDS_PAGE) === false || !MyFeeds_Amazon_Api::active()) {
+        if (strpos((string) $hook, MyFeeds_Amazon_Admin::FEEDS_PAGE) === false || !MyFeeds_Amazon_Api::settings_open()) {
             return;
         }
 
@@ -62,6 +73,10 @@ class MyFeeds_Amazon_Api_Admin {
 
         wp_localize_script(self::HANDLE, 'myfeedsAmazonApiAdmin', array(
             'root'     => MyFeeds_Amazon_REST::NS,
+            // The API's part is open however the window opens: it runs.
+            // Elsewhere only a door opens it, and its Save makes Amazon's
+            // API the site's source.
+            'apiOpen'  => MyFeeds_Amazon_Api::active(),
             'versions' => $versions,
             'i18n'     => array(
                 'testing' => __('Asking Amazon…', 'myfeeds-affiliate-feed-manager'),
@@ -73,17 +88,30 @@ class MyFeeds_Amazon_Api_Admin {
     }
 
     /**
-     * The window's sections. Where Amazon's API does not run: what a link
-     * needs, as the links' window has it. Where it runs: the API's part on
-     * top.
+     * The window's sections. Where Amazon's API cannot be set up: what a
+     * link needs, as the links' window has it. Where it runs: the API's
+     * part on top. Where it may be set up now: both (both_parts()).
      */
     public static function sections($sections) {
         $sections = is_array($sections) ? $sections : array();
 
-        if (!MyFeeds_Amazon_Api::active()) {
+        if (!MyFeeds_Amazon_Api::settings_open()) {
             return $sections;
         }
+        if (!MyFeeds_Amazon_Api::active()) {
+            return self::both_parts($sections, self::api_sections(array(), true));
+        }
+        return self::api_sections($sections, false);
+    }
 
+    /**
+     * The API's part of the window, over the sections given.
+     *
+     * @param array $sections The links' sections.
+     * @param bool  $marked   Each row carries data-mf-amz-api (both_parts()).
+     * @return array<string,string>
+     */
+    private static function api_sections(array $sections, $marked) {
         $connection  = MyFeeds_Amazon_Credentials::get();
         $marketplace = $connection['marketplace'];
         $configured  = MyFeeds_Amazon_Credentials::is_configured();
@@ -130,7 +158,7 @@ class MyFeeds_Amazon_Api_Admin {
         $sections['site_note'] = ob_get_clean();
 
         $sections['abroad_note'] = esc_html__('It applies to the links MyFeeds builds from an ASIN; links from Amazon\'s API are passed on unchanged.', 'myfeeds-affiliate-feed-manager');
-        $sections['fields']      = self::credential_rows($connection);
+        $sections['fields']      = self::credential_rows($connection, $marked);
 
         ob_start();
         ?>
@@ -148,6 +176,110 @@ class MyFeeds_Amazon_Api_Admin {
         $sections['bottom'] = ob_get_clean();
 
         return $sections;
+    }
+
+    /**
+     * The window for both ways in: the links' part as "+ Add Amazon" opens
+     * it, and the API's part as a door opens it. Each part carries
+     * data-mf-amz-link or data-mf-amz-api; the window shows one of them
+     * (css(), the class is-api that amazon-api-admin.js sets). One Save
+     * button for both, so the window's own script finds it: "Save" for a
+     * link, "Save only" beside "Save and test".
+     *
+     * @param array $link The links' sections.
+     * @param array $api  The API's sections, rows marked.
+     * @return array<string,string>
+     */
+    private static function both_parts(array $link, array $api) {
+        $span = function ($attr, $html) {
+            return $html === '' ? '' : '<span ' . $attr . '>' . $html . '</span>';
+        };
+        $div = function ($attr, $html) {
+            return $html === '' ? '' : '<div ' . $attr . '>' . $html . '</div>';
+        };
+        $out = $link;
+        foreach (array('title', 'site_note', 'abroad_note') as $key) {
+            $out[$key] = $span('data-mf-amz-link', isset($link[$key]) ? (string) $link[$key] : '') . $span('data-mf-amz-api', (string) $api[$key]);
+        }
+        foreach (array('top', 'help', 'bottom') as $key) {
+            $out[$key] = $div('data-mf-amz-link', isset($link[$key]) ? (string) $link[$key] : '') . $div('data-mf-amz-api', (string) $api[$key]);
+        }
+        $out['fields'] = $api['fields'];
+
+        ob_start();
+        ?>
+        <button type="button" class="button" id="mf-amz-test" data-mf-amz-api><?php esc_html_e('Save and test', 'myfeeds-affiliate-feed-manager'); ?></button>
+        <button type="button" class="button myfeeds-amz-primary" id="mf-amz-save"><span data-mf-amz-link><?php esc_html_e('Save', 'myfeeds-affiliate-feed-manager'); ?></span><span data-mf-amz-api><?php esc_html_e('Save only', 'myfeeds-affiliate-feed-manager'); ?></span></button>
+        <?php if (MyFeeds_Amazon_Credentials::is_stored() && MyFeeds_Source_Rules::can_disconnect('amazon_api')) : ?>
+            <button type="button" class="button" id="mf-amz-disconnect" data-mf-amz-api><?php esc_html_e('Disconnect', 'myfeeds-affiliate-feed-manager'); ?></button>
+        <?php endif; ?>
+        <?php
+        $out['actions'] = ob_get_clean();
+
+        return $out;
+    }
+
+    // =====================================================================
+    // The Feeds screen
+    // =====================================================================
+
+    /**
+     * The door to Amazon's API, on a Feeds screen that offers each kind of
+     * product source as a door of its own (myfeeds_source_doors, told the
+     * kinds it offers). It opens the Amazon window for the API.
+     *
+     * @param mixed $doors MyFeeds_Source_Rules::doors().
+     */
+    public static function render_door($doors = array()) {
+        if (!is_array($doors) || !in_array('amazon_api', $doors, true)) {
+            return;
+        }
+        ?>
+        <div class="myfeeds-source-door" data-testid="source-door-amazon-api">
+            <h3><?php esc_html_e('Connect Amazon\'s API', 'myfeeds-affiliate-feed-manager'); ?></h3>
+            <p><?php esc_html_e('Search Amazon\'s catalogue in the editor, and show Amazon\'s picture and price on your cards. Amazon opens its API to Associates accounts with 10 qualifying sales in the last 30 days; until then a card shows the name you give it.', 'myfeeds-affiliate-feed-manager'); ?></p>
+            <button type="button" id="myfeeds-amazon-api-door" class="button" data-myfeeds-amazon-open="api" data-testid="amazon-api-door"><?php esc_html_e('Connect Amazon\'s API', 'myfeeds-affiliate-feed-manager'); ?></button>
+        </div>
+        <?php
+    }
+
+    /**
+     * Amazon's API as the site's product source, where a feed would have
+     * its table (myfeeds_source_card): its state in the window's words,
+     * and the way into the window. No count of products: it would read
+     * every post on each visit; "Change source" counts when asked.
+     *
+     * @param string $kind The site's source, as MyFeeds_Source_Rules names it.
+     */
+    public static function render_source_card($kind = '') {
+        if ($kind !== 'amazon_api') {
+            return;
+        }
+        $configured  = MyFeeds_Amazon_Credentials::is_configured();
+        $marketplace = MyFeeds_Amazon_Credentials::marketplace();
+        ?>
+        <div class="myfeeds-amz-source" data-testid="source-card-amazon-api">
+            <h3><?php esc_html_e('Amazon\'s API', 'myfeeds-affiliate-feed-manager'); ?></h3>
+            <?php self::render_status_inner($configured); ?>
+            <?php // The source does not tip over on its own: it says what it lacks. ?>
+            <?php if (!$configured && !MyFeeds_Amazon_Credentials::secret_unreadable()) : ?>
+                <?php self::status_line('warn', self::not_set_up($marketplace), ''); ?>
+            <?php endif; ?>
+            <p><button type="button" class="button" id="myfeeds-amazon-api-settings" data-myfeeds-amazon-open="api" data-testid="amazon-api-settings"><?php esc_html_e('Settings', 'myfeeds-affiliate-feed-manager'); ?></button></p>
+        </div>
+        <?php
+    }
+
+    /** What the source card says while Amazon's API is the source but cannot ask Amazon. */
+    private static function not_set_up($marketplace) {
+        if (MyFeeds_Amazon_Credentials::partner_tag($marketplace) === '') {
+            return sprintf(
+                /* translators: %s: the Amazon site, e.g. Amazon.com */
+                __('Amazon\'s API is this site\'s product source, but it is not set up: add your partner tag for %s in Settings.', 'myfeeds-affiliate-feed-manager'),
+                MyFeeds_Amazon_Locales::site_name($marketplace)
+            );
+        }
+        return __('Amazon\'s API is this site\'s product source, but it is not set up: enter its credential in Settings.', 'myfeeds-affiliate-feed-manager');
     }
 
     // =====================================================================
@@ -243,14 +375,15 @@ class MyFeeds_Amazon_Api_Admin {
     }
 
     /** The rows of Amazon's API, under the rows a link needs. */
-    private static function credential_rows(array $connection) {
+    private static function credential_rows(array $connection, $marked = false) {
+        $mark = $marked ? ' data-mf-amz-api' : '';
         ob_start();
         ?>
-            <tr>
+            <tr<?php echo $mark; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a fixed attribute ?>>
                 <th scope="row"><label for="mf-amz-id"><?php esc_html_e('Credential ID', 'myfeeds-affiliate-feed-manager'); ?></label></th>
                 <td><input type="text" id="mf-amz-id" class="regular-text" value="<?php echo esc_attr($connection['credential_id']); ?>" autocomplete="off"></td>
             </tr>
-            <tr>
+            <tr<?php echo $mark; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a fixed attribute ?>>
                 <th scope="row"><label for="mf-amz-secret"><?php esc_html_e('Secret', 'myfeeds-affiliate-feed-manager'); ?></label></th>
                 <td>
                     <?php $has_secret = $connection['credential_secret'] !== ''; ?>
@@ -279,7 +412,7 @@ class MyFeeds_Amazon_Api_Admin {
                     </p>
                 </td>
             </tr>
-            <tr>
+            <tr<?php echo $mark; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a fixed attribute ?>>
                 <th scope="row"><label for="mf-amz-version"><?php esc_html_e('Version', 'myfeeds-affiliate-feed-manager'); ?></label></th>
                 <td>
                     <input type="text" id="mf-amz-version" class="small-text" value="<?php echo esc_attr($connection['credential_version']); ?>">
@@ -509,6 +642,42 @@ class MyFeeds_Amazon_Api_Admin {
             .myfeeds-amz-rules ul { margin: 0; padding: 0; list-style: none; }
             .myfeeds-amz-rules li { padding: 5px 0; border-bottom: 1px solid #f0f0f1; }
             .myfeeds-amz-rules li:last-child { border-bottom: 0; }
+
+            /* A window for both ways in (both_parts()): the links' part
+               until a door opens it for the API (class is-api). */
+            #myfeeds-amazon-modal:not(.is-api) [data-mf-amz-api],
+            #myfeeds-amazon-modal.is-api [data-mf-amz-link] {
+                display: none !important;
+            }
+            #myfeeds-amazon-modal.is-api #mf-amz-save.myfeeds-amz-primary {
+                background: #fff !important;
+                color: #E58200 !important;
+                border: 1px solid #E58200 !important;
+                box-shadow: none !important;
+                transform: none;
+            }
+
+            /* The door to Amazon's API and the card of Amazon's API as the
+               site's source, in the colour of the Amazon window. */
+            #myfeeds-amazon-api-door,
+            #myfeeds-amazon-api-settings {
+                background: linear-gradient(135deg, #EC8A12 0%, #CC6A00 100%) !important;
+                color: #fff !important;
+                border: none !important;
+                border-radius: 6px !important;
+                box-shadow: 0 2px 4px rgba(222, 122, 0, 0.2) !important;
+                text-shadow: none !important;
+            }
+            .myfeeds-amz-source {
+                max-width: 700px;
+                margin: 0 0 20px;
+                padding: 20px;
+                border: 1px solid #c3c4c7;
+                border-radius: 8px;
+                background: #fff;
+            }
+            .myfeeds-amz-source h3 { margin: 0 0 12px; }
+            .myfeeds-amz-source p { margin: 12px 0 0; }
         ";
     }
 }

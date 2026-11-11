@@ -3,8 +3,13 @@
  * disconnecting, reading the stored secret back, and the request counter.
  *
  * The window, its fields for a link and its Save are amazon-admin.js. This
- * script is loaded only where Amazon's API runs (class-amazon-api-admin.php),
- * after that one, and hangs on window.myfeedsAmazonLinks.
+ * script is loaded only where Amazon's API runs or may be set up now
+ * (class-amazon-api-admin.php), after that one, and hangs on
+ * window.myfeedsAmazonLinks. Where the API runs (apiOpen) its part is open
+ * however the window opens. Elsewhere only a door opens it (mode 'api'),
+ * and its Save makes Amazon's API the site's product source
+ * (source_choice); "+ Add Amazon" then shows and sends what a link needs,
+ * and nothing of the credentials the window holds.
  */
 ;(function () {
     'use strict';
@@ -17,6 +22,18 @@
 
     var apiFetch = window.wp.apiFetch;
     var i18n = config.i18n || {};
+    var mode = '';
+    var testing = false;
+    var modal = document.getElementById('myfeeds-amazon-modal');
+
+    function apiShown() {
+        return !!config.apiOpen || mode === 'api';
+    }
+
+    // A Save from the door: Amazon's API becomes the site's product source.
+    function choosing() {
+        return !config.apiOpen && mode === 'api';
+    }
 
     var el = {
         marketplace: document.getElementById('mf-amz-marketplace'),
@@ -68,7 +85,19 @@
                 // A stale counter is not worth an error message.
             });
     }
-    links.onOpen(refreshBudget);
+    links.onOpen(function (how) {
+        mode = how || '';
+        if (modal && modal.classList) {
+            if (apiShown()) {
+                modal.classList.add('is-api');
+            } else {
+                modal.classList.remove('is-api');
+            }
+        }
+        if (apiShown()) {
+            refreshBudget();
+        }
+    });
 
     // The version Amazon assigns follows the store's region, so switching
     // the site prefills the value the user is about to be handed anyway.
@@ -83,8 +112,15 @@
     }
 
     // A field that is not on the page is not sent. Sent empty, the server
-    // would read "no credential id" as "delete it".
+    // would read "no credential id" as "delete it". Nor is a field the
+    // window does not show: it comes prefilled with what is stored.
     links.addData(function (data) {
+        if (!apiShown()) {
+            return;
+        }
+        if (choosing()) {
+            data.source_choice = 'amazon_api';
+        }
         if (el.id) {
             data.credential_id = el.id.value.trim();
         }
@@ -95,9 +131,13 @@
             data.credential_version = el.version.value.trim();
         }
     });
-    links.onSaved(function () {
+    links.onSaved(function (answer) {
         if (el.secret) {
             el.secret.value = '';
+        }
+        // Set up, so it is the source now: the Feeds screen shows it so.
+        if (choosing() && !testing && answer && answer.connected) {
+            window.location.reload();
         }
     });
 
@@ -168,8 +208,10 @@
     // not a half-updated stored connection.
     if (el.test) {
         el.test.addEventListener('click', function () {
+            testing = true;
             links.save().then(function (ok) {
                 if (!ok) {
+                    testing = false;
                     return;
                 }
 
@@ -192,13 +234,17 @@
                     // A test spends from the day's allowance either way,
                     // so the counter is re-read on failure too.
                     refreshBudget();
-                    if (result.ok) {
+                    // From the door Amazon's API is the source now, whatever
+                    // Amazon said: the Feeds screen shows it so.
+                    if (result.ok || choosing()) {
                         window.setTimeout(function () { window.location.reload(); }, 1200);
                     }
+                    testing = false;
                 }).catch(function (error) {
                     links.say(links.messageFrom(error), 'error');
                     links.busy(false);
                     refreshBudget();
+                    testing = false;
                 });
             });
         });

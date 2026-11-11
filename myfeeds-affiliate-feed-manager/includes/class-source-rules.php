@@ -137,6 +137,33 @@ class MyFeeds_Source_Rules {
     }
 
     /**
+     * Is this kind the source the site chose, whether it runs or not? A
+     * missing partner tag stops Amazon's API from running, not from being
+     * the source: its window stays the place to set it up again, and its
+     * pages still hold what it showed.
+     *
+     * @param string $kind 'feed', 'api:<network>' or 'amazon_api'.
+     * @return bool
+     */
+    public static function chosen($kind) {
+        return self::current() === (string) $kind;
+    }
+
+    /**
+     * Drops this request's copy of what decides the source - the feed list,
+     * Amazon's choice, and WordPress' copy of the options every request
+     * loads - so the next answer reads them as stored. For a decision that
+     * writes a source: another request may have connected one since this
+     * one loaded the options.
+     */
+    public static function read_as_stored() {
+        wp_cache_delete('myfeeds_feeds', 'options');
+        wp_cache_delete(self::AMAZON_CHOICE, 'options');
+        wp_cache_delete('alloptions', 'options');
+        wp_cache_delete('notoptions', 'options');
+    }
+
+    /**
      * May the window of a source offer to remove its stored connection?
      * Not while the site's products come from it: the way off the source
      * is "Change source", which says first what leaves the posts. Stored

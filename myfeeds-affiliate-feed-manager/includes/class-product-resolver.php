@@ -40,7 +40,16 @@ class MyFeeds_Product_Resolver {
      */
     public static function resolve($product_id, $hints = array()) {
         $product_id = (string) $product_id;
-        
+
+        // Amazon products never enter wp_myfeeds_products — the Associates
+        // licence caps how long their data may be kept, so they live in a
+        // short-lived cache with its own refresh rules.
+        if (class_exists('MyFeeds_Amazon_Compliance') && class_exists('MyFeeds_Amazon_Products')
+            && MyFeeds_Amazon_Compliance::is_amazon_id($product_id)) {
+            $products = MyFeeds_Amazon_Products::get_by_ids(array($product_id));
+            return isset($products[$product_id]) ? $products[$product_id] : null;
+        }
+
         // =====================================================================
         // DB MODE: Single query, no static cache, no full-index load
         // =====================================================================

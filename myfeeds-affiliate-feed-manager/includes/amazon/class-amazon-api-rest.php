@@ -6,8 +6,8 @@
  * links' own route. The routes here are Amazon's API. Those that reach
  * Amazon - search, browse, items, live prices - are registered only where
  * the API runs (MyFeeds_Amazon_Api::active()); the connection's own -
- * status, secret, test - also where the API may be connected now
- * (MyFeeds_Source_Rules::can_connect()). Where it runs the shared save
+ * status, secret, test - also where it may be set up now
+ * (MyFeeds_Amazon_Api::settings_open()). Where it runs the shared save
  * route also takes the credentials, and answers with the connection's
  * state.
  *
@@ -29,7 +29,7 @@ class MyFeeds_Amazon_Api_REST {
 
     public static function register_routes() {
         $runs = MyFeeds_Amazon_Api::active();
-        if (!$runs && !(class_exists('MyFeeds_Source_Rules') && MyFeeds_Source_Rules::can_connect('amazon_api'))) {
+        if (!MyFeeds_Amazon_Api::settings_open()) {
             return;
         }
 
@@ -147,8 +147,9 @@ class MyFeeds_Amazon_Api_REST {
      *   - Amazon's API runs here: the whole form.
      *   - The door that makes Amazon's API the site's product source
      *     (source_choice = amazon_api): the whole form, if the site may
-     *     connect it now and the chosen Amazon site has a partner tag; the
-     *     API becomes the source once it is set up.
+     *     connect it now, or has it as its source and sets it up again,
+     *     and the chosen Amazon site has a partner tag; the API becomes the
+     *     source once it is set up.
      *   - Otherwise the request is not read beyond the tag. A site where
      *     the API does not run may still hold credentials saved earlier,
      *     and the link window's fields come prefilled: a request without
@@ -168,7 +169,7 @@ class MyFeeds_Amazon_Api_REST {
             return $saved;
         }
 
-        if (!MyFeeds_Source_Rules::can_connect('amazon_api')) {
+        if (!self::may_be_the_source()) {
             return new WP_Error('myfeeds_source_taken', MyFeeds_Source_Rules::refusal(), array('status' => 409));
         }
 
@@ -191,9 +192,24 @@ class MyFeeds_Amazon_Api_REST {
         }
         MyFeeds_Amazon_Cache::maybe_create_table();
         if (MyFeeds_Amazon_Credentials::is_configured()) {
+            // Asked again after making the table: the credentials stay
+            // stored, unused, if another source arrived meanwhile.
+            if (!self::may_be_the_source()) {
+                return new WP_Error('myfeeds_source_taken', MyFeeds_Source_Rules::refusal(), array('status' => 409));
+            }
             MyFeeds_Source_Rules::choose('amazon_api');
         }
         return $result;
+    }
+
+    /**
+     * May Amazon's API become the site's source, or be set up again as the
+     * source it is? Read as stored, not as this request loaded it: another
+     * tab may have connected a feed or Rakuten meanwhile.
+     */
+    private static function may_be_the_source() {
+        MyFeeds_Source_Rules::read_as_stored();
+        return MyFeeds_Source_Rules::can_connect('amazon_api') || MyFeeds_Source_Rules::chosen('amazon_api');
     }
 
     /** The form's fields as MyFeeds_Amazon_Credentials::save() takes them. */
