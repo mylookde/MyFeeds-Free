@@ -155,16 +155,20 @@ class MyFeeds_Dead_Products {
      * Walks the block tree and returns the unique product ids the
      * product picker references via selectedProducts and a Look through
      * its points (MyFeeds_Look_Block::feed_points(), the one answer every
-     * reader of a Look asks; Amazon points are not feed products).
+     * reader of a Look asks). Where Amazon's API is the site's product
+     * source, its products count too: a picker's Amazon list and a Look's
+     * Amazon points. Amazon by link or ASIN is no source, and nothing here
+     * knows whether its products are still there.
      */
     private static function extract_product_ids_from_content($content) {
         $blocks = parse_blocks((string) $content);
         $out = array();
-        self::collect_ids_from_blocks($blocks, $out);
+        $amazon = class_exists('MyFeeds_Amazon_Api') && MyFeeds_Amazon_Api::active();
+        self::collect_ids_from_blocks($blocks, $out, $amazon);
         return array_keys($out);
     }
 
-    private static function collect_ids_from_blocks($blocks, &$out) {
+    private static function collect_ids_from_blocks($blocks, &$out, $amazon = false) {
         if (!is_array($blocks)) {
             return;
         }
@@ -178,8 +182,11 @@ class MyFeeds_Dead_Products {
                 $selected = isset($attrs['selectedProducts']) && is_array($attrs['selectedProducts'])
                     ? $attrs['selectedProducts']
                     : array();
+                if ($amazon && isset($attrs['amazonProducts']) && is_array($attrs['amazonProducts'])) {
+                    $selected = array_merge($selected, $attrs['amazonProducts']);
+                }
                 foreach ($selected as $p) {
-                    if (!is_array($p) || empty($p['id'])) {
+                    if (!is_array($p) || empty($p['id']) || !is_scalar($p['id'])) {
                         continue;
                     }
                     $pid = (string) $p['id'];
@@ -189,14 +196,18 @@ class MyFeeds_Dead_Products {
                 }
             }
             if ($name === 'myfeeds/look' && class_exists('MyFeeds_Look_Block')) {
-                foreach (MyFeeds_Look_Block::feed_points($b) as $point) {
+                $points = MyFeeds_Look_Block::feed_points($b);
+                if ($amazon) {
+                    $points = array_merge($points, MyFeeds_Look_Block::amazon_points($b));
+                }
+                foreach ($points as $point) {
                     if (!isset($out[$point['id']])) {
                         $out[$point['id']] = true;
                     }
                 }
             }
             if (!empty($b['innerBlocks']) && is_array($b['innerBlocks'])) {
-                self::collect_ids_from_blocks($b['innerBlocks'], $out);
+                self::collect_ids_from_blocks($b['innerBlocks'], $out, $amazon);
             }
         }
     }
@@ -218,9 +229,27 @@ class MyFeeds_Dead_Products {
      * Unknown is treated as not-dead by the caller. Flagging "no data"
      * as "no longer in feeds" is a false positive: a product that never
      * imported, or an id in an older format, has no row and is not dead.
+     *
+     * An Amazon product has no row. It is dead when Amazon called its id
+     * invalid - the same answer that leaves it out of a post
+     * (MyFeeds_Amazon_Products::verdicts()) - and alive otherwise.
      */
     private static function classify_product_ids($ids) {
         $out = array();
+        $amazon = array();
+        foreach ($ids as $i => $id) {
+            if (strpos((string) $id, 'amzn:') === 0) {
+                $amazon[] = (string) $id;
+                unset($ids[$i]);
+            }
+        }
+        $ids = array_values($ids);
+        if (!empty($amazon)) {
+            $verdicts = class_exists('MyFeeds_Amazon_Products') ? MyFeeds_Amazon_Products::verdicts($amazon) : array();
+            foreach ($amazon as $id) {
+                $out[$id] = ($verdicts[$id] ?? '') === 'dead' ? 'dead' : 'active';
+            }
+        }
         if (empty($ids) || !class_exists('MyFeeds_DB_Manager') || !MyFeeds_DB_Manager::table_exists()) {
             foreach ($ids as $id) {
                 $out[(string) $id] = 'unknown';

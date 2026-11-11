@@ -26,10 +26,15 @@ class MyFeeds_Amazon_Api {
     public static function init() {
         self::filters();
 
-        // Expiry runs whether the API runs or not. A site that stops using
-        // it stops being able to refresh Amazon data, which is exactly when
-        // leaving it in the table would breach Amazon's licence.
-        MyFeeds_Amazon_Cache::init();
+        // The two jobs are planned on init, not here on plugins_loaded:
+        // planning one runs every cron_schedules filter of the site, and a
+        // filter that translates its labels must not run before init
+        // (WordPress says so in the debug log).
+        if (did_action('init')) {
+            self::schedule_jobs();
+        } else {
+            add_action('init', array(__CLASS__, 'schedule_jobs'));
+        }
 
         // A published Look renders its Amazon points on every site; what
         // it may show of Amazon is decided inside.
@@ -41,10 +46,30 @@ class MyFeeds_Amazon_Api {
             MyFeeds_Amazon_Cache::maybe_create_table();
         }
 
-        // A cached page keeps Amazon's titles and picture links for as
-        // long as the cache keeps the page; a site whose only source is
-        // Amazon's API imports nothing that would clear it.
         add_action(self::PAGE_REFRESH_HOOK, array(__CLASS__, 'refresh_pages'));
+
+        // The three below decide inside what the API adds: the price
+        // stamp on a card, the API's routes, its part of the window.
+        MyFeeds_Amazon_Stamp::init();
+        MyFeeds_Amazon_Api_REST::init();
+        MyFeeds_Amazon_Api_Admin::init();
+    }
+
+    /**
+     * The hourly expiry of Amazon's cache and the daily clearing of cached
+     * pages.
+     *
+     * Expiry runs whether the API runs or not. A site that stops using it
+     * stops being able to refresh Amazon data, which is exactly when
+     * leaving it in the table would breach Amazon's licence.
+     *
+     * A cached page keeps Amazon's titles and picture links for as long as
+     * the cache keeps the page; a site whose only source is Amazon's API
+     * imports nothing that would clear it.
+     */
+    public static function schedule_jobs() {
+        MyFeeds_Amazon_Cache::init();
+
         if (self::pages_carry_its_data()) {
             if (!wp_next_scheduled(self::PAGE_REFRESH_HOOK)) {
                 wp_schedule_event(self::next_four_am(), 'daily', self::PAGE_REFRESH_HOOK);
@@ -52,12 +77,6 @@ class MyFeeds_Amazon_Api {
         } elseif (wp_next_scheduled(self::PAGE_REFRESH_HOOK)) {
             wp_clear_scheduled_hook(self::PAGE_REFRESH_HOOK);
         }
-
-        // The three below decide inside what the API adds: the price
-        // stamp on a card, the API's routes, its part of the window.
-        MyFeeds_Amazon_Stamp::init();
-        MyFeeds_Amazon_Api_REST::init();
-        MyFeeds_Amazon_Api_Admin::init();
     }
 
     /**

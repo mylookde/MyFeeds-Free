@@ -96,15 +96,25 @@ class MyFeeds_Feed_Manager {
      * more - the feeds of an earlier setup with the other MyFeeds plugin -
      * keeps one source and sets every other entry aside, unchanged, in
      * myfeeds_feeds_set_aside: nothing about them is lost, and the plugin
-     * that wrote them takes them back. A list of one source is never
-     * touched, whatever kind it is.
+     * that wrote them takes them back.
      *
-     * A feed this plugin imports from a link or a file comes first: of
-     * several, the one with the most products placed in posts (the first
-     * on a tie, which is the one an older version kept). The entries of a
-     * network's API stay together - its advertisers are one source - and
-     * are kept only where no such feed is; of several networks, again the
-     * one with the most placed products.
+     * A feed this plugin imports from a link or a file comes first; the
+     * entries of a network's API stay together, and only where no such
+     * feed is. Of several, the one with the most products placed in posts
+     * stays (the first on a tie, which is the one an older version kept).
+     * A list of one is never touched, except when the site comes back from
+     * the other MyFeeds plugin and Amazon's API holds more placed products.
+     *
+     * Amazon's API leaves no entry in the list. It contends only when the
+     * plugin is activated - the way back from the other MyFeeds plugin -
+     * while the site's choice of it is open (MyFeeds_Source_Rules), with
+     * its partner tag and credentials stored and at least one Amazon
+     * product placed. It wins with more placed products than the source
+     * the list keeps, never on a tie; then every entry goes aside and it is
+     * chosen. Losing, or not contending, takes Amazon's data off the site
+     * (MyFeeds_Source_Rules::release()); the credentials stay. An update is
+     * no activation: there it never contends, and a list of one stays
+     * exactly as it was.
      *
      * Until 1.1.0 the list was cut to its first entry instead, and every
      * other feed was gone for good.
@@ -159,33 +169,71 @@ class MyFeeds_Feed_Manager {
             return 0;
         }
 
-        $raw = get_option(self::OPTION_KEY, array());
-        if (!is_array($raw) || empty($raw)) {
-            return 0;
+        // Before the returns below for an empty list and a list of one: a
+        // site of the other plugin that used nothing but Amazon's API has
+        // an empty list, and stays with Amazon.
+        $choice = get_option(MyFeeds_Source_Rules::AMAZON_CHOICE);
+        $placed = null;
+        if ($at_activation && self::amazon_choice_open($choice)) {
+            $decided = self::let_amazon_contend($placed);
+            if ($decided !== null) {
+                return $decided;
+            }
         }
 
+        $moved = self::keep_one_list_source($placed);
+
+        // The first request of this release that is no activation - an
+        // update. Amazon's API does not contend there: it would take the
+        // source of a site that runs a feed, without a click. What the
+        // other plugin stored of it stays, unused. Asked as stored: the
+        // door may have chosen it from another tab since.
+        if (!$at_activation && $choice === false) {
+            MyFeeds_Source_Rules::read_as_stored();
+            if (get_option(MyFeeds_Source_Rules::AMAZON_CHOICE) === false) {
+                MyFeeds_Source_Rules::release('amazon_api', 'not_chosen');
+            }
+        }
+        return $moved;
+    }
+
+    /**
+     * The entries of the list by the source they belong to, and the
+     * sample products apart (no source; they stay only while nothing else
+     * is there).
+     *
+     * @param array $raw The list.
+     * @return array{0:array<string,int[]>,1:array<int,array>} [source => keys, key => sample entry]
+     */
+    private static function sources_in(array $raw) {
         $sources = array();
-        $aside   = array();
+        $samples = array();
         foreach ($raw as $i => $entry) {
             if (!self::is_listed_entry($entry)) {
                 continue;
             }
             if (class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($entry)) {
-                // The sample products are no source; they stay only while
-                // nothing else is there.
-                $aside[$i] = $entry;
+                $samples[$i] = $entry;
             } else {
                 $sources[self::source_of($entry, $i)][] = $i;
             }
         }
-        // One source, or nothing but the samples: nothing to choose.
-        if (count($sources) === 0 || (count($sources) === 1 && count($aside) === 0)) {
-            return 0;
-        }
-        if (self::import_running() || !self::archived_reset_done()) {
-            return 0;
-        }
+        return array($sources, $samples);
+    }
 
+    /**
+     * The source of the list that stays, and its placed products: a feed
+     * this plugin imports first, a network's API only where there is none;
+     * of several, the one with the most placed products, the first on a
+     * tie.
+     *
+     * @param array      $raw     The list.
+     * @param array      $sources sources_in()[0], not empty.
+     * @param array|null $placed  placed_count_by_feed(), counted on demand
+     *                            when there is more than one candidate.
+     * @return array{0:string,1:int} [source, placed products]
+     */
+    private static function list_winner(array $raw, array $sources, &$placed) {
         $importable = array();
         foreach ($sources as $source => $keys) {
             if (strpos($source, 'feed:') === 0) {
@@ -194,9 +242,12 @@ class MyFeeds_Feed_Manager {
         }
         $candidates = !empty($importable) ? $importable : $sources;
         $keep = key($candidates);
-        if (count($candidates) > 1) {
-            $placed = self::placed_count_by_feed();
-            $best   = -1;
+        $best = 0;
+        if (count($candidates) > 1 || $placed !== null) {
+            if ($placed === null) {
+                $placed = self::placed_count_by_feed();
+            }
+            $best = -1;
             foreach ($candidates as $source => $keys) {
                 $count = 0;
                 foreach ($keys as $i) {
@@ -208,6 +259,31 @@ class MyFeeds_Feed_Manager {
                 }
             }
         }
+        return array($keep, max(0, $best));
+    }
+
+    /**
+     * Step two: the list keeps one of its sources.
+     *
+     * @param array|null $placed placed_count_by_feed(), where it was counted already.
+     * @return int How many entries were set aside.
+     */
+    private static function keep_one_list_source($placed = null) {
+        $raw = get_option(self::OPTION_KEY, array());
+        if (!is_array($raw) || empty($raw)) {
+            return 0;
+        }
+
+        list($sources, $aside) = self::sources_in($raw);
+        // One source, or nothing but the samples: nothing to choose.
+        if (count($sources) === 0 || (count($sources) === 1 && count($aside) === 0)) {
+            return 0;
+        }
+        if (self::import_running() || !self::archived_reset_done()) {
+            return 0;
+        }
+
+        list($keep) = self::list_winner($raw, $sources, $placed);
         $kept = array();
         foreach ($sources as $source => $keys) {
             foreach ($keys as $i) {
@@ -220,26 +296,7 @@ class MyFeeds_Feed_Manager {
         }
         ksort($aside);
 
-        // Written first: if the request ends in between, an entry is in
-        // both lists for a moment, never in neither.
-        $kept_aside = get_option(self::SET_ASIDE_OPTION, array());
-        $kept_aside = is_array($kept_aside) ? array_values($kept_aside) : array();
-        foreach ($aside as $entry) {
-            if (!self::holds_entry($kept_aside, $entry)) {
-                $kept_aside[] = $entry;
-            }
-        }
-        update_option(self::SET_ASIDE_OPTION, $kept_aside, false);
-        update_option(self::OPTION_KEY, $kept);
-        $archived = self::archive_rows_of($aside);
-        if ($archived === false) {
-            // The flag says every entry set aside is archived; without it
-            // the next request archives them.
-            delete_option(self::ROWS_ARCHIVED_FLAG);
-        } else {
-            update_option(self::ROWS_ARCHIVED_FLAG, 1, true);
-        }
-
+        $archived = self::put_aside($kept, $aside);
         $names = function ($entries) {
             return implode(', ', array_map(function ($e) {
                 return '"' . (string) $e['name'] . '"';
@@ -249,6 +306,141 @@ class MyFeeds_Feed_Manager {
             . ', set aside ' . count($aside) . ' (' . $names($aside) . '); '
             . (int) $archived . ' of their live products archived, none deleted', 'info');
         return count($aside);
+    }
+
+    /**
+     * The entries go aside and the list keeps the rest, in that order: if
+     * the request ends in between, an entry is in both lists for a moment,
+     * never in neither. Their live rows are archived.
+     *
+     * @param array $kept  What the list keeps.
+     * @param array $aside What goes aside.
+     * @return int|false Rows archived, false when the statement failed.
+     */
+    private static function put_aside(array $kept, array $aside) {
+        $kept_aside = get_option(self::SET_ASIDE_OPTION, array());
+        $kept_aside = is_array($kept_aside) ? array_values($kept_aside) : array();
+        foreach ($aside as $entry) {
+            if (!self::holds_entry($kept_aside, $entry)) {
+                $kept_aside[] = $entry;
+            }
+        }
+        update_option(self::SET_ASIDE_OPTION, $kept_aside, false);
+        update_option(self::OPTION_KEY, array_values($kept));
+        $archived = self::archive_rows_of($aside);
+        if ($archived === false) {
+            // The flag says every entry set aside is archived; without it
+            // the next request archives them.
+            delete_option(self::ROWS_ARCHIVED_FLAG);
+        } else {
+            update_option(self::ROWS_ARCHIVED_FLAG, 1, true);
+        }
+        return $archived;
+    }
+
+    /**
+     * Is the site's choice of Amazon's API open: never made by this plugin
+     * (the other MyFeeds plugin drops it when it takes the site back), or
+     * made while a list source has come in beside it since - the other
+     * plugin's releases before it dropped the choice.
+     *
+     * @param mixed $choice The stored choice, false when there is none.
+     * @return bool
+     */
+    private static function amazon_choice_open($choice) {
+        if ($choice === false) {
+            return true;
+        }
+        if ($choice !== 'chosen') {
+            return false;
+        }
+        $raw = get_option(self::OPTION_KEY, array());
+        return is_array($raw) && !empty(self::sources_in($raw)[0]);
+    }
+
+    /**
+     * Amazon's API against the list, on activation (steps three and four).
+     * Counted once, from the same read of the site's content the feeds are
+     * counted from (MyFeeds_Batch_Importer::placements()).
+     *
+     * @param array|null $placed Set to placed_count_by_feed() where it was counted.
+     * @return int|null Entries set aside when Amazon's API won; 0 when it
+     *                  won and the list cannot be set aside on this
+     *                  request (an import runs); null when the list decides.
+     */
+    private static function let_amazon_contend(&$placed) {
+        $amazon = 0;
+        if (class_exists('MyFeeds_Amazon_Credentials') && MyFeeds_Amazon_Credentials::is_configured()) {
+            $amazon = self::placed_amazon_count();
+            // The count walked every post. Decided on the list and the
+            // choice as they are stored now: another request may have
+            // connected a source meanwhile.
+            MyFeeds_Source_Rules::read_as_stored();
+            if (!self::amazon_choice_open(get_option(MyFeeds_Source_Rules::AMAZON_CHOICE))) {
+                return null;
+            }
+        }
+        if ($amazon === 0) {
+            MyFeeds_Source_Rules::release('amazon_api', 'not_chosen');
+            return null;
+        }
+
+        $raw = get_option(self::OPTION_KEY, array());
+        $raw = is_array($raw) ? $raw : array();
+        list($sources, $samples) = self::sources_in($raw);
+        if (!empty($sources)) {
+            $placed = self::placed_count_by_feed();
+            list(, $best) = self::list_winner($raw, $sources, $placed);
+            if ($amazon <= $best) {
+                MyFeeds_Source_Rules::release('amazon_api', 'set_aside');
+                return null;
+            }
+            if (self::import_running() || !self::archived_reset_done()) {
+                return 0;
+            }
+        }
+
+        $aside = array();
+        foreach ($sources as $keys) {
+            foreach ($keys as $i) {
+                $aside[$i] = $raw[$i];
+            }
+        }
+        ksort($aside);
+        $archived = !empty($aside) ? self::put_aside($samples, $aside) : 0;
+        // The samples go here, with the first real source (rule 21).
+        MyFeeds_Source_Rules::choose('amazon_api');
+        if (class_exists('MyFeeds_Dead_Products')) {
+            MyFeeds_Dead_Products::bust_cache();
+        }
+        myfeeds_log('Feeds: one product source per site - kept Amazon\'s API (' . $amazon . ' placed products), set aside '
+            . count($aside) . '; ' . (int) $archived . ' of their live products archived, none deleted', 'info');
+        return count($aside);
+    }
+
+    /**
+     * Amazon products placed on the site: every id a place holds in a
+     * picker's Amazon list or as a Look's Amazon point, once.
+     *
+     * @return int
+     */
+    private static function placed_amazon_count() {
+        if (!class_exists('MyFeeds_Batch_Importer')) {
+            return 0;
+        }
+        try {
+            $read = MyFeeds_Batch_Importer::placements();
+        } catch (\Throwable $e) {
+            myfeeds_log('Feeds: could not read the placed Amazon products: ' . $e->getMessage(), 'error');
+            return 0;
+        }
+        $ids = array();
+        foreach ((array) ($read['places'] ?? array()) as $place) {
+            foreach (array_keys((array) ($place['amazon'] ?? array())) as $id) {
+                $ids[(string) $id] = true;
+            }
+        }
+        return count($ids);
     }
 
     /**
@@ -1571,14 +1763,17 @@ class MyFeeds_Feed_Manager {
      * "Out of the product search" only once their rows are archived
      * (heal_set_aside_rows()); until then the note does not say it.
      *
+     * Amazon's API is a group of its own while it is set aside and its
+     * credentials are still stored: it lost when the site came back from
+     * the other MyFeeds plugin. Its data left the site then, so its line
+     * says what that means for the posts instead.
+     *
      * @param array $feeds The list as the screen shows it.
      * @return string
      */
     public function set_aside_note_html($feeds) {
         $aside = get_option(self::SET_ASIDE_OPTION, array());
-        if (!is_array($aside)) {
-            return '';
-        }
+        $aside = is_array($aside) ? $aside : array();
         $sources = array();
         $count   = 0;
         foreach ($aside as $i => $entry) {
@@ -1589,9 +1784,13 @@ class MyFeeds_Feed_Manager {
             $sources[self::source_of($entry, $i)][] = $entry;
             $count++;
         }
-        if (empty($sources)) {
+        $amazon = class_exists('MyFeeds_Source_Rules') && class_exists('MyFeeds_Amazon_Credentials')
+            && get_option(MyFeeds_Source_Rules::AMAZON_CHOICE) === 'set_aside'
+            && MyFeeds_Amazon_Credentials::is_stored();
+        if (empty($sources) && !$amazon) {
             return '';
         }
+        $groups = count($sources) + ($amazon ? 1 : 0);
 
         $kept = '';
         foreach ((array) $feeds as $feed) {
@@ -1608,13 +1807,16 @@ class MyFeeds_Feed_Manager {
             }
             break;
         }
+        if ($kept === '' && class_exists('MyFeeds_Source_Rules') && MyFeeds_Source_Rules::current() === 'amazon_api') {
+            $kept = __('Amazon\'s API', 'myfeeds-affiliate-feed-manager');
+        }
         if ($kept !== '') {
             $first = sprintf(
-                /* translators: %s: the source that stays - a feed's name in quotes, or "the Rakuten feeds" */
+                /* translators: %s: the source that stays - a feed's name in quotes, "the Rakuten feeds" or "Amazon's API" */
                 _n(
                     'MyFeeds keeps one product source up to date. This site had more, so it kept %s and set this one aside:',
                     'MyFeeds keeps one product source up to date. This site had more, so it kept %s and set these aside:',
-                    count($sources),
+                    $groups,
                     'myfeeds-affiliate-feed-manager'
                 ),
                 $kept
@@ -1623,7 +1825,7 @@ class MyFeeds_Feed_Manager {
             $first = _n(
                 'MyFeeds keeps one product source up to date. This source of the site is set aside:',
                 'MyFeeds keeps one product source up to date. These sources of the site are set aside:',
-                count($sources),
+                $groups,
                 'myfeeds-affiliate-feed-manager'
             );
         }
@@ -1659,25 +1861,39 @@ class MyFeeds_Feed_Manager {
             }
             $items .= '</li>';
         }
+        if ($amazon) {
+            $items .= '<li>' . esc_html__('Amazon\'s API', 'myfeeds-affiliate-feed-manager')
+                . ' <button type="button" class="button button-small myfeeds-use-source" data-target="amazon_api">'
+                . esc_html__('Use Amazon\'s API instead', 'myfeeds-affiliate-feed-manager') . '</button></li>';
+        }
 
-        if (get_option(self::ROWS_ARCHIVED_FLAG)) {
-            $second = _n(
-                'Nothing about it was deleted. Its products are out of the product search, and the ones your posts show keep showing as they were.',
-                'Nothing about them was deleted. Their products are out of the product search, and the ones your posts show keep showing as they were.',
-                $count,
-                'myfeeds-affiliate-feed-manager'
-            );
-        } else {
-            $second = _n(
-                'Nothing about it was deleted, and the products your posts show keep showing as they were.',
-                'Nothing about them was deleted, and the products your posts show keep showing as they were.',
-                $count,
-                'myfeeds-affiliate-feed-manager'
-            );
+        $after = '';
+        if ($count > 0) {
+            if (get_option(self::ROWS_ARCHIVED_FLAG)) {
+                $second = _n(
+                    'Nothing about it was deleted. Its products are out of the product search, and the ones your posts show keep showing as they were.',
+                    'Nothing about them was deleted. Their products are out of the product search, and the ones your posts show keep showing as they were.',
+                    $count,
+                    'myfeeds-affiliate-feed-manager'
+                );
+            } else {
+                $second = _n(
+                    'Nothing about it was deleted, and the products your posts show keep showing as they were.',
+                    'Nothing about them was deleted, and the products your posts show keep showing as they were.',
+                    $count,
+                    'myfeeds-affiliate-feed-manager'
+                );
+            }
+            $after .= '<p>' . esc_html($second) . '</p>';
+        }
+        if ($amazon) {
+            // No count: it would read every post each time this screen
+            // opens. The window behind the button counts, when asked.
+            $after .= '<p>' . esc_html__('While it is set aside, your cards show no picture or price from Amazon, and the Amazon products you did not give a name are left out of your posts.', 'myfeeds-affiliate-feed-manager') . '</p>';
         }
         return '<div class="notice notice-info myfeeds-set-aside-note"><p>' . esc_html($first) . '</p>'
             . '<ul class="myfeeds-set-aside-sources">' . $items . '</ul>'
-            . '<p>' . esc_html($second) . '</p></div>';
+            . $after . '</div>';
     }
 
     private function display_admin_messages() {

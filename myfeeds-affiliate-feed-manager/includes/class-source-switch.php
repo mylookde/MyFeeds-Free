@@ -14,6 +14,11 @@
  * wired when the page loads, so swapping parts of it would leave the
  * screen of the source that was there before.
  *
+ * Amazon's API has no entry in the list. Changing away from it releases
+ * it (MyFeeds_Source_Rules::release()): Amazon's data leaves the site, as
+ * Amazon's licence asks, and the cards fall back to the names their
+ * authors gave them.
+ *
  * A network's connection details stay stored when its source goes. The
  * screen names them while no source of theirs is in use, with the one
  * way to remove them: without that line there is no window left to do it
@@ -84,11 +89,12 @@ class MyFeeds_Source_Switch {
     }
 
     /**
-     * The value of 'target' in a request: '' (no source comes back) or a
-     * group of myfeeds_feeds_set_aside, as the note on the Feeds screen
-     * names it. Null for anything else.
+     * The value of 'target' in a request: '' (no source comes back), a
+     * group of myfeeds_feeds_set_aside, or 'amazon_api' while Amazon's API
+     * is set aside with its credentials stored - as the note on the Feeds
+     * screen names them. Null for anything else.
      *
-     * @return array{0:string,1:array[]}|null [target, the entries it names]
+     * @return array{0:string,1:array[]}|null [target, the entries it names; none for Amazon's API]
      */
     private static function requested_target() {
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- both callers check the nonce first.
@@ -96,8 +102,16 @@ class MyFeeds_Source_Switch {
         if ($target === '') {
             return array('', array());
         }
+        if ($target === 'amazon_api') {
+            return self::amazon_set_aside() ? array($target, array()) : null;
+        }
         $group = self::set_aside_group($target);
         return $group === array() ? null : array($target, $group);
+    }
+
+    /** Is Amazon's API set aside, with something of its connection still stored to come back with? */
+    private static function amazon_set_aside() {
+        return get_option(MyFeeds_Source_Rules::AMAZON_CHOICE) === 'set_aside' && self::connection_stored('amazon');
     }
 
     /**
@@ -197,15 +211,26 @@ class MyFeeds_Source_Switch {
      * and which source comes back. Built here, so every sentence stays
      * translatable and the script knows none.
      *
-     * @param array[] $back The entries that come back, or none.
-     * @return array{kind:string,label:string,products:int,posts:int,html:string,confirm:string}
+     * Amazon's API is counted from the same read: the Amazon products in
+     * published places, the places, and the ones without a name, which
+     * render nowhere without Amazon's data.
+     *
+     * @param array[] $back        The entries that come back, or none.
+     * @param bool    $amazon_back Amazon's API comes back instead.
+     * @return array{kind:string,label:string,products:int,posts:int,unnamed:int,html:string,confirm:string}
      */
-    public static function preview(array $back = array()) {
+    public static function preview(array $back = array(), $amazon_back = false) {
         $old = self::source_entries();
         $current = MyFeeds_Source_Rules::current();
-        $leaving = !empty($old) ? MyFeeds_Feed_Manager::leaving($old) : array('products' => 0, 'posts' => 0);
+        $amazon = ($current === 'amazon_api' || $amazon_back) ? self::amazon_placed() : array('products' => 0, 'posts' => 0, 'unnamed' => 0);
+        if ($current === 'amazon_api') {
+            $leaving = $amazon;
+        } else {
+            $leaving = !empty($old) ? MyFeeds_Feed_Manager::leaving($old) : array('products' => 0, 'posts' => 0);
+        }
         $products = (int) $leaving['products'];
         $posts = (int) $leaving['posts'];
+        $unnamed = $current === 'amazon_api' ? (int) $amazon['unnamed'] : 0;
 
         $lines = array();
         if (!empty($back)) {
@@ -215,8 +240,24 @@ class MyFeeds_Source_Switch {
             } else {
                 $lines[] = __('Rakuten Advertising comes back with its advertisers and their products.', 'myfeeds-affiliate-feed-manager');
             }
+        } elseif ($amazon_back) {
+            $line = __('Amazon\'s API comes back as this site\'s product source.', 'myfeeds-affiliate-feed-manager');
+            if ((int) $amazon['products'] > 0) {
+                $line .= ' ' . sprintf(
+                    /* translators: 1: "3 Amazon products", 2: "2 published posts" */
+                    _n('%1$s in %2$s shows Amazon\'s picture and price again.', '%1$s in %2$s show Amazon\'s picture and price again.', (int) $amazon['products'], 'myfeeds-affiliate-feed-manager'),
+                    /* translators: %s: a number of Amazon products */
+                    sprintf(_n('%s Amazon product', '%s Amazon products', (int) $amazon['products'], 'myfeeds-affiliate-feed-manager'), number_format_i18n((int) $amazon['products'])),
+                    /* translators: %s: a number of published posts */
+                    sprintf(_n('%s published post', '%s published posts', (int) $amazon['posts'], 'myfeeds-affiliate-feed-manager'), number_format_i18n((int) $amazon['posts']))
+                );
+            }
+            $lines[] = $line;
         }
-        if (!empty($old)) {
+        if ($current === 'amazon_api') {
+            $lines[] = __('Amazon\'s API stops being this site\'s product source.', 'myfeeds-affiliate-feed-manager');
+            $lines[] = self::amazon_leaving_text($products, $posts, $unnamed);
+        } elseif (!empty($old)) {
             if ($current === 'feed') {
                 $name = '';
                 foreach ($old as $entry) {
@@ -258,11 +299,88 @@ class MyFeeds_Source_Switch {
             'label'    => MyFeeds_Source_Rules::label($current),
             'products' => $products,
             'posts'    => $posts,
+            'unnamed'  => $unnamed,
             'html'     => $html,
-            'confirm'  => !empty($back)
+            'confirm'  => (!empty($back) || $amazon_back)
                 ? __('Use this source instead', 'myfeeds-affiliate-feed-manager')
                 : __('Remove this source', 'myfeeds-affiliate-feed-manager'),
         );
+    }
+
+    /**
+     * What Amazon's API leaving does to the posts, in one paragraph. A card
+     * without Amazon's data renders only with the name the author gave it
+     * (MyFeeds_Amazon_Card), so the ones without a name leave the posts.
+     * Products picked through the API's search are saved without one.
+     *
+     * @param int $products Amazon products in published places.
+     * @param int $posts    Those places.
+     * @param int $unnamed  Of the products, the ones without a name somewhere.
+     * @return string
+     */
+    private static function amazon_leaving_text($products, $posts, $unnamed) {
+        $parts = array();
+        if ($products > 0) {
+            $parts[] = sprintf(
+                /* translators: 1: "3 products", 2: "2 published posts" */
+                __('It has %1$s in %2$s. They lose Amazon\'s picture and price now.', 'myfeeds-affiliate-feed-manager'),
+                /* translators: %s: a number of products */
+                sprintf(_n('%s product', '%s products', $products, 'myfeeds-affiliate-feed-manager'), number_format_i18n($products)),
+                /* translators: %s: a number of published posts */
+                sprintf(_n('%s published post', '%s published posts', $posts, 'myfeeds-affiliate-feed-manager'), number_format_i18n($posts))
+            );
+            if ($unnamed > 0) {
+                $parts[] = sprintf(
+                    /* translators: %s: "2 products" */
+                    _n(
+                        'The ones you named yourself stay as text cards that link to Amazon with your partner tag; %s without a name leaves those posts.',
+                        'The ones you named yourself stay as text cards that link to Amazon with your partner tag; %s without a name leave those posts.',
+                        $unnamed,
+                        'myfeeds-affiliate-feed-manager'
+                    ),
+                    /* translators: %s: a number of products */
+                    sprintf(_n('%s product', '%s products', $unnamed, 'myfeeds-affiliate-feed-manager'), number_format_i18n($unnamed))
+                );
+            } else {
+                $parts[] = __('The ones you named yourself stay as text cards that link to Amazon with your partner tag.', 'myfeeds-affiliate-feed-manager');
+            }
+        } else {
+            $parts[] = __('None of its products is placed in a published post.', 'myfeeds-affiliate-feed-manager');
+        }
+        $parts[] = __('Amazon\'s data is deleted from this site, as Amazon\'s licence requires.', 'myfeeds-affiliate-feed-manager');
+        if (self::connection_stored('amazon')) {
+            $parts[] = __('Your Amazon API details stay stored, unused, until you remove them, and your partner tag stays as it is.', 'myfeeds-affiliate-feed-manager');
+        }
+        return implode(' ', $parts);
+    }
+
+    /**
+     * The Amazon products of published places, from the one read of the
+     * site's content (MyFeeds_Batch_Importer::placements()): how many, in
+     * how many places, and how many stand somewhere without a name.
+     *
+     * @return array{products:int,posts:int,unnamed:int}
+     */
+    private static function amazon_placed() {
+        $out = array('products' => 0, 'posts' => 0, 'unnamed' => 0);
+        if (!class_exists('MyFeeds_Batch_Importer')) {
+            return $out;
+        }
+        $ids = array();
+        foreach ((array) (MyFeeds_Batch_Importer::placements()['places'] ?? array()) as $place) {
+            $here = (array) ($place['amazon'] ?? array());
+            if (empty($here)) {
+                continue;
+            }
+            $out['posts']++;
+            foreach ($here as $id => $name) {
+                $id = (string) $id;
+                $ids[$id] = ($ids[$id] ?? false) || trim((string) $name) === '';
+            }
+        }
+        $out['products'] = count($ids);
+        $out['unnamed'] = count(array_filter($ids));
+        return $out;
     }
 
     /**
@@ -279,16 +397,24 @@ class MyFeeds_Source_Switch {
      * list, or bring in a source beside the one that comes back. One that
      * is still under way is waited for, as an import is.
      *
-     * @param array[] $back The entries that come back, or none.
+     * Amazon's API leaves no entry to delete: it is released, which takes
+     * Amazon's data off the site, and the cached copies of the posts are
+     * cleared once. Its credentials and the partner tag stay. Brought back,
+     * it is chosen again - unless another source was connected while the
+     * old one went.
+     *
+     * @param array[] $back        The entries that come back, or none.
+     * @param bool    $amazon_back Amazon's API comes back instead.
      * @return array{message:string,reload:bool,redirect:string}|WP_Error
      */
-    public static function change(array $back = array()) {
+    public static function change(array $back = array(), $amazon_back = false) {
         if (MyFeeds_Feed_Manager::import_running()
             || (class_exists('MyFeeds_Source_Fetcher') && MyFeeds_Source_Fetcher::is_busy())) {
             return new WP_Error('myfeeds_import_running', __('An import is running. Change the source when it has finished.', 'myfeeds-affiliate-feed-manager'));
         }
         $old = self::source_entries();
-        if (empty($old) && empty($back)) {
+        $amazon_goes = MyFeeds_Source_Rules::current() === 'amazon_api';
+        if (empty($old) && empty($back) && !$amazon_back && !$amazon_goes) {
             return new WP_Error('myfeeds_no_source', __('This site has no product source to remove.', 'myfeeds-affiliate-feed-manager'));
         }
 
@@ -308,8 +434,33 @@ class MyFeeds_Source_Switch {
             }
             MyFeeds_Feed_Manager::after_deletion($placed);
         }
+        if ($amazon_goes) {
+            MyFeeds_Source_Rules::release('amazon_api', 'not_chosen');
+            if (class_exists('MyFeeds_Page_Cache_Purge')) {
+                MyFeeds_Page_Cache_Purge::purge_product_posts();
+            }
+            if (class_exists('MyFeeds_Dead_Products')) {
+                MyFeeds_Dead_Products::bust_cache();
+            }
+        }
 
-        if (empty($back)) {
+        if ($amazon_back) {
+            // The old source took its time to go. Chosen only where no
+            // other source came in meanwhile, read as stored.
+            MyFeeds_Source_Rules::read_as_stored();
+            if (MyFeeds_Source_Rules::current() !== '') {
+                $message = __('The product source was removed. Another source was connected meanwhile, so Amazon\'s API stays set aside.', 'myfeeds-affiliate-feed-manager');
+            } else {
+                if (class_exists('MyFeeds_Amazon_Cache')) {
+                    MyFeeds_Amazon_Cache::maybe_create_table();
+                }
+                MyFeeds_Source_Rules::choose('amazon_api');
+                if (class_exists('MyFeeds_Dead_Products')) {
+                    MyFeeds_Dead_Products::bust_cache();
+                }
+                $message = __('Amazon\'s API is this site\'s product source again.', 'myfeeds-affiliate-feed-manager');
+            }
+        } elseif (empty($back)) {
             $message = __('The product source was removed. Choose a new one below.', 'myfeeds-affiliate-feed-manager');
         } else {
             $updating = self::bring_back($back);
@@ -409,11 +560,11 @@ class MyFeeds_Source_Switch {
             wp_send_json_error(array('message' => __('There is no such source set aside on this site.', 'myfeeds-affiliate-feed-manager')), 400);
             return;
         }
-        if ($target[0] === '' && empty(self::source_entries())) {
+        if ($target[0] === '' && MyFeeds_Source_Rules::current() === '') {
             wp_send_json_error(array('message' => __('This site has no product source to remove.', 'myfeeds-affiliate-feed-manager')));
             return;
         }
-        wp_send_json_success(self::preview($target[1]));
+        wp_send_json_success(self::preview($target[1], $target[0] === 'amazon_api'));
     }
 
     public static function ajax_change() {
@@ -427,7 +578,7 @@ class MyFeeds_Source_Switch {
             wp_send_json_error(array('message' => __('There is no such source set aside on this site.', 'myfeeds-affiliate-feed-manager')), 400);
             return;
         }
-        $done = self::change($target[1]);
+        $done = self::change($target[1], $target[0] === 'amazon_api');
         if (is_wp_error($done)) {
             wp_send_json_error(array('message' => $done->get_error_message()));
             return;
@@ -436,9 +587,11 @@ class MyFeeds_Source_Switch {
     }
 
     /**
-     * Networks whose connection details are stored here and not in use:
-     * another kind of source is the site's product source. Rakuten's are
-     * the only ones this screen can remove.
+     * Connection details stored here and not in use. Rakuten's while
+     * another kind of source is the site's product source
+     * (forget_refusal()); Amazon's API's whenever it is not the source -
+     * with no source too: its window removes them only while the door may
+     * still connect it, and set aside it has no window of its own.
      *
      * @return array<string,string> network => its name
      */
@@ -447,7 +600,25 @@ class MyFeeds_Source_Switch {
         if (self::forget_refusal() === '' && self::connection_stored('rakuten')) {
             $out['rakuten'] = __('Rakuten Advertising', 'myfeeds-affiliate-feed-manager');
         }
+        if (self::amazon_forget_refusal() === '' && self::connection_stored('amazon')) {
+            $out['amazon'] = __('Amazon\'s API', 'myfeeds-affiliate-feed-manager');
+        }
         return $out;
+    }
+
+    /**
+     * Why the credentials of Amazon's API may not be removed from here now,
+     * or '' when they may: never while it is the site's product source, set
+     * up or not - the way off it is "Change source", which says first what
+     * leaves the posts.
+     *
+     * @return string
+     */
+    private static function amazon_forget_refusal() {
+        if (MyFeeds_Source_Rules::current() === 'amazon_api') {
+            return __('These connection details are in use by this site\'s product source. Change the source first.', 'myfeeds-affiliate-feed-manager');
+        }
+        return '';
     }
 
     /**
@@ -477,12 +648,16 @@ class MyFeeds_Source_Switch {
 
     /**
      * Are any of this network's connection details stored? Not
-     * is_configured(): a client id alone is stored too.
+     * is_configured(): a client id alone is stored too, and so is a secret
+     * the site can no longer open.
      *
-     * @param string $network
+     * @param string $network 'rakuten' or 'amazon'.
      * @return bool
      */
     private static function connection_stored($network) {
+        if ($network === 'amazon') {
+            return class_exists('MyFeeds_Amazon_Credentials') && MyFeeds_Amazon_Credentials::is_stored();
+        }
         return $network === 'rakuten' && class_exists('MyFeeds_Rakuten_Credentials')
             && MyFeeds_Rakuten_Credentials::is_stored();
     }
@@ -493,15 +668,18 @@ class MyFeeds_Source_Switch {
      */
     public static function render_unused_connections() {
         foreach (self::unused_connections() as $network => $name) {
+            $question = $network === 'amazon'
+                ? __('Remove the stored connection details? You would have to enter them again to connect. Your Amazon site and partner tag stay as they are.', 'myfeeds-affiliate-feed-manager')
+                : __('Remove the stored connection details? You would have to enter them again to connect.', 'myfeeds-affiliate-feed-manager');
             ?>
             <p class="description myfeeds-unused-connection" data-testid="unused-connection-<?php echo esc_attr($network); ?>">
                 <?php
-                /* translators: %s: the network, "Rakuten Advertising" */
+                /* translators: %s: where the details are for, "Rakuten Advertising" or "Amazon's API" */
                 echo esc_html(sprintf(__('Connection details stored on this site and not in use: %s.', 'myfeeds-affiliate-feed-manager'), $name));
                 ?>
                 <button type="button" class="button-link myfeeds-forget-connection"
                     data-connection="<?php echo esc_attr($network); ?>"
-                    data-confirm="<?php esc_attr_e('Remove the stored connection details? You would have to enter them again to connect.', 'myfeeds-affiliate-feed-manager'); ?>">
+                    data-confirm="<?php echo esc_attr($question); ?>">
                     <?php esc_html_e('Remove them', 'myfeeds-affiliate-feed-manager'); ?>
                 </button>
             </p>
@@ -515,6 +693,12 @@ class MyFeeds_Source_Switch {
      * (forget_refusal(), asked here and not only by the screen). Nothing
      * of that network's can be fetched without them, so a run left behind
      * ends with them.
+     *
+     * Amazon's API: what only the API needs goes (forget_api()), and with
+     * it Amazon's data and the choice of it, which then is 'not_chosen'.
+     * The Amazon site, the partner tags and the badge stay: every Amazon
+     * link is built from them. Asked as stored, not as this request loaded
+     * it: its door may have made it the source from another tab meanwhile.
      */
     public static function ajax_forget_connection() {
         check_ajax_referer('myfeeds_nonce', 'nonce');
@@ -523,19 +707,29 @@ class MyFeeds_Source_Switch {
             return;
         }
         $network = isset($_POST['connection']) ? sanitize_text_field(wp_unslash($_POST['connection'])) : '';
-        if ($network !== 'rakuten' || !class_exists('MyFeeds_Rakuten_Credentials')) {
+        $known = ($network === 'rakuten' && class_exists('MyFeeds_Rakuten_Credentials'))
+            || ($network === 'amazon' && self::connection_stored('amazon'));
+        if (!$known) {
             wp_send_json_error(array('message' => __('There are no such connection details on this site.', 'myfeeds-affiliate-feed-manager')), 400);
             return;
         }
-        $refusal = self::forget_refusal();
+        if ($network === 'amazon') {
+            MyFeeds_Source_Rules::read_as_stored();
+        }
+        $refusal = $network === 'amazon' ? self::amazon_forget_refusal() : self::forget_refusal();
         if ($refusal !== '') {
             wp_send_json_error(array('message' => $refusal));
             return;
         }
-        if (class_exists('MyFeeds_Source_Fetcher')) {
-            MyFeeds_Source_Fetcher::stop_all();
+        if ($network === 'amazon') {
+            MyFeeds_Amazon_Credentials::forget_api();
+            MyFeeds_Source_Rules::release('amazon_api', 'not_chosen');
+        } else {
+            if (class_exists('MyFeeds_Source_Fetcher')) {
+                MyFeeds_Source_Fetcher::stop_all();
+            }
+            MyFeeds_Rakuten_Credentials::disconnect();
         }
-        MyFeeds_Rakuten_Credentials::disconnect();
         $message = __('The stored connection details were removed.', 'myfeeds-affiliate-feed-manager');
         wp_send_json_success(array(
             'message'  => $message,
