@@ -224,7 +224,8 @@ class MyFeeds_Source_Feeds {
     }
 
     /**
-     * Append the entry for a source whose first snapshot has just landed.
+     * Append the entry for a source whose first snapshot has just landed,
+     * or return the one that already reads it.
      *
      * The one place a new Rakuten entry is written, so the one place that
      * asks whether a new source may come (MyFeeds_Source_Rules): a fetch
@@ -243,6 +244,19 @@ class MyFeeds_Source_Feeds {
         // through 'alloptions'). Written over that copy, it would be gone.
         wp_cache_delete(self::OPTION_KEY, 'options');
         wp_cache_delete('alloptions', 'options');
+
+        // The first to take the snapshot over wrote its entry; a second one
+        // on the same file would fetch into the same part and be imported
+        // twice, and deleting either deletes the file the other reads.
+        $file = basename((string) $pending['file']);
+        $all  = get_option(self::OPTION_KEY, array());
+        foreach ($file !== '' && is_array($all) ? $all : array() as $key => $entry) {
+            if (is_array($entry) && isset($entry['url'], $entry['stable_id'])
+                && basename((string) wp_parse_url((string) $entry['url'], PHP_URL_PATH)) === $file) {
+                return array('key' => $key, 'stable_id' => (int) $entry['stable_id']);
+            }
+        }
+
         if (!class_exists('MyFeeds_Source_Rules') || !MyFeeds_Source_Rules::can_connect('api', 'rakuten')) {
             return new WP_Error(
                 'myfeeds_source_taken',

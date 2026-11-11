@@ -476,23 +476,15 @@ class MyFeeds_Source_Switch {
     }
 
     /**
-     * Are any of this network's connection details stored? Asked of the
-     * option, not of is_configured(): a client id alone is stored too.
+     * Are any of this network's connection details stored? Not
+     * is_configured(): a client id alone is stored too.
      *
      * @param string $network
      * @return bool
      */
     private static function connection_stored($network) {
-        if ($network !== 'rakuten' || !class_exists('MyFeeds_Rakuten_Credentials')) {
-            return false;
-        }
-        $stored = get_option(MyFeeds_Rakuten_Credentials::OPTION_CONNECTION, array());
-        foreach (is_array($stored) ? $stored : array() as $value) {
-            if (is_string($value) && trim($value) !== '') {
-                return true;
-            }
-        }
-        return false;
+        return $network === 'rakuten' && class_exists('MyFeeds_Rakuten_Credentials')
+            && MyFeeds_Rakuten_Credentials::is_stored();
     }
 
     /**

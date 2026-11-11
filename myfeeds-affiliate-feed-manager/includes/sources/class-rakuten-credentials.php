@@ -124,6 +124,22 @@ class MyFeeds_Rakuten_Credentials {
     }
 
     /**
+     * Is anything of the connection stored? Also a client id alone, or a
+     * secret the site can no longer read: is_configured() is false for
+     * those, and Disconnect still has something to remove.
+     */
+    public static function is_stored() {
+        $stored = get_option(self::OPTION_CONNECTION, array());
+        foreach (is_array($stored) ? $stored : array() as $value) {
+            if (is_string($value) && trim($value) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * True when a secret is stored but cannot be read back (libsodium
      * gone, or the site salts rotated). From the outside that looks like
      * wrong credentials; the connection screen says which it is.

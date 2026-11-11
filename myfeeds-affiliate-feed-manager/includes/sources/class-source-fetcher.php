@@ -810,17 +810,12 @@ class MyFeeds_Source_Fetcher {
         }
 
         foreach ($pending as $token => $source) {
-            $state = self::run_state($token);
-
             if (!empty($source['committed'])) {
-                $created = MyFeeds_Source_Feeds::create_entry($source, is_array($state) ? $state : array());
-                if (is_wp_error($created) && $created->get_error_code() === 'myfeeds_source_taken') {
-                    self::turn_down($token, $created->get_error_message());
-                } elseif (!is_wp_error($created)) {
-                    self::adopt_entry($token, $created['key'], $created['stable_id'], is_array($state) ? $state : array());
-                }
+                self::take_over($token);
                 continue;
             }
+
+            $state = self::run_state($token);
 
             if (!self::may_connect()) {
                 self::turn_down($token, self::taken()->get_error_message());
@@ -844,6 +839,37 @@ class MyFeeds_Source_Fetcher {
             if ($state['status'] === 'fetching' && (time() - (int) $state['step_at']) >= self::ABANDONED_AFTER) {
                 self::schedule_job($token, $state['run'], 5, (int) $state['hop'] + 1);
             }
+        }
+    }
+
+    /**
+     * A committed snapshot whose entry was not taken over: complete()'s
+     * request ended between the commit and the takeover, or lost its entry
+     * to the importer's rewrite. Asked of what is stored now, since that
+     * request may still be at it or have finished meanwhile: what it took
+     * over, or what was deleted after, must not come back as a second entry.
+     *
+     * @param string $token
+     */
+    private static function take_over($token) {
+        $pending = self::stored_pending();
+        if (!isset($pending[$token]) || empty($pending[$token]['committed'])) {
+            return;
+        }
+        $runs  = self::stored_runs();
+        $state = isset($runs[$token]) && is_array($runs[$token]) ? $runs[$token] : array();
+        // The fetch's last step wrote this moments ago: the request that
+        // committed the snapshot is still writing the entry and takes it over.
+        if (isset($state['status'], $state['step_at']) && $state['status'] === 'fetching'
+            && (time() - (int) $state['step_at']) < self::STALLED_AFTER) {
+            return;
+        }
+
+        $created = MyFeeds_Source_Feeds::create_entry($pending[$token], $state);
+        if (is_wp_error($created) && $created->get_error_code() === 'myfeeds_source_taken') {
+            self::turn_down($token, $created->get_error_message());
+        } elseif (!is_wp_error($created)) {
+            self::adopt_entry($token, $created['key'], $created['stable_id'], $state);
         }
     }
 
@@ -1429,21 +1455,23 @@ class MyFeeds_Source_Fetcher {
 
     /**
      * Move a pending source's run under its new stable id and forget the
-     * pending record.
+     * pending record. A run no longer stored under the token was moved by
+     * another request already; the state it wrote under the stable id stays.
      */
     private static function adopt_entry($token, $feed_key, $stable_id, array $state) {
-        $state['key'] = (string) $stable_id;
-
         $runs = self::stored_runs();
-        unset($runs[(string) $token]);
-        $runs[(string) $stable_id] = $state;
-        self::save_runs($runs);
+        if (array_key_exists((string) $token, $runs)) {
+            $state['key'] = (string) $stable_id;
+            unset($runs[(string) $token]);
+            $runs[(string) $stable_id] = $state;
+            self::save_runs($runs);
+        }
 
         $pending = self::stored_pending();
         unset($pending[(string) $token]);
         self::save_pending($pending);
 
-        self::log('feed ' . $stable_id . ' (' . $state['name'] . ') created from ' . $token, 'info');
+        self::log('feed ' . $stable_id . ' (' . (isset($state['name']) ? $state['name'] : $token) . ') created from ' . $token, 'info');
     }
 
     /**

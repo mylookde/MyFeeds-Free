@@ -207,7 +207,7 @@ class MyFeeds_Source_Admin {
                     <p class="myfeeds-src-actions">
                         <button type="button" class="button" id="mf-src-test"><?php esc_html_e('Save and test', 'myfeeds-affiliate-feed-manager'); ?></button>
                         <button type="button" class="button" id="mf-src-save"><?php esc_html_e('Save only', 'myfeeds-affiliate-feed-manager'); ?></button>
-                        <?php if ($configured) : ?>
+                        <?php if (MyFeeds_Rakuten_Credentials::is_stored()) : ?>
                             <button type="button" class="button" id="mf-src-disconnect"><?php esc_html_e('Disconnect', 'myfeeds-affiliate-feed-manager'); ?></button>
                         <?php endif; ?>
                         <span id="mf-src-feedback" class="myfeeds-src-feedback"></span>
