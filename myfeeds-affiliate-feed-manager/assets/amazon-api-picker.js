@@ -596,8 +596,8 @@
   // and Amazon in the search window.
   // ---------------------------------------------------------------------------
   // A set Amazon point's row shows what Amazon calls it, where Amazon
-  // answers: looked up live for the editor, never stored in the post (the
-  // licence keeps only the ASIN).
+  // answers: looked up live for the editor, never stored in the post
+  // (Amazon's licence lets a site keep only the ASIN).
   addFilter('myfeeds.look.amazonDetails', NS, function (details) {
     if (typeof details === 'function') {
       return details;

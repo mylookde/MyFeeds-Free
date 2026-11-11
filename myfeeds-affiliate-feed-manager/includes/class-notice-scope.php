@@ -73,8 +73,8 @@ class MyFeeds_Notice_Scope {
      * WordPress' common.js moves every notice behind the first
      * .wp-header-end on the screen, or without one behind the first h1 or
      * h2 inside .wrap. On a MyFeeds screen that heading opens a designed
-     * header, so the license notice stood between "Choose your plan" and
-     * its subtitle, and Free's review request inside a feature page's hero
+     * header, so a notice stood between a screen's title and its subtitle,
+     * or inside the top section of a page that describes a feature
      * (2026-11-06). This line comes after the last notice printed, so the
      * script moves nothing anywhere you could see, and a notice the page
      * prints itself (a "saved" message) joins the others up here.

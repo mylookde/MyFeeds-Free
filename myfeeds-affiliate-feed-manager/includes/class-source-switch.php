@@ -422,6 +422,18 @@ class MyFeeds_Source_Switch {
             MyFeeds_Source_Fetcher::stop_all();
         }
 
+        // Amazon's API chosen beside the list's source (a feed saved in
+        // another tab while its door chose it): not the source while the
+        // list holds one, it would become the source once the list is
+        // empty, without a click. Released before the list empties, as
+        // stored.
+        if (!$amazon_goes) {
+            MyFeeds_Source_Rules::read_as_stored();
+            if (get_option(MyFeeds_Source_Rules::AMAZON_CHOICE) === 'chosen' && MyFeeds_Source_Rules::current() !== 'amazon_api') {
+                MyFeeds_Source_Rules::release('amazon_api', 'not_chosen');
+            }
+        }
+
         if (!empty($old)) {
             $placed = class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()
                 ? MyFeeds_DB_Manager::placed_product_ids()

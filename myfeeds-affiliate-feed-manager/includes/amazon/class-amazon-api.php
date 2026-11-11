@@ -237,8 +237,17 @@ class MyFeeds_Amazon_Api {
      * Amazon data it can no longer refresh. The credentials, the partner
      * tags and the site's choice of source stay: they are the owner's
      * settings, and the other MyFeeds plugin reads the same ones.
+     *
+     * The cached pages that may show Amazon's data are cleared first - the
+     * API is the site's source and its credentials are stored: once the
+     * plugin is off, neither the daily clearing nor an import clears them,
+     * and a page cache may keep a page for a week.
      */
     public static function deactivate() {
+        if (class_exists('MyFeeds_Source_Rules') && MyFeeds_Source_Rules::chosen('amazon_api')
+            && MyFeeds_Amazon_Credentials::is_stored() && class_exists('MyFeeds_Page_Cache_Purge')) {
+            MyFeeds_Page_Cache_Purge::purge_product_posts();
+        }
         wp_clear_scheduled_hook(MyFeeds_Amazon_Cache::PURGE_HOOK);
         wp_clear_scheduled_hook(self::PAGE_REFRESH_HOOK);
         MyFeeds_Amazon_Cache::purge_all();

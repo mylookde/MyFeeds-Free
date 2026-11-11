@@ -403,8 +403,8 @@ class MyFeeds_Product_Picker {
             $own_words    = isset($current_item['amz_manual']) && is_array($current_item['amz_manual']) ? $current_item['amz_manual'] : array();
 
             // Amazon products came out of the batched prewarm above. They
-            // never fall back to a saved snapshot: there is none, and the
-            // licence would not let us keep one.
+            // never fall back to a saved snapshot: there is none, and
+            // Amazon's licence would not let us keep one.
             if (isset($amazon_map[$requested_id])) {
                 if ($pick_style !== '') {
                     $pick_items[] = MyFeeds_Picker_Displays::item($slot_id, $amazon_map[$requested_id], 'amazon', $own_words);
@@ -496,8 +496,8 @@ class MyFeeds_Product_Picker {
             // about something they cannot act on. Leave it out instead.
             //
             // The comparison is exactly 'unavailable'. 'archived' is a
-            // different thing - a product kept alive on a site that lost
-            // its licence - and it has to keep rendering.
+            // different thing - the product of a feed set aside, which a
+            // post shows as it was - and it has to keep rendering.
             if (isset($product_data['status']) && $product_data['status'] === 'unavailable') {
                 continue;
             }
@@ -799,10 +799,13 @@ class MyFeeds_Product_Picker {
 
         list($price, $old_price) = self::effective_prices($product);
 
-        if (class_exists('MyFeeds_Affiliate_Product_Picker')) {
-            $product_id_for_log = isset($product['id']) ? (string) $product['id'] : '';
+        // Never for an Amazon product: of Amazon's data only the ASIN may be
+        // kept past a day, and a log file stays for as long as the host
+        // keeps it.
+        $product_id_for_log = isset($product['id']) ? (string) $product['id'] : '';
+        if (!(class_exists('MyFeeds_Amazon_Compliance') && MyFeeds_Amazon_Compliance::is_amazon_id($product_id_for_log))) {
             $discount_log = isset($product['discount_percentage']) ? (string) $product['discount_percentage'] : 'none';
-            MyFeeds_Affiliate_Product_Picker::log("FRONTEND RENDER: {$product_id_for_log} - price: $price, old_price: $old_price, discount_percentage: {$discount_log}");
+            myfeeds_log("FRONTEND RENDER: {$product_id_for_log} - price: $price, old_price: $old_price, discount_percentage: {$discount_log}", 'debug');
         }
 
         $currency = (string) ($product['currency'] ?? 'EUR');

@@ -114,7 +114,8 @@ class MyFeeds_Feed_Manager {
      * chosen. Losing, or not contending, takes Amazon's data off the site
      * (MyFeeds_Source_Rules::release()); the credentials stay. An update is
      * no activation: there it never contends, and a list of one stays
-     * exactly as it was.
+     * exactly as it was. Chosen beside a source of the list on any other
+     * request, it is set aside.
      *
      * Until 1.1.0 the list was cut to its first entry instead, and every
      * other feed was gone for good.
@@ -179,6 +180,8 @@ class MyFeeds_Feed_Manager {
             if ($decided !== null) {
                 return $decided;
             }
+        } elseif (!$at_activation && $choice === 'chosen' && self::amazon_choice_open($choice)) {
+            self::set_amazon_aside_beside_the_list();
         }
 
         $moved = self::keep_one_list_source($placed);
@@ -356,6 +359,24 @@ class MyFeeds_Feed_Manager {
         }
         $raw = get_option(self::OPTION_KEY, array());
         return is_array($raw) && !empty(self::sources_in($raw)[0]);
+    }
+
+    /**
+     * Amazon's API chosen while a source of the list stands beside it: a
+     * feed saved in another tab while Amazon's door chose it, or an
+     * activation that could not decide (an import ran). The list is the
+     * source; left so, Amazon's API would become it the moment the list
+     * is empty, without a click. A request that is no activation sets it
+     * aside, decided as stored, and the note on the Feeds screen offers it
+     * again.
+     */
+    private static function set_amazon_aside_beside_the_list() {
+        MyFeeds_Source_Rules::read_as_stored();
+        $choice = get_option(MyFeeds_Source_Rules::AMAZON_CHOICE);
+        if ($choice === 'chosen' && self::amazon_choice_open($choice)) {
+            MyFeeds_Source_Rules::release('amazon_api', 'set_aside');
+            myfeeds_log('Feeds: one product source per site - Amazon\'s API stood chosen beside the list\'s source and is set aside', 'info');
+        }
     }
 
     /**
@@ -2056,6 +2077,15 @@ class MyFeeds_Feed_Manager {
                 MyFeeds_DB_Manager::assign_stable_id($entry);
             }
 
+            // Asked again as stored, right before the write: Amazon's door
+            // in another tab may have chosen its API since this request
+            // loaded the options, and it leaves no entry the write would see.
+            MyFeeds_Source_Rules::read_as_stored();
+            $refused = self::save_refusal($existing, $editing);
+            if ($refused !== '') {
+                $this->redirect_with_error($refused);
+                return;
+            }
             // The site's first source: a Rakuten fetch that began while it
             // had none would otherwise finish and bring in a second one.
             $first_source = MyFeeds_Source_Rules::current() === '';
@@ -2390,6 +2420,15 @@ class MyFeeds_Feed_Manager {
                 MyFeeds_DB_Manager::assign_stable_id($entry);
             }
 
+            // Asked again as stored, right before the write: Amazon's door
+            // in another tab may have chosen its API since this request
+            // loaded the options, and it leaves no entry the write would see.
+            MyFeeds_Source_Rules::read_as_stored();
+            $refused = self::save_refusal($existing, $editing);
+            if ($refused !== '') {
+                wp_send_json_error(array('message' => $refused));
+                return;
+            }
             // The site's first source: a Rakuten fetch that began while it
             // had none would otherwise finish and bring in a second one.
             $first_source = MyFeeds_Source_Rules::current() === '';
