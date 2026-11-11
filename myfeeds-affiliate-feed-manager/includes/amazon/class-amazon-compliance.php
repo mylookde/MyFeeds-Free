@@ -77,23 +77,4 @@ class MyFeeds_Amazon_Compliance {
     public static function is_valid_asin($asin) {
         return (bool) preg_match('/^[A-Z0-9]{10}$/', strtoupper((string) $asin));
     }
-
-    /**
-     * Split a mixed id list into Amazon ids and everything else so callers
-     * can route each group to the source that owns it.
-     */
-    public static function partition_ids(array $ids) {
-        $amazon = array();
-        $other  = array();
-
-        foreach ($ids as $id) {
-            if (self::is_amazon_id($id)) {
-                $amazon[] = $id;
-            } else {
-                $other[] = $id;
-            }
-        }
-
-        return array($amazon, $other);
-    }
 }

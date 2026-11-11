@@ -77,11 +77,6 @@ class MyFeeds_Amazon_Locales {
         return null;
     }
 
-    public static function currency($marketplace) {
-        $entry = self::get($marketplace);
-        return $entry ? $entry['currency'] : 'USD';
-    }
-
     public static function language($marketplace) {
         $entry = self::get($marketplace);
         return $entry ? $entry['language'] : 'en_US';

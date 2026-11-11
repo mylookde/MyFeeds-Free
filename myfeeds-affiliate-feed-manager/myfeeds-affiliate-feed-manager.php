@@ -466,15 +466,27 @@ function myfeeds_load_includes() {
         'class-picker-displays.php' => 'Picker Displays (recommendation card and comparison table)',
         // Amazon by link or ASIN: the site's partner tag and Amazon site, the
         // text card and the Look's Amazon point, linked straight to Amazon.
-        // Only the ASIN is kept; nothing is asked of Amazon. The door is
-        // last because it names the others.
+        // Only the ASIN is kept. Amazon's API, where it is the site's
+        // product source, adds Amazon's picture, price and catalogue search
+        // on the links' hooks, with a cache Amazon's licence keeps short.
+        // Each door is loaded after the classes it names.
         'amazon/class-amazon-locales.php' => 'Amazon Locales (the Amazon stores a link can go to)',
         'amazon/class-amazon-link-settings.php' => 'Amazon Link Settings (partner tag, Amazon site, visitors abroad, badge)',
         'amazon/class-amazon-compliance.php' => 'Amazon Compliance (the id of an Amazon product and its tagged /dp/ link)',
+        'amazon/class-amazon-api-locales.php' => 'Amazon API Locales (region, token endpoint and search categories per store)',
+        'amazon/class-amazon-credentials.php' => 'Amazon Credentials (connection store, sealed secret)',
+        'amazon/class-amazon-client.php' => 'Amazon Client (Creators API OAuth2 transport and rate control)',
+        'amazon/class-amazon-cache.php' => 'Amazon Cache (short-lived product table, emptied as Amazon\'s licence asks)',
+        'amazon/class-amazon-products.php' => 'Amazon Products (search, browse and id resolution)',
         'amazon/class-amazon-rest.php' => 'Amazon REST (the route that saves the partner tag)',
+        'amazon/class-amazon-api-rest.php' => 'Amazon API REST (connection, editor routes and the public live-price route)',
         'amazon/class-amazon-card.php' => 'Amazon Card (the text card by link or ASIN, kept out of the structured data)',
+        'amazon/class-amazon-stamp.php' => 'Amazon Stamp (the price stamp, the disclaimer and the live refresh)',
         'amazon/class-amazon-admin.php' => 'Amazon Admin (the Amazon window on the Feeds screen)',
+        'amazon/class-amazon-api-admin.php' => 'Amazon API Admin (credentials, test, state and request budget in the Amazon window)',
+        'amazon/class-amazon-look.php' => 'Amazon Look (what the Look block is told about Amazon, and Amazon\'s data for its points)',
         'amazon/class-amazon-modules.php' => 'Amazon Modules (Amazon by link or ASIN)',
+        'amazon/class-amazon-api.php' => 'Amazon API (asks MyFeeds_Source_Rules whether Amazon\'s API runs, and hangs it on the links\' hooks)',
         // Rakuten Advertising as the product source: a network that hands
         // out no feed link is fetched page by page into a snapshot file
         // in the upload folder, and from there on it is an ordinary feed.
@@ -684,9 +696,14 @@ class MyFeeds_Affiliate_Product_Picker {
 
             // Amazon by link or ASIN: the window on the Feeds screen, the
             // route that saves the partner tag, the card's styles and the
-            // Look's answer.
+            // Look's answer. Then Amazon's API on their hooks: it decides
+            // inside what it adds, by whether it is the product source,
+            // and always lets its cache expire.
             if (class_exists('MyFeeds_Amazon_Modules')) {
                 MyFeeds_Amazon_Modules::init();
+                if (class_exists('MyFeeds_Amazon_Api')) {
+                    MyFeeds_Amazon_Api::init();
+                }
             }
 
             // Rakuten Advertising: its feeds' rows in the table and the
@@ -892,6 +909,13 @@ class MyFeeds_Affiliate_Product_Picker {
         // plugin.
         if (class_exists('MyFeeds_Source_Modules')) {
             MyFeeds_Source_Modules::deactivate();
+        }
+
+        // A plugin that is off cannot refresh Amazon's data, and Amazon's
+        // licence does not allow keeping it unrefreshed. The credentials,
+        // the partner tags and the choice of source stay.
+        if (class_exists('MyFeeds_Amazon_Api')) {
+            MyFeeds_Amazon_Api::deactivate();
         }
 
         // See activate().

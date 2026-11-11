@@ -4,13 +4,15 @@
  *
  * A site chooses its product source: a feed it imports from a link or a
  * file, or the advertisers of a network's API, which together are the
- * same source. Amazon by link or ASIN is no product source; it is there
- * whatever the site chose.
+ * same source, or Amazon's API. Amazon by link or ASIN is no product
+ * source; it is there whatever the site chose.
  *
- * The answer is read from the feed list each time, so it cannot drift
- * from what the list holds: entries without a name or a URL are no
- * source, and neither are the sample products, which stay only until a
- * real source arrives.
+ * A feed or a network's API is read from the feed list each time, so the
+ * answer cannot drift from what the list holds: entries without a name or
+ * a URL are no source, and neither are the sample products, which stay
+ * only until a real source arrives. Amazon's API leaves no entry in the
+ * list; that it was chosen is an option of its own (AMAZON_CHOICE), and
+ * stored credentials are no choice.
  *
  * Every path that adds a source asks can_connect() first, and turns the
  * request down with refusal() otherwise. The way to another source is
@@ -25,9 +27,19 @@ if (!defined('ABSPATH')) {
 class MyFeeds_Source_Rules {
 
     /**
-     * The site's product source: '' (none yet), 'feed', or 'api:<network>'
-     * ('api:rakuten'). A feed this plugin imports decides over entries a
-     * network's API wrote.
+     * Amazon's API as the product source, in words: 'chosen' (it is),
+     * 'set_aside' (it lost when the site came back from the other MyFeeds
+     * plugin; the Feeds screen offers it again), 'not_chosen'. Missing
+     * until this plugin first decided.
+     */
+    const AMAZON_CHOICE = 'myfeeds_amazon_api_source';
+
+    /**
+     * The site's product source: '' (none yet), 'feed', 'api:<network>'
+     * ('api:rakuten') or 'amazon_api'. A feed this plugin imports decides
+     * over entries a network's API wrote, and the list over Amazon's API.
+     * Amazon's API is the source because it was chosen, set up or not: a
+     * missing partner tag makes it a source that is not set up, not none.
      *
      * @return string
      */
@@ -57,6 +69,9 @@ class MyFeeds_Source_Rules {
                 $api = 'api:' . ($network !== '' ? $network : 'other');
             }
         }
+        if ($api === '' && get_option(self::AMAZON_CHOICE) === 'chosen') {
+            return 'amazon_api';
+        }
         return $api;
     }
 
@@ -76,6 +91,9 @@ class MyFeeds_Source_Rules {
         }
         if ($current === 'api:rakuten') {
             return __('Rakuten', 'myfeeds-affiliate-feed-manager');
+        }
+        if ($current === 'amazon_api') {
+            return __('Amazon\'s API', 'myfeeds-affiliate-feed-manager');
         }
         return __('API', 'myfeeds-affiliate-feed-manager');
     }
@@ -99,7 +117,9 @@ class MyFeeds_Source_Rules {
 
     /**
      * Does a source of this kind run here: fetched, refreshed, searched
-     * from the editor? Only the one the site has.
+     * from the editor? Only the one the site has. Amazon's API also needs
+     * to be set up: without the partner tag of its Amazon site it has
+     * nothing to ask Amazon with.
      *
      * @param string $kind    'feed', 'api' or 'amazon_api'.
      * @param string $network For 'api': the network, 'rakuten'.
@@ -110,7 +130,68 @@ class MyFeeds_Source_Rules {
         if ($kind === 'api') {
             return $network !== '' && $current === 'api:' . sanitize_key((string) $network);
         }
+        if ($kind === 'amazon_api') {
+            return $current === 'amazon_api' && class_exists('MyFeeds_Amazon_Credentials') && MyFeeds_Amazon_Credentials::is_configured();
+        }
         return $current !== '' && $current === (string) $kind;
+    }
+
+    /**
+     * May the window of a source offer to remove its stored connection?
+     * Not while the site's products come from it: the way off the source
+     * is "Change source", which says first what leaves the posts. Stored
+     * details the site does not use may go.
+     *
+     * @param string $kind 'api' or 'amazon_api'.
+     * @return bool
+     */
+    public static function can_disconnect($kind) {
+        $current = self::current();
+        if ($kind === 'api') {
+            return strpos($current, 'api:') !== 0;
+        }
+        return $current !== (string) $kind;
+    }
+
+    /**
+     * Amazon's API becomes the site's product source. Written before the
+     * page renders it, so it is read with the options every request loads.
+     * The sample products go, as with every real source, and no fetch of a
+     * network's API from before can finish now and add a second source.
+     *
+     * @param string $kind 'amazon_api'.
+     */
+    public static function choose($kind) {
+        if ($kind !== 'amazon_api') {
+            return;
+        }
+        update_option(self::AMAZON_CHOICE, 'chosen', true);
+        if (class_exists('MyFeeds_Demo_Content')) {
+            MyFeeds_Demo_Content::remove_if_active();
+        }
+        if (class_exists('MyFeeds_Source_Fetcher')) {
+            MyFeeds_Source_Fetcher::stop_all();
+        }
+    }
+
+    /**
+     * Amazon's API stops being the site's product source, or was not
+     * chosen: 'set_aside' when another source won as the site came back
+     * from the other MyFeeds plugin, 'not_chosen' otherwise. Amazon's data
+     * goes with it - this plugin keeps none it does not use, as Amazon's
+     * terms ask. The credentials and the partner tags stay.
+     *
+     * @param string $kind 'amazon_api'.
+     * @param string $why  'set_aside' or 'not_chosen'.
+     */
+    public static function release($kind, $why) {
+        if ($kind !== 'amazon_api') {
+            return;
+        }
+        update_option(self::AMAZON_CHOICE, $why === 'set_aside' ? 'set_aside' : 'not_chosen', true);
+        if (class_exists('MyFeeds_Amazon_Cache')) {
+            MyFeeds_Amazon_Cache::purge_all();
+        }
     }
 
     /**
