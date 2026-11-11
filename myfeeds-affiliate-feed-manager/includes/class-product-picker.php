@@ -85,6 +85,10 @@ class MyFeeds_Product_Picker {
         // Every price the editor shows goes through the site's price format,
         // the same rule the card on the page uses.
         $bundle_deps = ['wp-blocks', 'wp-components', 'wp-element', 'wp-i18n', myfeeds_price_format_script()];
+        // Rakuten's part of the picker, registered where Rakuten runs.
+        $source_handles = class_exists('MyFeeds_Source_Modules')
+            ? MyFeeds_Source_Modules::editor_handles()
+            : array('scripts' => array(), 'styles' => array());
 
         // The sidebar: the display (grid, carousel, recommendation card,
         // comparison table) and the texts of the last two. A dependency of
@@ -102,6 +106,8 @@ class MyFeeds_Product_Picker {
                 true
             );
             $bundle_deps[] = 'myfeeds-picker-inspector';
+            // Rakuten's line under the picker's search.
+            $bundle_deps = array_merge($bundle_deps, $source_handles['scripts']);
         }
 
         $script_registered = wp_register_script(
@@ -156,7 +162,7 @@ class MyFeeds_Product_Picker {
         $editor_style_registered = wp_register_style(
             'myfeeds-product-picker-editor',
             MYFEEDS_PLUGIN_URL . 'assets/editor.css',
-            ['myfeeds-amazon-picker', 'myfeeds-pick-panel'],
+            array_merge(['myfeeds-amazon-picker', 'myfeeds-pick-panel'], $source_handles['styles']),
             $editor_css_ver
         );
         
@@ -213,6 +219,9 @@ class MyFeeds_Product_Picker {
             // The Amazon tab: products by link or ASIN with the site's
             // partner tag.
             'amazon' => class_exists('MyFeeds_Amazon_Modules') ? MyFeeds_Amazon_Modules::picker_config() : array('allowed' => false),
+            // Rakuten as the source: a search that finds little in a
+            // feed's snapshot may pull the same words from Rakuten.
+            'sources' => class_exists('MyFeeds_Source_Modules') ? MyFeeds_Source_Modules::picker_config() : array('allowed' => false),
         ];
         if (wp_script_is('myfeeds-picker-inspector', 'registered')) {
             wp_localize_script('myfeeds-picker-inspector', 'myfeedsData', $localize_data);

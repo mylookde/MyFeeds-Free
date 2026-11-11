@@ -437,6 +437,7 @@ function myfeeds_load_includes() {
         'myfeeds-price-format.php' => 'Price format (one rule for every price on the page and in the editor, in the site\'s locale: the cards wrote "150,00 £" on English sites)',
         'myfeeds-content-sources.php' => 'Content sources (where a product can be placed: every public post type, synced patterns, block widgets and block-theme templates - not only posts and pages, which is all the nightly Quick Sync used to read)',
         'myfeeds-http.php' => 'Feed fetch guard (the one door every feed download goes through)',
+        'class-secret-store.php' => 'Secret store (seals a credential the network shows only once)',
         'myfeeds-market-currency.php' => 'Market currency (the currency a feed does not say: read from deliverytime_gb and /en-gb/ when no column names it)',
         'myfeeds-saved-link.php' => 'Saved-link repair (a picker block whose JSON lost its backslashes stores links that name no merchant)',
         'class-maintenance.php' => 'Housekeeping (removes options and transients older versions left behind)',
@@ -474,6 +475,23 @@ function myfeeds_load_includes() {
         'amazon/class-amazon-card.php' => 'Amazon Card (the text card by link or ASIN, kept out of the structured data)',
         'amazon/class-amazon-admin.php' => 'Amazon Admin (the Amazon window on the Feeds screen)',
         'amazon/class-amazon-modules.php' => 'Amazon Modules (Amazon by link or ASIN)',
+        // Rakuten Advertising as the product source: a network that hands
+        // out no feed link is fetched page by page into a snapshot file
+        // in the upload folder, and from there on it is an ordinary feed.
+        // Nothing here hooks into WordPress by itself; the door is last
+        // because it names the others, and it asks MyFeeds_Source_Rules
+        // what runs.
+        'sources/class-rakuten-credentials.php' => 'Rakuten Credentials (client id, sealed secret, SID, connection state)',
+        'sources/class-rakuten-rows.php' => 'Rakuten Rows (Product Search XML into snapshot rows with a fixed column order)',
+        'sources/class-rakuten-client.php' => 'Rakuten Client (OAuth2 token, per-minute gate, Product Search and Partnerships transport)',
+        'sources/class-rakuten-source.php' => 'Rakuten Source (scope to query, the query plan that gets past the 5,000 cap)',
+        'sources/class-source-snapshot.php' => 'Source Snapshot (the JSON Lines file behind an API feed: part, atomic commit, carry-over)',
+        'sources/class-source-feeds.php' => 'Source Feeds (the feed entry of an API source and its row in the feeds table)',
+        'sources/class-source-fetcher.php' => 'Source Fetcher (budgeted Action Scheduler steps, nightly refresh, import trigger)',
+        'sources/class-source-rest.php' => 'Source REST (connection, advertiser list, live count, feed creation)',
+        'sources/class-source-admin.php' => 'Source Admin (the API source button and dialog on the feeds screen)',
+        'sources/class-source-look.php' => 'Source Look (a shop address the Look finds in no feed: is it a Rakuten feed\'s shop, and fetch it)',
+        'sources/class-source-modules.php' => 'Source Modules (the door, asked of MyFeeds_Source_Rules, and the sub-module loader)',
         'class-look-block.php' => 'Look Block (own photo with numbered points linking to the products in it)',
         'class-product-picker.php' => 'Product Picker Class',
         'class-product-resolver.php' => 'Product Resolver (Multi-Source Fallback)',
@@ -670,6 +688,13 @@ class MyFeeds_Affiliate_Product_Picker {
             if (class_exists('MyFeeds_Amazon_Modules')) {
                 MyFeeds_Amazon_Modules::init();
             }
+
+            // Rakuten Advertising: its feeds' rows in the table and the
+            // Look's question always; the connection window, its routes
+            // and the fetcher where Rakuten is the source or may become it.
+            if (class_exists('MyFeeds_Source_Modules')) {
+                MyFeeds_Source_Modules::init();
+            }
             
             // Initialize Batch Importer
             if ($this->batch_importer && method_exists($this->batch_importer, 'init')) {
@@ -861,6 +886,12 @@ class MyFeeds_Affiliate_Product_Picker {
         
         if (class_exists('MyFeeds_Maintenance')) {
             MyFeeds_Maintenance::deactivate();
+        }
+
+        // Rakuten's nightly refresh and any fetch under way stop with the
+        // plugin.
+        if (class_exists('MyFeeds_Source_Modules')) {
+            MyFeeds_Source_Modules::deactivate();
         }
 
         // See activate().

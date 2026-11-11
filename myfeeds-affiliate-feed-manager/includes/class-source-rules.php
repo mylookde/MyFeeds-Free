@@ -14,7 +14,8 @@
  *
  * Every path that adds a source asks can_connect() first, and turns the
  * request down with refusal() otherwise. The way to another source is
- * "Change source" on the Feeds screen.
+ * "Change source" on the Feeds screen. What fetches or refreshes a source
+ * asks runs(): only the site's own source does.
  */
 
 if (!defined('ABSPATH')) {
@@ -94,6 +95,22 @@ class MyFeeds_Source_Rules {
             return true;
         }
         return $kind === 'api' && $network !== '' && $current === 'api:' . sanitize_key((string) $network);
+    }
+
+    /**
+     * Does a source of this kind run here: fetched, refreshed, searched
+     * from the editor? Only the one the site has.
+     *
+     * @param string $kind    'feed', 'api' or 'amazon_api'.
+     * @param string $network For 'api': the network, 'rakuten'.
+     * @return bool
+     */
+    public static function runs($kind, $network = '') {
+        $current = self::current();
+        if ($kind === 'api') {
+            return $network !== '' && $current === 'api:' . sanitize_key((string) $network);
+        }
+        return $current !== '' && $current === (string) $kind;
     }
 
     /**

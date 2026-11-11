@@ -125,6 +125,12 @@ class MyFeeds_Feed_Manager {
      * which would turn the rows archived here into unavailable ones. Both
      * are tried again on the next request.
      *
+     * A Rakuten fetch the other plugin left running - a new advertiser
+     * still pending, a refresh - is stopped on activation and whenever
+     * something was set aside, unless Rakuten is the source that stayed:
+     * the nightly pass would otherwise finish it with the stored
+     * connection and make Rakuten the source without a click.
+     *
      * @param bool $at_activation The plugin is being activated: the moment
      *                            a site comes back from the other MyFeeds
      *                            plugin, which may have changed the list and
@@ -132,6 +138,21 @@ class MyFeeds_Feed_Manager {
      * @return int How many entries were set aside.
      */
     public static function keep_one_source($at_activation = false) {
+        $moved = self::keep_one_source_now($at_activation);
+        if (($at_activation || $moved > 0) && !MyFeeds_Source_Rules::runs('api', 'rakuten')
+            && class_exists('MyFeeds_Source_Fetcher')) {
+            MyFeeds_Source_Fetcher::stop_all();
+        }
+        return $moved;
+    }
+
+    /**
+     * keep_one_source() without what it does about Rakuten's fetches.
+     *
+     * @param bool $at_activation See keep_one_source().
+     * @return int How many entries were set aside.
+     */
+    private static function keep_one_source_now($at_activation) {
         if (!self::heal_set_aside_rows($at_activation)) {
             return 0;
         }
@@ -1769,7 +1790,13 @@ class MyFeeds_Feed_Manager {
                 MyFeeds_DB_Manager::assign_stable_id($entry);
             }
 
+            // The site's first source: a Rakuten fetch that began while it
+            // had none would otherwise finish and bring in a second one.
+            $first_source = MyFeeds_Source_Rules::current() === '';
             $this->save_feed($entry);
+            if ($first_source && class_exists('MyFeeds_Source_Fetcher')) {
+                MyFeeds_Source_Fetcher::stop_all();
+            }
 
             $test_result = $this->quick_test_feed_url($url, $format_hint);
 
@@ -2085,7 +2112,13 @@ class MyFeeds_Feed_Manager {
                 MyFeeds_DB_Manager::assign_stable_id($entry);
             }
 
+            // The site's first source: a Rakuten fetch that began while it
+            // had none would otherwise finish and bring in a second one.
+            $first_source = MyFeeds_Source_Rules::current() === '';
             $this->save_feed($entry);
+            if ($first_source && class_exists('MyFeeds_Source_Fetcher')) {
+                MyFeeds_Source_Fetcher::stop_all();
+            }
 
             // Now attempt quick test (partial download, fast)
             $test_result = $this->quick_test_feed_url($url, $format_hint);

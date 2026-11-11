@@ -151,11 +151,11 @@ Yes. MyFeeds needs no cache plugin and works the same without one. When a site h
 
 = Does the plugin make any external requests? =
 
-Yes. See **External Services** below. In short: your site downloads your product feed from the address you saved, measures the file size of a few product pictures, and reads a Look photo from a web address when you paste one in the editor. The pictures themselves stay with the merchant, and your readers' browsers load them from there.
+Yes. See **External Services** below. In short: your site downloads your product feed from the address you saved (or, with Rakuten Advertising as your product source, asks Rakuten's API for your advertisers' products), measures the file size of a few product pictures, and reads a Look photo from a web address when you paste one in the editor. The pictures themselves stay with the merchant, and your readers' browsers load them from there.
 
 == External Services ==
 
-MyFeeds keeps your products in your own WordPress database. It contacts other servers in three cases: your site fetches the product feed you configured, it measures the file size of a few product pictures, and it reads a photo you give a Look block by its web address. The product pictures themselves are not copied to your site, so your readers' browsers load them from the merchant. Each case is described below.
+MyFeeds keeps your products in your own WordPress database. It contacts other servers in four cases: your site fetches the product feed you configured, or asks Rakuten Advertising for your advertisers' products when Rakuten is your product source; it measures the file size of a few product pictures; and it reads a photo you give a Look block by its web address. The product pictures themselves are not copied to your site, so your readers' browsers load them from the merchant. Each case is described below.
 
 = Configured product feed URL (your affiliate network) =
 
@@ -166,6 +166,16 @@ To import products, your site downloads the feed file from the URL you save in t
 * **Where it is sent:** to the host in the feed URL you saved. If that address redirects, the plugin follows the redirect. The plugin does not pass the URL on to anyone else.
 
 The feed is provided by your affiliate network, so that network's terms of service and privacy policy apply to the download.
+
+= Rakuten Advertising (when it is your product source) =
+
+Rakuten Advertising hands out no feed link. When you connect it as your product source, your site asks Rakuten's API for the products of the advertisers you choose and keeps them in a file in your upload folder, from which they are imported like any feed.
+
+* **What is sent:** your Rakuten API details (client ID, secret and account SID) to get a sign-in token, then advertiser IDs and the categories or words of your Rakuten feeds. No visitor data is sent.
+* **When it is sent:** when you connect and test, list your advertisers, set up or edit a Rakuten feed, every night at 00:30 to refresh your Rakuten feeds, when you search in the product picker with "search Rakuten too" switched on, and when you paste a shop's address into a Look point and one of your Rakuten advertisers sells it.
+* **Where it is sent:** `api.linksynergy.com` (`/token`, `/v1/partnerships`, `/productsearch/1.0`).
+
+The product pictures load from the merchant, as with any feed. Rakuten Advertising's Publisher Membership Agreement (https://rakutenadvertising.com/legal-notices/publisher-membership-agreement/) and Privacy Policy (https://rakutenadvertising.com/privacy-policy/) apply; its API is documented on the Developer Portal (https://developers.rakutenadvertising.com/).
 
 = Product pictures (the merchant's image server) =
 

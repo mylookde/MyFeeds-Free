@@ -1,0 +1,166 @@
+/**
+ * API source dialog on the feeds screen.
+ *
+ * Lifted from assets/admin.css:287, the rule that actually paints Add
+ * Feed, with the purple swapped for Rakuten's red. Not core's
+ * .button-primary: this plugin overrides that with its own gradient,
+ * 6px radius, no border, and a hover that lifts the button and widens
+ * its shadow while leaving the colour alone. Same selector shape too,
+ * IDs, because that is what outranks core here.
+ */
+
+#myfeeds-add-source-btn,
+#mf-src-test,
+#mf-src-create {
+    background: linear-gradient(135deg, #D62828 0%, #A80000 100%) !important;
+    text-align: center;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 4px rgba(191, 0, 0, 0.2) !important;
+    text-shadow: none !important;
+    transition: transform 0.15s, box-shadow 0.15s !important;
+}
+
+#myfeeds-add-source-btn:hover,
+#mf-src-test:hover,
+#mf-src-create:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(191, 0, 0, 0.35) !important;
+}
+
+#myfeeds-add-source-btn:disabled,
+#mf-src-test:disabled,
+#mf-src-create:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.myfeeds-source-modal-content { max-width: 820px; }
+
+.myfeeds-src-help p { margin: 0 0 8px; }
+.myfeeds-src-help p:last-child { margin-bottom: 0; }
+
+.myfeeds-src-status {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 14px;
+    margin: 0 0 14px;
+    border-radius: 6px;
+    border-left: 4px solid #8c8f94;
+    background: #f6f7f7;
+}
+.myfeeds-src-status.is-ok    { border-left-color: #00a32a; background: #edfaef; }
+.myfeeds-src-status.is-info  { border-left-color: #72aee6; background: #f0f6fc; }
+.myfeeds-src-status.is-warn  { border-left-color: #dba617; background: #fcf9e8; }
+.myfeeds-src-status.is-error { border-left-color: #d63638; background: #fcf0f1; }
+.myfeeds-src-status span { color: #50575e; font-size: 13px; }
+
+.myfeeds-src-fields th { width: 140px; padding-top: 12px; padding-bottom: 12px; }
+.myfeeds-src-fields td { padding-top: 12px; padding-bottom: 12px; }
+
+.myfeeds-src-secret { display: inline-flex; align-items: center; gap: 6px; }
+
+.myfeeds-src-eye {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    background: #fff;
+    color: #50575e;
+    cursor: pointer;
+}
+.myfeeds-src-eye:hover { color: #1d2327; border-color: #1d2327; }
+.myfeeds-src-eye .eye-slash { display: none; }
+.myfeeds-src-eye.is-on .eye-slash { display: block; }
+
+.myfeeds-src-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 6px 0 0;
+}
+
+.myfeeds-src-feedback { font-size: 13px; color: #50575e; }
+.myfeeds-src-feedback.is-ok { color: #00a32a; }
+.myfeeds-src-feedback.is-error { color: #d63638; }
+
+.myfeeds-src-feed {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid #dcdcde;
+}
+.myfeeds-src-feed h4 { margin: 0 0 4px; font-size: 14px; }
+
+.myfeeds-src-list {
+    display: block;
+    width: 100%;
+    max-width: 480px;
+    margin-top: 8px;
+    font-size: 13px;
+}
+.myfeeds-src-list option { padding: 4px 6px; }
+
+#mf-src-terms { margin-top: 8px; }
+
+.myfeeds-src-count {
+    margin: 4px 0 12px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    background: #f6f7f7;
+    font-size: 13px;
+    color: #50575e;
+    min-height: 18px;
+}
+.myfeeds-src-count:empty { display: none; }
+.myfeeds-src-count.is-ok { background: #edfaef; color: #1d2327; }
+.myfeeds-src-count.is-warn { background: #fcf9e8; color: #1d2327; }
+.myfeeds-src-count.is-error { background: #fcf0f1; color: #d63638; }
+
+.myfeeds-src-editing {
+    margin: 0 0 8px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: #f0f6fc;
+    border-left: 4px solid #72aee6;
+    font-size: 13px;
+}
+
+.myfeeds-source-progress {
+    margin: 0 0 16px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-left: 4px solid #00a32a;
+}
+.myfeeds-source-progress ul { margin: 6px 0 0; }
+.myfeeds-source-progress li { margin: 4px 0; font-size: 13px; color: #1d2327; }
+.myfeeds-source-progress li.is-error { color: #d63638; }
+.myfeeds-source-progress li.is-ok { color: #00a32a; }
+
+.myfeeds-feed-api-state.is-error { color: #d63638; }
+.myfeeds-feed-api-state.is-warn { color: #996800; }
+.myfeeds-feed-api-state.is-info { color: #2271b1; }
+
+.myfeeds-src-cats { margin-top: 8px; }
+.myfeeds-src-cat-list {
+    max-height: 220px;
+    overflow: auto;
+    margin-top: 6px;
+    padding: 6px 8px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    background: #fff;
+    max-width: 480px;
+}
+.myfeeds-src-cat-list label { display: block; padding: 3px 0; font-size: 13px; }
+.myfeeds-src-cat-list label span { color: #787c82; }
+.myfeeds-src-cat-list .is-empty { color: #787c82; font-size: 13px; }
