@@ -13,6 +13,11 @@
  * The page loads again afterwards. What a source offers on the screen is
  * wired when the page loads, so swapping parts of it would leave the
  * screen of the source that was there before.
+ *
+ * A network's connection details stay stored when its source goes. The
+ * screen names them while no source of theirs is in use, with the one
+ * way to remove them: without that line there is no window left to do it
+ * in.
  */
 
 if (!defined('ABSPATH')) {
@@ -24,6 +29,7 @@ class MyFeeds_Source_Switch {
     public static function init() {
         add_action('wp_ajax_myfeeds_source_preview', array(__CLASS__, 'ajax_preview'));
         add_action('wp_ajax_myfeeds_source_change', array(__CLASS__, 'ajax_change'));
+        add_action('wp_ajax_myfeeds_forget_connection', array(__CLASS__, 'ajax_forget_connection'));
         // Before the sample products' own handler (priority 10): it reads the
         // feed list only, and the site's source is more than the list.
         add_action('admin_post_myfeeds_load_demo', array(__CLASS__, 'refuse_samples'), 1);
@@ -238,6 +244,9 @@ class MyFeeds_Source_Switch {
             } else {
                 $lines[] = __('None of its products is placed in a published post. Its products are deleted, including any in drafts and scheduled posts. This cannot be undone.', 'myfeeds-affiliate-feed-manager');
             }
+            if ($current === 'api:rakuten' && self::connection_stored('rakuten')) {
+                $lines[] = __('Your Rakuten connection details stay stored, unused, until you remove them.', 'myfeeds-affiliate-feed-manager');
+            }
         }
 
         $html = '';
@@ -265,16 +274,26 @@ class MyFeeds_Source_Switch {
      * found by stable_id each time, because every delete shifts the keys
      * after it.
      *
+     * Rakuten's fetches end first, before anything is deleted: a fetch
+     * that finished in between would write its advertiser back into the
+     * list, or bring in a source beside the one that comes back. One that
+     * is still under way is waited for, as an import is.
+     *
      * @param array[] $back The entries that come back, or none.
      * @return array{message:string,reload:bool,redirect:string}|WP_Error
      */
     public static function change(array $back = array()) {
-        if (MyFeeds_Feed_Manager::import_running()) {
+        if (MyFeeds_Feed_Manager::import_running()
+            || (class_exists('MyFeeds_Source_Fetcher') && MyFeeds_Source_Fetcher::is_busy())) {
             return new WP_Error('myfeeds_import_running', __('An import is running. Change the source when it has finished.', 'myfeeds-affiliate-feed-manager'));
         }
         $old = self::source_entries();
         if (empty($old) && empty($back)) {
             return new WP_Error('myfeeds_no_source', __('This site has no product source to remove.', 'myfeeds-affiliate-feed-manager'));
+        }
+
+        if (class_exists('MyFeeds_Source_Fetcher')) {
+            MyFeeds_Source_Fetcher::stop_all();
         }
 
         if (!empty($old)) {
@@ -318,10 +337,12 @@ class MyFeeds_Source_Switch {
      * the option - in that order, so a request that ends in between leaves
      * an entry in both, never in neither. The samples make room (rule 21),
      * the rows archived when the entries were set aside are live again,
-     * and a feed is imported for what changed meanwhile.
+     * and each entry is brought up to date for what changed meanwhile: a
+     * feed is imported, a Rakuten advertiser fetched again from its
+     * snapshot on, where the connection details are there to fetch with.
      *
      * @param array[] $back
-     * @return bool Whether an import was scheduled.
+     * @return bool Whether an import or a fetch was started.
      */
     private static function bring_back(array $back) {
         if (class_exists('MyFeeds_Demo_Content')) {
@@ -358,6 +379,14 @@ class MyFeeds_Source_Switch {
 
         $scheduled = false;
         foreach ($returned as $entry) {
+            if (self::network_of($entry) === 'rakuten') {
+                if (class_exists('MyFeeds_Source_Fetcher') && class_exists('MyFeeds_Rakuten_Credentials')
+                    && MyFeeds_Rakuten_Credentials::is_configured()
+                    && !is_wp_error(MyFeeds_Source_Fetcher::refresh_feed((int) ($entry['stable_id'] ?? 0)))) {
+                    $scheduled = true;
+                }
+                continue;
+            }
             if (self::network_of($entry) !== '' || !class_exists('MyFeeds_Batch_Importer')) {
                 continue;
             }
@@ -404,6 +433,95 @@ class MyFeeds_Source_Switch {
             return;
         }
         wp_send_json_success($done);
+    }
+
+    /**
+     * Networks whose connection details are stored here and not in use:
+     * no source of theirs is the site's product source. Rakuten's are
+     * the only ones this screen can remove.
+     *
+     * @return array<string,string> network => its name
+     */
+    private static function unused_connections() {
+        $out = array();
+        if (MyFeeds_Source_Rules::current() !== 'api:rakuten' && self::connection_stored('rakuten')) {
+            $out['rakuten'] = __('Rakuten Advertising', 'myfeeds-affiliate-feed-manager');
+        }
+        return $out;
+    }
+
+    /**
+     * Are any of this network's connection details stored? Asked of the
+     * option, not of is_configured(): a client id alone is stored too.
+     *
+     * @param string $network
+     * @return bool
+     */
+    private static function connection_stored($network) {
+        if ($network !== 'rakuten' || !class_exists('MyFeeds_Rakuten_Credentials')) {
+            return false;
+        }
+        $stored = get_option(MyFeeds_Rakuten_Credentials::OPTION_CONNECTION, array());
+        foreach (is_array($stored) ? $stored : array() as $value) {
+            if (is_string($value) && trim($value) !== '') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The line under the source's heading, one per network with details
+     * stored and not in use, and its button.
+     */
+    public static function render_unused_connections() {
+        foreach (self::unused_connections() as $network => $name) {
+            ?>
+            <p class="description myfeeds-unused-connection" data-testid="unused-connection-<?php echo esc_attr($network); ?>">
+                <?php
+                /* translators: %s: the network, "Rakuten Advertising" */
+                echo esc_html(sprintf(__('Connection details stored on this site and not in use: %s.', 'myfeeds-affiliate-feed-manager'), $name));
+                ?>
+                <button type="button" class="button-link myfeeds-forget-connection"
+                    data-connection="<?php echo esc_attr($network); ?>"
+                    data-confirm="<?php esc_attr_e('Remove the stored connection details? You would have to enter them again to connect.', 'myfeeds-affiliate-feed-manager'); ?>">
+                    <?php esc_html_e('Remove them', 'myfeeds-affiliate-feed-manager'); ?>
+                </button>
+            </p>
+            <?php
+        }
+    }
+
+    /**
+     * "Remove them": the connection details of a network that is not the
+     * site's product source are deleted. Nothing of that network's can be
+     * fetched without them, so a fetch still under way ends with them.
+     */
+    public static function ajax_forget_connection() {
+        check_ajax_referer('myfeeds_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Permission denied', 'myfeeds-affiliate-feed-manager')), 403);
+            return;
+        }
+        $network = isset($_POST['connection']) ? sanitize_text_field(wp_unslash($_POST['connection'])) : '';
+        if ($network !== 'rakuten' || !class_exists('MyFeeds_Rakuten_Credentials')) {
+            wp_send_json_error(array('message' => __('There are no such connection details on this site.', 'myfeeds-affiliate-feed-manager')), 400);
+            return;
+        }
+        if (MyFeeds_Source_Rules::current() === 'api:rakuten') {
+            wp_send_json_error(array('message' => __('These connection details are in use by this site\'s product source. Change the source first.', 'myfeeds-affiliate-feed-manager')));
+            return;
+        }
+        if (class_exists('MyFeeds_Source_Fetcher')) {
+            MyFeeds_Source_Fetcher::stop_all();
+        }
+        MyFeeds_Rakuten_Credentials::disconnect();
+        $message = __('The stored connection details were removed.', 'myfeeds-affiliate-feed-manager');
+        wp_send_json_success(array(
+            'message'  => $message,
+            'reload'   => true,
+            'redirect' => add_query_arg('myfeeds_success', rawurlencode($message), admin_url('admin.php?page=myfeeds-feeds')),
+        ));
     }
 
     /**

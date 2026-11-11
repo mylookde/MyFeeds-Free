@@ -676,6 +676,7 @@
             var $form = $('#myfeeds-feed-form');
             var $submitBtn = $('#myfeeds-feed-submit');
             var $feedKey = $('#myfeeds-feed-key');
+            var $feedSid = $('#myfeeds-feed-sid');
             var ajaxUrl = myfeedsAdmin.ajaxUrl;
             var nonce = myfeedsAdmin.nonce;
             var isSaving = false;
@@ -699,6 +700,7 @@
                 $title.text(i18n.addNewFeed);
                 $submitBtn.val(i18n.createFeed);
                 $feedKey.val('');
+                $feedSid.val('');
                 $('#feed_name').val('');
                 $('#feed_url').val('');
                 $('#feed_format_hint').val('');
@@ -725,6 +727,7 @@
                 $title.text(i18n.editFeed + ' ' + name);
                 $submitBtn.val(i18n.saveChanges);
                 $feedKey.val(key);
+                $feedSid.val($btn.data('feed-sid'));
                 $('#feed_name').val(name);
                 $('#feed_url').val(url);
                 $('#feed_format_hint').val(formatHint);
@@ -894,6 +897,7 @@
                             // If import was scheduled for a NEW feed, insert row without page reload
                             if (response.data.import_scheduled && response.data.action === 'created') {
                                 var feedKey = response.data.feed_key;
+                                var feedSid = response.data.feed_sid || 0;
                                 var feedName = $('#feed_name').val();
                                 var feedUrl = $('#feed_url').val();
                                 var feedHost = '';
@@ -912,9 +916,9 @@
                                     '<td class="myfeeds-feed-product-count"><strong>0</strong></td>' +
                                     '<td><span class="myfeeds-confidence-unknown">Analyzing...</span></td>' +
                                     '<td class="myfeeds-action-buttons">' +
-                                        '<button type="button" class="button button-small myfeeds-edit-feed-btn" data-feed-key="' + feedKey + '" data-feed-name="' + feedName + '" data-feed-url="' + feedUrl + '" disabled>Edit</button> ' +
-                                        '<button type="button" class="button button-small myfeeds-reimport-btn" data-feed-key="' + feedKey + '" data-feed-name="' + feedName + '" disabled title="Import already running">Importing...</button> ' +
-                                        '<button type="button" class="button button-small button-link-delete myfeeds-delete-feed-btn" data-feed-key="' + feedKey + '" data-feed-name="' + feedName + '" data-product-count="0" disabled>Delete</button>' +
+                                        '<button type="button" class="button button-small myfeeds-edit-feed-btn" data-feed-key="' + feedKey + '" data-feed-sid="' + feedSid + '" data-feed-name="' + feedName + '" data-feed-url="' + feedUrl + '" disabled>Edit</button> ' +
+                                        '<button type="button" class="button button-small myfeeds-reimport-btn" data-feed-key="' + feedKey + '" data-feed-sid="' + feedSid + '" data-feed-name="' + feedName + '" disabled title="Import already running">Importing...</button> ' +
+                                        '<button type="button" class="button button-small button-link-delete myfeeds-delete-feed-btn" data-feed-key="' + feedKey + '" data-feed-sid="' + feedSid + '" data-feed-name="' + feedName + '" data-product-count="0" disabled>Delete</button>' +
                                     '</td></tr>';
                                 
                                 // With no feed configured there is no table at
@@ -1299,7 +1303,13 @@
                 if (!confirm(msg)) return;
                 
                 $btn.prop('disabled', true).text('Deleting...');
-                
+                // One delete at a time: until the table comes back, every
+                // other row stands for the list before this delete, and two
+                // deletes at once race each other for the stored list.
+                var $locked = $('.myfeeds-feeds-table .myfeeds-action-buttons .button').filter(function() {
+                    return !this.disabled;
+                }).prop('disabled', true);
+
                 $.post(ajaxUrl, {
                     action: 'myfeeds_delete_feed',
                     nonce: nonce,
@@ -1330,10 +1340,12 @@
                     } else {
                         alert(response.data ? response.data.message : 'Delete failed');
                         $btn.prop('disabled', false).text('Delete');
+                        $locked.prop('disabled', false);
                     }
                 }).fail(function() {
                     alert('Server error. Please try again.');
                     $btn.prop('disabled', false).text('Delete');
+                    $locked.prop('disabled', false);
                 });
             });
             

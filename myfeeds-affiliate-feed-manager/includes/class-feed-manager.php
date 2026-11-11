@@ -30,18 +30,6 @@ class MyFeeds_Feed_Manager {
     }
 
     /**
-     * Return the configured feed entry, or null if none exists.
-     */
-    public function get_feed() {
-        $feeds = get_option(self::OPTION_KEY, array());
-        if (!is_array($feeds) || empty($feeds)) {
-            return null;
-        }
-        $first = reset($feeds);
-        return is_array($first) ? $first : null;
-    }
-
-    /**
      * Persist the feed entry as the list.
      *
      * Never over entries a network's API wrote: the list would keep the
@@ -854,7 +842,8 @@ class MyFeeds_Feed_Manager {
                     <form id="myfeeds-feed-form" method="post" enctype="multipart/form-data">
                         <?php wp_nonce_field('myfeeds_save_feed'); ?>
                         <input type="hidden" name="feed_key" id="myfeeds-feed-key" value="">
-                        
+                        <input type="hidden" name="feed_sid" id="myfeeds-feed-sid" value="">
+
                         <table class="form-table">
                             <tr>
                                 <th scope="row">
@@ -1301,6 +1290,7 @@ class MyFeeds_Feed_Manager {
                     </button>
                 <?php endif; ?>
             </div>
+            <?php MyFeeds_Source_Switch::render_unused_connections(); ?>
             <?php if ($source === ''): ?>
                 <?php $this->render_doors(); ?>
             <?php endif; ?>
@@ -1468,6 +1458,7 @@ class MyFeeds_Feed_Manager {
                                 <?php else: ?>
                                 <button type="button" class="button button-small myfeeds-edit-feed-btn"
                                     data-feed-key="<?php echo esc_attr($key); ?>"
+                                    data-feed-sid="<?php echo esc_attr((int) ($feed['stable_id'] ?? 0)); ?>"
                                     data-feed-name="<?php echo esc_attr($feed['name']); ?>"
                                     data-feed-url="<?php echo esc_attr($feed['url']); ?>"
                                     data-feed-uploaded="<?php echo (class_exists('MyFeeds_Feed_Upload') && MyFeeds_Feed_Upload::is_uploaded_url($feed['url'])) ? '1' : '0'; ?>"
@@ -1692,7 +1683,7 @@ class MyFeeds_Feed_Manager {
      * entry. A new feed beside the site's product source waits for
      * "Change source". Editing the feed the site has is always allowed.
      *
-     * @param array $existing The entry get_feed() returned, or array().
+     * @param array $existing The entry the dialog was opened on (entry_to_edit()), or array().
      * @param bool  $editing  The dialog was opened on an existing entry.
      * @return string
      */
@@ -1709,6 +1700,43 @@ class MyFeeds_Feed_Manager {
     }
 
     /**
+     * The entry the dialog was opened on: none for Add, which sends no
+     * key; for Edit the entry its row stands for, found by the stable_id
+     * the row carries (key_of_row()). A screen that was not loaded again
+     * since another tab changed the list would otherwise save over
+     * whatever stands first in it now - a feed added in its place after
+     * "Change source", say.
+     *
+     * @param string $posted_key feed_key as sent; '' for Add.
+     * @param string $sid        feed_sid as sent; '' from a caller that sends none.
+     * @return array|null The entry, array() for Add, null when it is gone.
+     */
+    private static function entry_to_edit($posted_key, $sid) {
+        if ($posted_key === '') {
+            return array();
+        }
+        $feeds = get_option(self::OPTION_KEY, array());
+        $feeds = is_array($feeds) ? $feeds : array();
+        $key = self::key_of_row($feeds, (int) $posted_key, $sid);
+        return $key !== null && is_array($feeds[$key]) ? $feeds[$key] : null;
+    }
+
+    /**
+     * What the dialog's entry is merged into once the samples are gone:
+     * the entry it was opened on, never the samples - their stable id
+     * would make seven invented products part of a real catalogue.
+     *
+     * @param array $existing entry_to_edit()'s answer.
+     * @return array
+     */
+    private static function merge_target(array $existing) {
+        if (class_exists('MyFeeds_Demo_Content') && MyFeeds_Demo_Content::is_demo_feed($existing)) {
+            return array();
+        }
+        return $existing;
+    }
+
+    /**
      * Handle simplified feed save (legacy form submit fallback)
      */
     public function handle_save_feed() {
@@ -1721,13 +1749,13 @@ class MyFeeds_Feed_Manager {
             $url = isset($_POST['feed_url']) ? esc_url_raw(wp_unslash($_POST['feed_url'])) : '';
             $format_hint = isset($_POST['feed_format_hint']) ? sanitize_text_field(wp_unslash($_POST['feed_format_hint'])) : '';
             $network_hint = isset($_POST['feed_network_hint']) ? sanitize_text_field(wp_unslash($_POST['feed_network_hint'])) : '';
-            $editing = isset($_POST['feed_key']) && sanitize_text_field(wp_unslash($_POST['feed_key'])) !== '';
+            $posted_key = isset($_POST['feed_key']) ? sanitize_text_field(wp_unslash($_POST['feed_key'])) : '';
+            $editing = $posted_key !== '';
 
-            // There is no $feeds array and no $key here: the one entry this
-            // screen edits comes from get_feed().
-            $existing = $this->get_feed();
-            if (!is_array($existing)) {
-                $existing = array();
+            $existing = self::entry_to_edit($posted_key, isset($_POST['feed_sid']) ? sanitize_text_field(wp_unslash($_POST['feed_sid'])) : '');
+            if ($existing === null) {
+                $this->redirect_with_error(__('Feed not found. Load the page again to see the current list.', 'myfeeds-affiliate-feed-manager'));
+                return;
             }
             $refused = self::save_refusal($existing, $editing);
             if ($refused !== '') {
@@ -1764,7 +1792,7 @@ class MyFeeds_Feed_Manager {
                 MyFeeds_Demo_Content::remove_if_active();
             }
 
-            $existing = $this->get_feed();
+            $existing = self::merge_target($existing);
 
             $entry = array(
                 'name' => $name,
@@ -1793,12 +1821,24 @@ class MyFeeds_Feed_Manager {
             // The site's first source: a Rakuten fetch that began while it
             // had none would otherwise finish and bring in a second one.
             $first_source = MyFeeds_Source_Rules::current() === '';
-            $this->save_feed($entry);
+            if (!$this->save_feed($entry)) {
+                $this->redirect_with_error(MyFeeds_Source_Rules::refusal());
+                return;
+            }
             if ($first_source && class_exists('MyFeeds_Source_Fetcher')) {
                 MyFeeds_Source_Fetcher::stop_all();
             }
+            // The list as this request wrote it; the write after the test
+            // finds the entry in the stored list again first.
+            $feeds = array($entry);
+            $key = 0;
 
             $test_result = $this->quick_test_feed_url($url, $format_hint);
+            $key = self::read_again($feeds, $key);
+            if ($key === null) {
+                $this->redirect_with_error(__('Feed not found. Load the page again to see the current list.', 'myfeeds-affiliate-feed-manager'));
+                return;
+            }
 
             $status_msg = '';
             if (!is_wp_error($test_result)) {
@@ -2035,13 +2075,13 @@ class MyFeeds_Feed_Manager {
             $url = esc_url_raw(wp_unslash($_POST['feed_url'] ?? ''));
             $format_hint = sanitize_text_field(wp_unslash($_POST['feed_format_hint'] ?? ''));
             $network_hint = sanitize_text_field(wp_unslash($_POST['feed_network_hint'] ?? ''));
-            $editing = sanitize_text_field(wp_unslash($_POST['feed_key'] ?? '')) !== '';
+            $posted_key = sanitize_text_field(wp_unslash($_POST['feed_key'] ?? ''));
+            $editing = $posted_key !== '';
 
-            // There is no $feeds array and no $key here: the one entry this
-            // screen edits comes from get_feed().
-            $existing = $this->get_feed();
-            if (!is_array($existing)) {
-                $existing = array();
+            $existing = self::entry_to_edit($posted_key, sanitize_text_field(wp_unslash($_POST['feed_sid'] ?? '')));
+            if ($existing === null) {
+                wp_send_json_error(array('message' => __('Feed not found. Load the page again to see the current list.', 'myfeeds-affiliate-feed-manager')));
+                return;
             }
             $refused = self::save_refusal($existing, $editing);
             if ($refused !== '') {
@@ -2085,7 +2125,7 @@ class MyFeeds_Feed_Manager {
                 MyFeeds_Demo_Content::remove_if_active();
             }
 
-            $existing = $this->get_feed();
+            $existing = self::merge_target($existing);
             $action_label = $existing ? 'updated' : 'created';
 
             $entry = array(
@@ -2115,13 +2155,25 @@ class MyFeeds_Feed_Manager {
             // The site's first source: a Rakuten fetch that began while it
             // had none would otherwise finish and bring in a second one.
             $first_source = MyFeeds_Source_Rules::current() === '';
-            $this->save_feed($entry);
+            if (!$this->save_feed($entry)) {
+                wp_send_json_error(array('message' => MyFeeds_Source_Rules::refusal()));
+                return;
+            }
             if ($first_source && class_exists('MyFeeds_Source_Fetcher')) {
                 MyFeeds_Source_Fetcher::stop_all();
             }
+            // The list as this request wrote it. Each write after a slow
+            // step below finds the entry in the stored list again first.
+            $feeds = array($entry);
+            $key = 0;
 
             // Now attempt quick test (partial download, fast)
             $test_result = $this->quick_test_feed_url($url, $format_hint);
+            $key = self::read_again($feeds, $key);
+            if ($key === null) {
+                wp_send_json_error(array('message' => __('Feed not found. Load the page again to see the current list.', 'myfeeds-affiliate-feed-manager')));
+                return;
+            }
 
             $warning = '';
             if (is_wp_error($test_result)) {
@@ -2133,10 +2185,17 @@ class MyFeeds_Feed_Manager {
                 $import_scheduled = false;
                 if ($action_label === 'created') {
                     $importer = new \MyFeeds_Batch_Importer();
-                    $import_scheduled = $importer->schedule_new_feed_import(0);
+                    $import_scheduled = $importer->schedule_new_feed_import($key);
                     if ($import_scheduled) {
-                        $entry['status'] = 'importing';
-                        $this->save_feed($entry);
+                        // Into the stored entry: the import's first look
+                        // at the feed may have mapped it there.
+                        $key = self::read_again($feeds, $key);
+                        if ($key === null) {
+                            wp_send_json_error(array('message' => __('Feed not found. Load the page again to see the current list.', 'myfeeds-affiliate-feed-manager')));
+                            return;
+                        }
+                        $feeds[$key]['status'] = 'importing';
+                        update_option(self::OPTION_KEY, $feeds);
                     }
                 }
 
@@ -2154,7 +2213,8 @@ class MyFeeds_Feed_Manager {
                     'action' => $action_label,
                     'status' => 'untested',
                     'import_scheduled' => $import_scheduled,
-                    'feed_key' => 0,
+                    'feed_key' => $key,
+                    'feed_sid' => (int) ($entry['stable_id'] ?? 0),
                     'source_changed' => $source_changed,
                     'detected_network' => $detected_network,
                     'source_label' => $this->source_label_for($url, $uploaded),
@@ -2204,10 +2264,15 @@ class MyFeeds_Feed_Manager {
             $import_scheduled = false;
             if ($action_label === 'created') {
                 $importer = new \MyFeeds_Batch_Importer();
-                $import_scheduled = $importer->schedule_new_feed_import(0);
+                $import_scheduled = $importer->schedule_new_feed_import($key);
                 if ($import_scheduled) {
-                    $entry['status'] = 'importing';
-                    $this->save_feed($entry);
+                    $key = self::read_again($feeds, $key);
+                    if ($key === null) {
+                        wp_send_json_error(array('message' => __('Feed not found. Load the page again to see the current list.', 'myfeeds-affiliate-feed-manager')));
+                        return;
+                    }
+                    $feeds[$key]['status'] = 'importing';
+                    update_option(self::OPTION_KEY, $feeds);
                 }
             }
 
@@ -2237,7 +2302,8 @@ class MyFeeds_Feed_Manager {
                 'action' => $action_label,
                 'status' => 'active',
                 'import_scheduled' => $import_scheduled,
-                'feed_key' => 0,
+                'feed_key' => $key,
+                'feed_sid' => (int) ($entry['stable_id'] ?? 0),
                 'source_changed' => $source_changed,
                 'detected_network' => $detected_network,
                 'source_label' => $this->source_label_for($url, $uploaded),
@@ -2432,6 +2498,39 @@ class MyFeeds_Feed_Manager {
     }
 
     /**
+     * The list as it is stored now. get_option() answers from the copy
+     * this request read when it started; what another request wrote since
+     * - a second delete clicked while this one still deleted products, a
+     * delete in another tab while a save tested its feed - is not in it,
+     * and writing that copy back undoes it. An autoloaded option is read
+     * through 'alloptions', any other under its own name: both copies go.
+     *
+     * @return array
+     */
+    private static function stored_list() {
+        wp_cache_delete(self::OPTION_KEY, 'options');
+        wp_cache_delete('alloptions', 'options');
+        $feeds = get_option(self::OPTION_KEY, array());
+        return is_array($feeds) ? $feeds : array();
+    }
+
+    /**
+     * Before writing the list after a step that takes seconds (deleting a
+     * feed's products, testing its URL, the import's first look at it):
+     * the list as it is stored now, and where the entry this request
+     * works on is in it.
+     *
+     * @param array $feeds The list as this request read it; replaced by the stored one.
+     * @param int   $key   The entry's key in the list this request read.
+     * @return int|null Its key now; null when another request deleted it.
+     */
+    private static function read_again(array &$feeds, $key) {
+        $sid = (string) (int) ($feeds[$key]['stable_id'] ?? 0);
+        $feeds = self::stored_list();
+        return self::key_of_row($feeds, $key, $sid);
+    }
+
+    /**
      * Delete the entry at $feed_key with its products. The one way an
      * entry leaves the list for good: the AJAX delete calls it, and so
      * does any other path that removes a source - none copies it.
@@ -2482,8 +2581,14 @@ class MyFeeds_Feed_Manager {
         // takes it with it.
         do_action('myfeeds_feed_deleted', $entry, $feed_key);
 
-        array_splice($feeds, $feed_key, 1);
-        update_option(self::OPTION_KEY, $feeds);
+        // Deleting the products took seconds; a delete another request
+        // finished meanwhile is in the stored list, not in this copy.
+        // Gone already: nothing to write.
+        $feed_key = self::read_again($feeds, $feed_key);
+        if ($feed_key !== null) {
+            array_splice($feeds, $feed_key, 1);
+            update_option(self::OPTION_KEY, $feeds);
+        }
 
         if ($finish) {
             $deleted += self::after_deletion($placed);
