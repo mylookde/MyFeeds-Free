@@ -59,8 +59,8 @@ class MyFeeds_Maintenance {
      * Until 2026-10-03 the sweep ran straight after a feed was deleted and
      * turned the products the delete had just marked 'unavailable' into
      * 'archived' - the status that keeps a card rendering. Nothing else
-     * archived a row in practice: deleting is the only way a feed leaves
-     * the configuration, and a downgrade removes no feed. So an archived
+     * archived a row in practice: deleting was the only way a feed left
+     * the configuration. So an archived
      * row from before the fix is a deleted feed's product (or a leftover
      * of the feed-id migration) and goes back to what the delete meant:
      * unavailable - out of the post, still in the table for the editor.

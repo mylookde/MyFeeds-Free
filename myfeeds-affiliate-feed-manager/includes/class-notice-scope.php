@@ -5,7 +5,7 @@
  * Other plugins, themes and mu-plugins hang their notices on every admin
  * screen. On MyFeeds' own screens that pushed the screen itself down: a
  * server warning, a theme's list of incomplete looks and an SMTP reminder
- * stood above the plans and above a feature page (Marlon, 2026-11-06). So
+ * stood above the screen's own heading (Marlon, 2026-11-06). So
  * on those screens every notice callback that is not MyFeeds' own comes
  * off the four notice hooks, just before WordPress prints them. Every
  * other admin screen is left exactly as it was.
@@ -31,8 +31,6 @@
  * A screen is a MyFeeds screen when MyFeeds draws it: the callback behind
  * the page is own by the same rule. That also covers pages registered
  * without a parent, which a menu-slug test would miss.
- *
- * Shared byte for byte between the free and the paid plugin.
  */
 
 if (!defined('ABSPATH')) {

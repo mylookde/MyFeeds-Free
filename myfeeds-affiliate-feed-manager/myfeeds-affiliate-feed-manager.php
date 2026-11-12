@@ -608,7 +608,6 @@ class MyFeeds_Affiliate_Product_Picker {
                 myfeeds_log("ERROR: MyFeeds_Batch_Importer class not found");
             }
             
-            // Initialize informational upsell banner
             if (class_exists('MyFeeds_Upsell')) {
                 $upsell = new MyFeeds_Upsell();
                 $upsell->init();
@@ -643,7 +642,6 @@ class MyFeeds_Affiliate_Product_Picker {
                 $review_ask->init();
             }
 
-            // Initialize paid-tier feature preview pages
             if (class_exists('MyFeeds_Feature_Previews')) {
                 $previews = new MyFeeds_Feature_Previews();
                 $previews->init();

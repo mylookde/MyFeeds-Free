@@ -382,20 +382,6 @@
     border: 1px solid #ddd;
 }
 
-/* Inactive feed rows (plan limit exceeded) */
-tr.myfeeds-feed-inactive {
-    opacity: 0.45;
-}
-tr.myfeeds-feed-inactive td {
-    background: #f8f8f8 !important;
-}
-tr.myfeeds-feed-inactive td:last-child {
-    opacity: 1;
-}
-tr.myfeeds-feed-inactive .button-link-delete {
-    opacity: 1 !important;
-}
-
 .myfeeds-feed-url {
     font-family: monospace;
     background: #f8f9fa;

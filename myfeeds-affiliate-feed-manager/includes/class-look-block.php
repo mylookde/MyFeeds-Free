@@ -60,8 +60,9 @@ class MyFeeds_Look_Block {
     }
 
     /**
-     * Registered for everyone, so a post keeps rendering its looks after a
-     * downgrade (the same courtesy rule 12 gives archived products).
+     * Registered for everyone, so a post keeps rendering its looks also
+     * where the inserter does not offer the block (the same courtesy rule
+     * 12 gives archived products).
      * Offered in the inserter on every site - see enqueue_editor().
      */
     public static function register() {

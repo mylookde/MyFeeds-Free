@@ -73,6 +73,7 @@ class MyFeeds_Universal_Mapper_UI {
                 'detecting'         => __('Detecting...', 'myfeeds-affiliate-feed-manager'),
                 'columnTagHint'     => __('Pick this column in one of the dropdowns on the right.', 'myfeeds-affiliate-feed-manager'),
                 'genericError'      => __('Something went wrong. Please try again.', 'myfeeds-affiliate-feed-manager'),
+                /* translators: %s: the template's name */
                 'confirmDeleteTpl'  => __('Delete the template "%s"? This can\'t be undone.', 'myfeeds-affiliate-feed-manager'),
                 'confirmDeleteOk'   => __('Delete', 'myfeeds-affiliate-feed-manager'),
                 'confirmCancel'     => __('Cancel', 'myfeeds-affiliate-feed-manager'),

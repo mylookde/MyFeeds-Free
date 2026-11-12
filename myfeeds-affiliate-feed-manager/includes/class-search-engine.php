@@ -2559,14 +2559,9 @@ class MyFeeds_Search_Engine {
         $where = implode(' AND ', $and_groups);
         $all_values[] = $limit;
 
-        // $table is built from $wpdb->prefix + a constant string. $where is
-        // assembled from constant SQL fragments ('search_text LIKE %s' etc.);
-        // every dynamic value is bound through $all_values via prepare().
-        // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter
-        $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT " . self::candidate_columns() . " FROM {$table} WHERE status = 'active' AND {$where} LIMIT %d",
-            ...$all_values
-        ), ARRAY_A);
+        $sql = "SELECT " . self::candidate_columns() . " FROM {$table} WHERE status = 'active' AND {$where} LIMIT %d";
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table is $wpdb->prefix + a constant, the columns are a class constant, $where joins constant fragments ('search_text LIKE %s' etc.); every value goes through prepare().
+        $rows = $wpdb->get_results($wpdb->prepare($sql, ...$all_values), ARRAY_A);
 
         return $rows ?: array();
     }

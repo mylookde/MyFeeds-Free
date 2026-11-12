@@ -132,6 +132,7 @@ function myfeeds_extract_zip_feed($zip_path, $dest_path) {
     // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Streaming required for large feed files
     $out = @fopen($dest_path, 'wb');
     if (!$out) {
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the stream ZipArchive::getStream() opened; WP_Filesystem has no stream API.
         fclose($in);
         $zip->close();
         return new WP_Error('write_error', 'Cannot write the extracted feed to the cache folder.');
@@ -148,6 +149,7 @@ function myfeeds_extract_zip_feed($zip_path, $dest_path) {
         fwrite($out, $chunk);
         $written += strlen($chunk);
     }
+    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the stream ZipArchive::getStream() opened; WP_Filesystem has no stream API.
     fclose($in);
     // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
     fclose($out);

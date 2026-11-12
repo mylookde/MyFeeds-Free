@@ -349,16 +349,26 @@ class MyFeeds_Feed_Upload {
         }
 
         $dir = self::dir();
-        if (!is_writable($dir)) {
+        if (!wp_is_writable($dir)) {
             return new WP_Error('not_writable', __('The uploads folder is not writable, so the feed could not be stored.', 'myfeeds-affiliate-feed-manager'));
         }
 
         $filename = self::build_filename($feed_name, $ext);
         $target   = trailingslashit($dir) . $filename;
 
+        // Not wp_handle_upload(): it runs the media library's checks, and on
+        // multisite check_upload_size() turns down every file over
+        // fileupload_maxk (1,500 KB unless the network raised it) and counts
+        // the feed against the media quota. A feed runs to hundreds of MB and
+        // lives in this plugin's own closed folder, not in the media library;
+        // is_uploaded_file(), the size and the extension are checked above.
+        // phpcs:ignore Generic.PHP.ForbiddenFunctions.Found -- see above: wp_handle_upload() refuses feeds over 1,500 KB on multisite.
         if (!@move_uploaded_file($file['tmp_name'], $target)) {
             return new WP_Error('move_failed', __('The uploaded file could not be moved into place.', 'myfeeds-affiliate-feed-manager'));
         }
+        // As _wp_handle_upload() does after its move: PHP may leave an upload
+        // readable by its owner only, and the import reads it back.
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- see above.
         @chmod($target, 0644);
 
         $readable = self::verify_readable($target);

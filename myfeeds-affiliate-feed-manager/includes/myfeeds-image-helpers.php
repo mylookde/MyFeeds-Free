@@ -224,7 +224,7 @@ if (!function_exists('myfeeds_image_url_host')) {
         if (strncmp($url, '//', 2) === 0) {
             $url = 'https:' . $url;
         }
-        $host = parse_url($url, PHP_URL_HOST);
+        $host = wp_parse_url($url, PHP_URL_HOST);
         return is_string($host) ? strtolower($host) : '';
     }
 }
@@ -414,7 +414,7 @@ if (!function_exists('myfeeds_image_url_is_signed')) {
      * @return bool
      */
     function myfeeds_image_url_is_signed($url) {
-        $query = parse_url($url, PHP_URL_QUERY);
+        $query = wp_parse_url($url, PHP_URL_QUERY);
         if (!is_string($query) || $query === '') {
             return false;
         }
