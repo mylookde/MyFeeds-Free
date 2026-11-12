@@ -40,7 +40,8 @@ class MyFeeds_Page_Cache_Purge {
      * BigScoots splits its own purges into batches of this size
      * (bs_cache_purge_queue_max). Above it a site has more product posts
      * than one night should push through every cache at once; the newest
-     * go first and the log says how many waited.
+     * are cleared, every time, the older ones are left to the cache's own
+     * expiry, and the log says how many.
      */
     const MAX_POSTS = 2000;
 
@@ -110,12 +111,12 @@ class MyFeeds_Page_Cache_Purge {
 
         if (function_exists('myfeeds_log')) {
             $line = sprintf(
-                'Page cache: cleared the cached copies of %d posts with products after the import (%s)',
+                'Page cache: cleared the cached copies of %d posts with products (%s)',
                 count($urls),
                 implode(', ', $caches)
             );
             if ($waiting > 0) {
-                $line .= sprintf('; %d more wait for the next import', $waiting);
+                $line .= sprintf('; %d older ones are left to the cache\'s own expiry', $waiting);
             }
             myfeeds_log($line, 'info');
         }

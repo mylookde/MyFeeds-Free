@@ -111,11 +111,14 @@ class MyFeeds_Feed_Manager {
      * its partner tag and credentials stored and at least one Amazon
      * product placed. It wins with more placed products than the source
      * the list keeps, never on a tie; then every entry goes aside and it is
-     * chosen. Losing, or not contending, takes Amazon's data off the site
+     * chosen. Where the list cannot go aside on that request (below), it is
+     * set aside itself, and the note on the Feeds screen offers it. Losing,
+     * or not contending, takes Amazon's data off the site
      * (MyFeeds_Source_Rules::release()); the credentials stay. An update is
      * no activation: there it never contends, and a list of one stays
-     * exactly as it was. Chosen beside a source of the list on any other
-     * request, it is set aside.
+     * exactly as it was. Chosen beside a source of the list, it is set
+     * aside by the next request that runs this: one that may import (the
+     * admin, cron, WP-CLI) or shows the list.
      *
      * Until 1.1.0 the list was cut to its first entry instead, and every
      * other feed was gone for good.
@@ -166,21 +169,25 @@ class MyFeeds_Feed_Manager {
      * @return int How many entries were set aside.
      */
     private static function keep_one_source_now($at_activation) {
-        if (!self::heal_set_aside_rows($at_activation)) {
-            return 0;
-        }
+        $healed = self::heal_set_aside_rows($at_activation);
 
         // Before the returns below for an empty list and a list of one: a
         // site of the other plugin that used nothing but Amazon's API has
-        // an empty list, and stays with Amazon.
+        // an empty list, and stays with Amazon. Also where the rows could
+        // not be archived yet: Amazon's API archives none then, and the
+        // next request is no activation.
         $choice = get_option(MyFeeds_Source_Rules::AMAZON_CHOICE);
         $placed = null;
         if ($at_activation && self::amazon_choice_open($choice)) {
-            $decided = self::let_amazon_contend($placed);
+            $decided = self::let_amazon_contend($placed, $healed);
             if ($decided !== null) {
                 return $decided;
             }
-        } elseif (!$at_activation && $choice === 'chosen' && self::amazon_choice_open($choice)) {
+        }
+        if (!$healed) {
+            return 0;
+        }
+        if (!$at_activation && $choice === 'chosen' && self::amazon_choice_open($choice)) {
             self::set_amazon_aside_beside_the_list();
         }
 
@@ -363,12 +370,12 @@ class MyFeeds_Feed_Manager {
 
     /**
      * Amazon's API chosen while a source of the list stands beside it: a
-     * feed saved in another tab while Amazon's door chose it, or an
-     * activation that could not decide (an import ran). The list is the
-     * source; left so, Amazon's API would become it the moment the list
-     * is empty, without a click. A request that is no activation sets it
-     * aside, decided as stored, and the note on the Feeds screen offers it
-     * again.
+     * feed saved in another tab while Amazon's door chose it. The list is
+     * the source; left so, Amazon's API would become it the moment the list
+     * is empty, without a click. The next request that runs this and is no
+     * activation sets it aside, decided as stored, and the note on the
+     * Feeds screen offers it again. A visitor's page view does not run it;
+     * Amazon's API is no source there either way.
      */
     private static function set_amazon_aside_beside_the_list() {
         MyFeeds_Source_Rules::read_as_stored();
@@ -384,12 +391,17 @@ class MyFeeds_Feed_Manager {
      * Counted once, from the same read of the site's content the feeds are
      * counted from (MyFeeds_Batch_Importer::placements()).
      *
-     * @param array|null $placed Set to placed_count_by_feed() where it was counted.
-     * @return int|null Entries set aside when Amazon's API won; 0 when it
-     *                  won and the list cannot be set aside on this
-     *                  request (an import runs); null when the list decides.
+     * Winning while the list cannot go aside - an import runs, or the rows
+     * cannot be archived yet - it is set aside, as when it loses: the next
+     * request is no activation and would not let it contend again. The
+     * note on the Feeds screen offers it.
+     *
+     * @param array|null $placed     Set to placed_count_by_feed() where it was counted.
+     * @param bool       $may_archive The rows set aside earlier are archived (heal_set_aside_rows()).
+     * @return int|null Entries set aside when Amazon's API won; null when
+     *                  the list stays the source.
      */
-    private static function let_amazon_contend(&$placed) {
+    private static function let_amazon_contend(&$placed, $may_archive) {
         $amazon = 0;
         if (class_exists('MyFeeds_Amazon_Credentials') && MyFeeds_Amazon_Credentials::is_configured()) {
             $amazon = self::placed_amazon_count();
@@ -416,8 +428,11 @@ class MyFeeds_Feed_Manager {
                 MyFeeds_Source_Rules::release('amazon_api', 'set_aside');
                 return null;
             }
-            if (self::import_running() || !self::archived_reset_done()) {
-                return 0;
+            if (!$may_archive || self::import_running() || !self::archived_reset_done()) {
+                MyFeeds_Source_Rules::release('amazon_api', 'set_aside');
+                myfeeds_log('Feeds: one product source per site - Amazon\'s API had more placed products (' . $amazon
+                    . '), but the list cannot be set aside now; Amazon\'s API is set aside and offered on the Feeds screen', 'info');
+                return null;
             }
         }
 
@@ -1934,8 +1949,9 @@ class MyFeeds_Feed_Manager {
     
     /**
      * Why the feed dialog's save is turned down, or '' when it may go on.
-     * Asked before anything is stored, so an upload never reaches the disk
-     * for a feed that will not be saved.
+     * Asked before anything is stored, so an upload does not reach the disk
+     * for a feed that will not be saved, and once more right before the
+     * write; a file stored in between goes again (drop_unsaved_upload()).
      *
      * An entry a network's API wrote is edited in its own window: this
      * dialog would replace it with a feed, and the list with that one
@@ -1956,6 +1972,20 @@ class MyFeeds_Feed_Manager {
             return MyFeeds_Source_Rules::refusal();
         }
         return '';
+    }
+
+    /**
+     * A file this request stored for a feed it does not save after all is
+     * deleted again: no entry would ever name it, and nothing else clears
+     * the upload folder. A file the entry had already is not this
+     * request's, and stays.
+     *
+     * @param array|null $uploaded resolve_feed_source()'s upload, when there was one.
+     */
+    private static function drop_unsaved_upload($uploaded) {
+        if (is_array($uploaded) && !empty($uploaded['url']) && class_exists('MyFeeds_Feed_Upload')) {
+            MyFeeds_Feed_Upload::delete_by_url($uploaded['url']);
+        }
     }
 
     /**
@@ -2083,6 +2113,7 @@ class MyFeeds_Feed_Manager {
             MyFeeds_Source_Rules::read_as_stored();
             $refused = self::save_refusal($existing, $editing);
             if ($refused !== '') {
+                self::drop_unsaved_upload($uploaded);
                 $this->redirect_with_error($refused);
                 return;
             }
@@ -2090,6 +2121,7 @@ class MyFeeds_Feed_Manager {
             // had none would otherwise finish and bring in a second one.
             $first_source = MyFeeds_Source_Rules::current() === '';
             if (!$this->save_feed($entry)) {
+                self::drop_unsaved_upload($uploaded);
                 $this->redirect_with_error(MyFeeds_Source_Rules::refusal());
                 return;
             }
@@ -2426,6 +2458,7 @@ class MyFeeds_Feed_Manager {
             MyFeeds_Source_Rules::read_as_stored();
             $refused = self::save_refusal($existing, $editing);
             if ($refused !== '') {
+                self::drop_unsaved_upload($uploaded);
                 wp_send_json_error(array('message' => $refused));
                 return;
             }
@@ -2433,6 +2466,7 @@ class MyFeeds_Feed_Manager {
             // had none would otherwise finish and bring in a second one.
             $first_source = MyFeeds_Source_Rules::current() === '';
             if (!$this->save_feed($entry)) {
+                self::drop_unsaved_upload($uploaded);
                 wp_send_json_error(array('message' => MyFeeds_Source_Rules::refusal()));
                 return;
             }

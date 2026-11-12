@@ -32,7 +32,7 @@ Anyone who earns a commission by promoting other companies' products, from solo 
 * **Your prices stop lying.** The price your reader sees today is the price on the merchant's checkout right now.
 * **Your posts stay current.** Discontinued products surface so you can replace them. Stock that comes back lights up again. Nothing changes behind your back.
 * **You publish faster.** Two letters in the editor, the product appears, you click, the card is in. You never leave the post you're writing.
-* **Your site stays yours.** Products from your feed live in your own WordPress database, and so do Rakuten's. With a product feed or Rakuten, visitors don't wait on a third-party server, and nothing about them is sent off-site when a page loads.
+* **Your site stays yours.** Products from your feed live in your own WordPress database, and so do Rakuten's. With a product feed or Rakuten, visitors don't wait on a third-party server: your server asks no other service while a page loads.
 * **You never learn a file format.** Whatever your network sends, MyFeeds reads it and works out which column is the price, which is the image, which is the link.
 
 = How it works =
@@ -179,7 +179,7 @@ With Amazon's API as your product source, your site asks Amazon for the title, p
 * **When it is sent:** when you test the connection, search Amazon, add a product or open a post with Amazon products in the block editor; and when a page with Amazon products is shown and the stored data is missing or the price is more than an hour old: while the page is built, for the missing products, up to ten products per request and at most four requests per block and Amazon site; from the reader's browser through your own site (`/wp-json/myfeeds/v1/amazon/live`), for prices over an hour old, up to ten products per request, never for a product your site does not hold. A sign-in token is asked for about once an hour. Amazon products added without the API cause no request.
 * **Where it is sent:** the sign-in to `api.amazon.com`, `api.amazon.co.uk` or `api.amazon.co.jp` (by the region of your Amazon site), the product requests to `creatorsapi.amazon`.
 
-MyFeeds keeps Amazon's data for at most a day and shows a price older than an hour with the time Amazon gave it. It never copies Amazon's pictures: your readers' browsers load them from Amazon's image servers, which receive their IP address and browser details. Changing the product source or deactivating the plugin deletes Amazon's data from your site.
+MyFeeds keeps Amazon's data for at most a day and shows a price older than an hour with the time Amazon gave it. It never copies Amazon's pictures: your readers' browsers load them from Amazon's image servers, which receive their IP address and browser details. Changing the product source or deactivating the plugin deletes the Amazon data MyFeeds keeps.
 
 * **Terms and privacy:** Amazon's Associates Program IP License (https://affiliate-program.amazon.com/help/operating/policies/#Associates%20Program%20IP%20License) and Amazon's Privacy Notice (https://www.amazon.com/gp/help/customer/display.html?nodeId=468496) apply; the API is documented at https://affiliate-program.amazon.com/creatorsapi/docs/.
 

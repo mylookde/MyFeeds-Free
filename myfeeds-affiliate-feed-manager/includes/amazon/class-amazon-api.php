@@ -23,6 +23,9 @@ class MyFeeds_Amazon_Api {
     /** The editor's part of the API: the Amazon tab with Amazon's data, and the Look's Amazon. */
     const EDITOR_HANDLE = 'myfeeds-amazon-api-picker';
 
+    /** deactivate() left the cached posts to be cleared once the plugin is off. */
+    private static $pages_wait = false;
+
     public static function init() {
         self::filters();
 
@@ -238,18 +241,38 @@ class MyFeeds_Amazon_Api {
      * tags and the site's choice of source stay: they are the owner's
      * settings, and the other MyFeeds plugin reads the same ones.
      *
-     * The cached pages that may show Amazon's data are cleared first - the
+     * The cached posts that may show Amazon's data are cleared too - the
      * API is the site's source and its credentials are stored: once the
      * plugin is off, neither the daily clearing nor an import clears them,
-     * and a page cache may keep a page for a week.
+     * and a page cache may keep a page for a week. Cleared once the plugin
+     * is off (clear_pages_once_off()): WordPress writes the list of active
+     * plugins after every deactivation hook, and a page built in between
+     * would go back into the cache with Amazon's data.
      */
     public static function deactivate() {
         if (class_exists('MyFeeds_Source_Rules') && MyFeeds_Source_Rules::chosen('amazon_api')
             && MyFeeds_Amazon_Credentials::is_stored() && class_exists('MyFeeds_Page_Cache_Purge')) {
-            MyFeeds_Page_Cache_Purge::purge_product_posts();
+            self::$pages_wait = true;
+            // The site's list, the network's, or - where a filter keeps the
+            // plugin in both - the end of the request.
+            add_action('update_option_active_plugins', array(__CLASS__, 'clear_pages_once_off'), 10, 0);
+            add_action('update_site_option_active_sitewide_plugins', array(__CLASS__, 'clear_pages_once_off'), 10, 0);
+            add_action('shutdown', array(__CLASS__, 'clear_pages_once_off'), 10, 0);
         }
         wp_clear_scheduled_hook(MyFeeds_Amazon_Cache::PURGE_HOOK);
         wp_clear_scheduled_hook(self::PAGE_REFRESH_HOOK);
         MyFeeds_Amazon_Cache::purge_all();
+    }
+
+    /**
+     * The cached posts deactivate() left for the moment the plugin is off:
+     * cleared once, on whichever of its hooks comes first.
+     */
+    public static function clear_pages_once_off() {
+        if (!self::$pages_wait) {
+            return;
+        }
+        self::$pages_wait = false;
+        MyFeeds_Page_Cache_Purge::purge_product_posts();
     }
 }
