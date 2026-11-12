@@ -20,10 +20,44 @@
     // second threw "importInterval is not defined" and left the poll running.
     var importInterval = null;
 
+    // The row a single-feed reimport was started from. The server names
+    // the entry by its key in the stored list; on a screen behind that
+    // list (another tab deleted a feed above it) that key is another
+    // row's, so the row is found by its stable_id - by the key only where
+    // the entry has none, and then the server found it at that very key.
+    function reimportRow(feedKey, feedSid) {
+        var $ = window.jQuery;
+        if (feedSid) {
+            var $bySid = $('.myfeeds-reimport-btn[data-feed-sid="' + feedSid + '"]').closest('tr');
+            if ($bySid.length) {
+                return $bySid;
+            }
+        }
+        return $('.myfeeds-reimport-btn[data-feed-key="' + feedKey + '"]').closest('tr');
+    }
+
+    // A refused Delete or Reimport. When the entry is gone (another tab
+    // deleted it) the server sends the table as the list is now, or asks
+    // for the page again where no source is left: the rows of the old
+    // table would go on naming entries that moved.
+    function restoreAfterRefusal(data, restore, fallback) {
+        data = data || {};
+        if (data.table_html) {
+            window.jQuery('.myfeeds-feeds-table').replaceWith(data.table_html);
+        } else if (!data.reload) {
+            restore();
+        }
+        alert(data.message || fallback);
+        if (data.reload) {
+            window.location.reload();
+        }
+    }
+
         jQuery(document).ready(function($) {
             console.log('MyFeeds: Admin JS initialized');
             
             window.currentReimportFeedKey = null;
+            window.currentReimportFeedSid = null;
             window.currentReimportInterval = null;
             var nonce = myfeedsAdmin.nonce;
             var waitingForRunning = false;
@@ -496,7 +530,7 @@
                     }
                     
                     if (window.currentReimportFeedKey !== null) {
-                        var $targetRow = $('.myfeeds-reimport-btn[data-feed-key="' + window.currentReimportFeedKey + '"]').closest('tr');
+                        var $targetRow = reimportRow(window.currentReimportFeedKey, window.currentReimportFeedSid);
                         if ($targetRow.length) {
                             // Restore status badge from server-returned status (robust: server knows truth)
                             var feedStatus = 'active';
@@ -514,6 +548,7 @@
                             $reimportBtn.text('Reimport').removeAttr('title');
                         }
                         window.currentReimportFeedKey = null;
+                        window.currentReimportFeedSid = null;
                     }
                     
                     // Re-enable all reimport/delete buttons
@@ -943,7 +978,7 @@
                                 }
                                 
                                 // Start polling for this specific feed
-                                startReimportPolling(feedKey);
+                                startReimportPolling(feedKey, feedSid);
                                 
                                 // Also show import status panel and start polling
                                 if (typeof window.showStatusPanel === 'function') {
@@ -1146,6 +1181,7 @@
                 
                 // Track reimport state for cancel recovery (Bug 3 fix)
                 window.currentReimportFeedKey = feedKey;
+                window.currentReimportFeedSid = $btn.data('feed-sid');
                 
                 $.post(ajaxUrl, {
                     action: 'myfeeds_reimport_feed',
@@ -1165,11 +1201,14 @@
                         startStatusPolling();
                         
                         // Start feed-specific polling to update row when done
-                        startReimportPolling(response.data.feed_key);
+                        startReimportPolling(response.data.feed_key, $btn.data('feed-sid'));
                     } else {
-                        alert(response.data ? response.data.message : 'Failed to start reimport');
-                        $btn.prop('disabled', false).text('Reimport');
-                        $row.find('.button').prop('disabled', false);
+                        window.currentReimportFeedKey = null;
+                        window.currentReimportFeedSid = null;
+                        restoreAfterRefusal(response.data, function() {
+                            $btn.prop('disabled', false).text('Reimport');
+                            $row.find('.button').prop('disabled', false);
+                        }, 'Failed to start reimport');
                     }
                 }).fail(function() {
                     alert('Server error. Please try again.');
@@ -1179,7 +1218,7 @@
             });
             
             // Reimport polling: watch a specific feed until it finishes (Fix 2+3: full state restore)
-            function startReimportPolling(feedKey) {
+            function startReimportPolling(feedKey, feedSid) {
                 var reimportPollCount = 0;
                 var reimportMaxPolls = 360; // 30 min at 5-second intervals
                 
@@ -1194,6 +1233,7 @@
                         clearInterval(window.currentReimportInterval);
                         window.currentReimportInterval = null;
                         window.currentReimportFeedKey = null;
+                        window.currentReimportFeedSid = null;
                         return;
                     }
                     
@@ -1212,8 +1252,9 @@
                         clearInterval(window.currentReimportInterval);
                         window.currentReimportInterval = null;
                         window.currentReimportFeedKey = null;
+                        window.currentReimportFeedSid = null;
                         
-                        var $targetRow = $('.myfeeds-reimport-btn[data-feed-key="' + feedKey + '"]').closest('tr');
+                        var $targetRow = reimportRow(feedKey, feedSid);
                         
                         if ($targetRow.length) {
                             // Update status badge
@@ -1338,9 +1379,10 @@
                         
                         console.log('MyFeeds: Feed "' + feedName + '" deleted, ' + d.deleted_products + ' products removed');
                     } else {
-                        alert(response.data ? response.data.message : 'Delete failed');
-                        $btn.prop('disabled', false).text('Delete');
-                        $locked.prop('disabled', false);
+                        restoreAfterRefusal(response.data, function() {
+                            $btn.prop('disabled', false).text('Delete');
+                            $locked.prop('disabled', false);
+                        }, 'Delete failed');
                     }
                 }).fail(function() {
                     alert('Server error. Please try again.');

@@ -966,7 +966,7 @@ class MyFeeds_Feed_Manager {
 
     /**
      * Read-only "content health" card listing posts that reference
-     * products no longer present in the user's feed. Hidden when
+     * products that are gone (MyFeeds_Dead_Products). Hidden when
      * everything is fine. No edit links: the card says that something
      * needs the user's attention and in which posts.
      */
@@ -985,17 +985,44 @@ class MyFeeds_Feed_Manager {
         $shown = array_slice($posts, 0, 10);
         $hidden_count = max(0, $post_total - count($shown));
 
-        $headline = sprintf(
-            /* translators: 1: number of dead products, 2: number of affected posts */
-            _n(
-                '%1$s product in %2$s of your posts is no longer in your feed.',
-                '%1$s products across %2$s of your posts are no longer in your feed.',
-                $dead_count,
-                'myfeeds-affiliate-feed-manager'
-            ),
-            number_format_i18n($dead_count),
-            number_format_i18n($post_total)
-        );
+        // What the card can say depends on the source the site has now: a
+        // feed is updated with the button below, Rakuten on its own
+        // schedule, Amazon is asked about each product, and after "Change
+        // source" or a deleted last feed nothing updates these products.
+        $source = MyFeeds_Source_Rules::current();
+        if ($source === 'feed') {
+            $headline = sprintf(
+                /* translators: 1: number of dead products, 2: number of affected posts */
+                _n(
+                    '%1$s product in %2$s of your posts is no longer in your feed.',
+                    '%1$s products across %2$s of your posts are no longer in your feed.',
+                    $dead_count,
+                    'myfeeds-affiliate-feed-manager'
+                ),
+                number_format_i18n($dead_count),
+                number_format_i18n($post_total)
+            );
+            $hint = __('Run "Update All Feeds" below to refresh this list. Products that come back to your feed are removed from this report automatically.', 'myfeeds-affiliate-feed-manager');
+        } else {
+            $headline = sprintf(
+                /* translators: 1: number of products that are gone, 2: number of affected posts */
+                _n(
+                    '%1$s product in %2$s of your posts is no longer available.',
+                    '%1$s products across %2$s of your posts are no longer available.',
+                    $dead_count,
+                    'myfeeds-affiliate-feed-manager'
+                ),
+                number_format_i18n($dead_count),
+                number_format_i18n($post_total)
+            );
+            if ($source === 'api:rakuten') {
+                $hint = __('Rakuten Advertising is asked again every night and when you choose "Refresh now" on a Rakuten feed. Products that come back are removed from this report automatically.', 'myfeeds-affiliate-feed-manager');
+            } elseif ($source === 'amazon_api') {
+                $hint = __('Replace them in the posts listed. Products Amazon offers again are removed from this report automatically.', 'myfeeds-affiliate-feed-manager');
+            } else {
+                $hint = __('This site has no product source at the moment. Replace these products in the posts listed, or choose a product source on this screen.', 'myfeeds-affiliate-feed-manager');
+            }
+        }
         ?>
         <div class="myfeeds-dead-health" role="region" aria-label="<?php esc_attr_e('Content health report', 'myfeeds-affiliate-feed-manager'); ?>">
             <div class="myfeeds-dead-health__header">
@@ -1044,7 +1071,7 @@ class MyFeeds_Feed_Manager {
                 </p>
             <?php endif; ?>
             <p class="myfeeds-dead-health__hint">
-                <?php esc_html_e('Run "Update All Feeds" below to refresh this list. Products that come back to your feed are removed from this report automatically.', 'myfeeds-affiliate-feed-manager'); ?>
+                <?php echo esc_html($hint); ?>
             </p>
         </div>
         <?php
@@ -2643,7 +2670,7 @@ class MyFeeds_Feed_Manager {
         $feeds = get_option(self::OPTION_KEY, array());
         
         if (!isset($feeds[$feed_key])) {
-            wp_send_json_error(array('message' => 'Feed not found'));
+            wp_send_json_error(array('message' => __('This feed is no longer in the list.', 'myfeeds-affiliate-feed-manager')));
             return;
         }
         
@@ -2713,6 +2740,22 @@ class MyFeeds_Feed_Manager {
     }
 
     /**
+     * The answer to Delete or Reimport for an entry that is no longer in
+     * the list - another tab deleted it meanwhile. The table goes back as
+     * the list is now: left as it was, its rows go on naming entries that
+     * moved, and the screen goes on showing a feed that is gone. Without a
+     * source the screen is another one (the ways in), and loads again.
+     */
+    private function send_entry_gone() {
+        $reload = MyFeeds_Source_Rules::current() === '';
+        wp_send_json_error(array(
+            'message'    => __('This feed is no longer in the list. The screen now shows the current list.', 'myfeeds-affiliate-feed-manager'),
+            'reload'     => $reload,
+            'table_html' => $reload ? '' : $this->feeds_table_html(),
+        ));
+    }
+
+    /**
      * AJAX handler: Reimport a single feed
      * Uses the same pipeline as auto-import after feed creation.
      */
@@ -2732,7 +2775,7 @@ class MyFeeds_Feed_Manager {
         );
 
         if ($feed_key === null) {
-            wp_send_json_error(array('message' => 'Feed not found'));
+            $this->send_entry_gone();
             return;
         }
 
@@ -2978,7 +3021,7 @@ class MyFeeds_Feed_Manager {
         );
 
         if ($feed_key === null) {
-            wp_send_json_error(array('message' => 'Feed not found'));
+            $this->send_entry_gone();
             return;
         }
 
