@@ -193,24 +193,30 @@ class MyFeeds_Page_Cache_Purge {
         if (!isset($wpdb) || !function_exists('myfeeds_discovery_post_types')) {
             return array();
         }
-        $types = array_diff(myfeeds_discovery_post_types(), array('wp_block', 'wp_template', 'wp_template_part'));
+        $types = array_values(array_diff(myfeeds_discovery_post_types(), array('wp_block', 'wp_template', 'wp_template_part')));
         if (empty($types)) {
             return array();
         }
-        $types_sql = "'" . implode("', '", $types) . "'";
+        $types_ph = implode(', ', array_fill(0, count($types), '%s'));
+        $markers = array();
+        foreach (array('wp:myfeeds', '[myfeeds', 'wp:product-picker') as $marker) {
+            $markers[] = '%' . $wpdb->esc_like($marker) . '%';
+        }
 
-        $ids = $wpdb->get_col(
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders + table name are safe
+        $ids = $wpdb->get_col($wpdb->prepare(
             "SELECT ID FROM {$wpdb->posts}
              WHERE post_status = 'publish'
-             AND post_type IN ({$types_sql})
+             AND post_type IN ({$types_ph})
              AND (
-                 post_content LIKE '%wp:myfeeds%'
-                 OR post_content LIKE '%[myfeeds%'
-                 OR post_content LIKE '%wp:product-picker%'
+                 post_content LIKE %s
+                 OR post_content LIKE %s
+                 OR post_content LIKE %s
              )
              ORDER BY ID DESC
-             LIMIT " . (self::MAX_POSTS + 1000)
-        );
+             LIMIT %d",
+            array_merge($types, $markers, array(self::MAX_POSTS + 1000))
+        ));
 
         $storefront = function_exists('get_option') ? (int) get_option('myfeeds_shop_storefront_page_id', 0) : 0;
         $out = array();
