@@ -29,7 +29,7 @@ Anyone who earns a commission by promoting other companies' products, from solo 
 = What changes for you =
 
 * **Your posts become shoppable.** A grid your readers can scan: image, brand, price, discount, shipping, and your link. You compose it in seconds inside the block editor.
-* **Your prices stop lying.** The price your reader sees today is the price on the merchant's checkout right now.
+* **Your prices stop lying.** The price your reader sees comes from your merchant's latest update, checked every night.
 * **Your posts stay current.** Discontinued products surface so you can replace them. Stock that comes back lights up again. Nothing changes behind your back.
 * **You publish faster.** Two letters in the editor, the product appears, you click, the card is in. You never leave the post you're writing.
 * **Your site stays yours.** Products from your feed live in your own WordPress database, and so do Rakuten's. With a product feed or Rakuten, visitors don't wait on a third-party server: your server asks no other service while a page loads.
@@ -75,7 +75,7 @@ This plugin is fully functional on its own. A separate, independent paid plugin 
 
 = Where do I get a product feed URL? =
 
-Sign up with an affiliate network (such as AWIN, CJ Affiliate, Rakuten, or Impact), navigate to the product feed section (usually labelled "Create a feed" or "Product feeds"), and copy the feed URL.
+Sign up with an affiliate network (such as AWIN, CJ Affiliate, or Impact), navigate to the product feed section (usually labelled "Create a feed" or "Product feeds"), and copy the feed URL. With Rakuten Advertising, choose **+ Add API source** instead.
 
 == Frequently Asked Questions ==
 
@@ -214,7 +214,7 @@ Apart from the above, the plugin sends nothing anywhere: no analytics, no tracki
 
 == Source Code ==
 
-The full source for this plugin is open-source. See [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=source) for the project homepage and links to the public repository.
+The full source for this plugin is public: [github.com/mylookde/MyFeeds-Free](https://github.com/mylookde/MyFeeds-Free). The project homepage is [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=source).
 
 * Block editor source: `src/index.js`
 * Build tool: terser via `npm run build` (configuration in `package.json`)
@@ -246,7 +246,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * New: the product block shows your products as a grid, a carousel, a recommendation card or a comparison table.
 * New: the Look block. Put numbered points on a photo of your own and link each one to a product.
 * New: "Change source" on the Feeds screen. The products of the old source leave your published posts, as when a feed is deleted, and the Content health card lists those posts. A source that was set aside can be brought back there.
-* Changed: a site that ran MyFeeds Pro with several sources keeps the one with the most products in your posts; the others are set aside, not deleted, and MyFeeds Pro brings them back. Before, the free plugin dropped every feed after the first.
+* Changed: a site that ran MyFeeds Pro with several sources keeps the one with the most products in your posts; the others are set aside, not deleted, and the notice on the Feeds screen swaps one back in. Before, the free plugin dropped every feed after the first.
 * Changed: the Content health card speaks for your source; "Update All Feeds" is suggested for a feed only.
 * Fixed: on a site that never ran the paid plugin, the products of a deleted feed stayed in your posts, and reimporting a feed by hand left the products your merchant had withdrawn as they were. The products table lacked a column both steps write; it is added on the first visit to the admin after the update.
 * Improved: deleting a feed or changing the source clears the cached copies of your posts with products, as an import does.
