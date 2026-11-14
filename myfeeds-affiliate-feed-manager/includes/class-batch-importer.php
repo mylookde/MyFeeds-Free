@@ -3343,7 +3343,9 @@ class MyFeeds_Batch_Importer {
         }
         
         // Get header (IMPORTANT: work with copy to not affect cache)
-        $header = str_getcsv($lines[0]);
+        // PHP's own separator, enclosure and escape, spelled out: PHP 8.4
+        // deprecates leaving the escape out.
+        $header = str_getcsv($lines[0], ',', '"', '\\');
         
         // Calculate batch boundaries
         $start = $offset;
@@ -3366,7 +3368,7 @@ class MyFeeds_Batch_Importer {
         // Process batch - NOTE: $lines[0] is header, data starts at $lines[1]
         for ($i = $start; $i < $end && ($i + 1) < count($lines); $i++) {
             $line = $lines[$i + 1]; // +1 because $lines[0] is header
-            $fields = str_getcsv($line);
+            $fields = str_getcsv($line, ',', '"', '\\');
             
             if (count($fields) !== count($header)) {
                 continue;
@@ -3723,7 +3725,7 @@ class MyFeeds_Batch_Importer {
         }
         
         // Get header
-        $header = str_getcsv(array_shift($lines));
+        $header = str_getcsv(array_shift($lines), ',', '"', '\\');
         
         // Bestimme welchen Index wir verwenden
         $batch_items = array();
@@ -3777,7 +3779,7 @@ class MyFeeds_Batch_Importer {
         
         for ($i = $start; $i < $end && $i < count($lines); $i++) {
             $line = $lines[$i];
-            $fields = str_getcsv($line);
+            $fields = str_getcsv($line, ',', '"', '\\');
             
             if (count($fields) !== count($header)) {
                 continue;

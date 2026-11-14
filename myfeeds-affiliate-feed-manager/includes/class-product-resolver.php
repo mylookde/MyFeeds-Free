@@ -259,7 +259,9 @@ class MyFeeds_Product_Resolver {
             return null;
         }
         
-        $header = str_getcsv($lines[0]);
+        // PHP's own separator, enclosure and escape, spelled out: PHP 8.4
+        // deprecates leaving the escape out.
+        $header = str_getcsv($lines[0], ',', '"', '\\');
         $id_field_candidates = array('id', 'product_id', 'sku', 'article_number', 'ID', 'ProductID');
         
         $id_col = -1;
@@ -276,7 +278,7 @@ class MyFeeds_Product_Resolver {
         }
         
         for ($i = 1; $i < count($lines); $i++) {
-            $fields = str_getcsv($lines[$i]);
+            $fields = str_getcsv($lines[$i], ',', '"', '\\');
             if (count($fields) <= $id_col) continue;
             
             if ((string) $fields[$id_col] === $product_id) {

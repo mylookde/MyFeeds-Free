@@ -73,6 +73,14 @@ class MyFeeds_Feed_Reader {
     // Reuses $fh. The file is walked, never loaded: one product is in
     // memory at a time, whatever the size of the feed.
 
+    /**
+     * Enclosure and escape for fgetcsv(). PHP 8.4 deprecates leaving the
+     * escape out; these are the values PHP has always used when it was
+     * left out, so a feed reads exactly as before.
+     */
+    const CSV_ENCLOSURE = '"';
+    const CSV_ESCAPE    = '\\';
+
     /** Keys a JSON feed puts its list of products under, best first. */
     const JSON_LIST_KEYS = array('products', 'items', 'data', 'results', 'offers', 'entries');
 
@@ -274,7 +282,7 @@ class MyFeeds_Feed_Reader {
             case 'psv':
                 for ($i = 0; $i < $offset; $i++) {
                     // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-                    if (fgetcsv($this->fh, 0, $this->delimiter) === false) {
+                    if (fgetcsv($this->fh, 0, $this->delimiter, self::CSV_ENCLOSURE, self::CSV_ESCAPE) === false) {
                         break;
                     }
                 }
@@ -662,7 +670,7 @@ class MyFeeds_Feed_Reader {
         }
 
         // Read header via fgetcsv (handles quoted fields correctly)
-        $header_row = fgetcsv($this->fh, 0, $this->delimiter);
+        $header_row = fgetcsv($this->fh, 0, $this->delimiter, self::CSV_ENCLOSURE, self::CSV_ESCAPE);
         if ($header_row === false) {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
             fclose($this->fh);
@@ -696,7 +704,7 @@ class MyFeeds_Feed_Reader {
 
         // Count remaining rows using fgetcsv (handles multiline fields!)
         $count = 0;
-        while (($fields = fgetcsv($this->fh, 0, $this->delimiter)) !== false) {
+        while (($fields = fgetcsv($this->fh, 0, $this->delimiter, self::CSV_ENCLOSURE, self::CSV_ESCAPE)) !== false) {
             if ($this->positional && $this->rakuten_row($fields) === null) {
                 continue;
             }
@@ -717,7 +725,7 @@ class MyFeeds_Feed_Reader {
 
         // Loop to skip malformed rows
         while (true) {
-            $fields = fgetcsv($this->fh, 0, $this->delimiter);
+            $fields = fgetcsv($this->fh, 0, $this->delimiter, self::CSV_ENCLOSURE, self::CSV_ESCAPE);
             if ($fields === false) {
                 return false; // EOF
             }
