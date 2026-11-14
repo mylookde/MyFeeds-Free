@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.52
+Stable tag: 1.1.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -238,6 +238,22 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.1.0 =
+* New: choose where your products come from. Paste a product feed link or upload its file as before, connect Rakuten Advertising, or connect Amazon's API. Without a source the Feeds screen offers all three; with one, it offers "Change source".
+* New: Rakuten Advertising as your product source. Your site asks Rakuten's API for the products of the advertisers you choose, as many as you like, imports them like a feed and refreshes them every night. External Services says what is sent and when.
+* New: Amazon's API as your product source. Search Amazon in the block editor; the card shows Amazon's title, picture and price, with the time the price was read. Amazon opens its API to associates with ten qualified sales in thirty days. External Services says what is sent and when.
+* New: Amazon products by link or ASIN, beside your source. Save your partner tag under "+ Add Amazon" on the Feeds screen, then add a product by its Amazon link or ASIN in the product block or in a Look. The card links straight to Amazon with your tag.
+* New: the product block shows your products as a grid, a carousel, a recommendation card or a comparison table.
+* New: the Look block. Put numbered points on a photo of your own and link each one to a product.
+* New: "Change source" on the Feeds screen. The products of the old source leave your published posts, as when a feed is deleted, and the Content health card lists those posts. A source that was set aside can be brought back there.
+* Changed: a site that ran MyFeeds Pro with several sources keeps the one with the most products in your posts; the others are set aside, not deleted, and MyFeeds Pro brings them back. Before, the free plugin dropped every feed after the first.
+* Changed: the Content health card speaks for your source; "Update All Feeds" is suggested for a feed only.
+* Fixed: on a site that never ran the paid plugin, the products of a deleted feed stayed in your posts, and reimporting a feed by hand left the products your merchant had withdrawn as they were. The products table lacked a column both steps write; it is added on the first visit to the admin after the update.
+* Improved: deleting a feed or changing the source clears the cached copies of your posts with products, as an import does.
+* Improved: notices on MyFeeds screens stand above the page heading, and other plugins' notices are left off these screens.
+* Fixed: sample products no longer appear in a page's structured data (JSON-LD).
+* Fixed: on PHP 8.4, reading a CSV or TSV feed raised a deprecation notice for every row.
+
 = 1.0.52 =
 * Changed: the buttons on the Shop, Design and Analytics pages and in the Amazon dialog lead to the two plans of the paid plugin, Pro and Shop (Pro instead of Starter), and start the trial each plan comes with. The Shop plan was called E-commerce before.
 * Changed: the readme describes the one paid plugin, MyFeeds Pro, and its two plans.
@@ -352,6 +368,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 Older entries (1.0.28 and earlier) are in changelog.txt, which ships with the plugin.
 
 == Upgrade Notice ==
+
+= 1.1.0 =
+One product source, now with Rakuten and Amazon's API; every display and the Look; Amazon products by link or ASIN. A site that ran MyFeeds Pro keeps its biggest source; the others are set aside, not deleted.
 
 = 1.0.36 =
 Product images are now requested at the size they are shown. On pages where a merchant ships very large images this is the difference between tens of megabytes and a few. Sizes of the same product are grouped into one card, and re-importing your feed marks the products your merchant has withdrawn.
