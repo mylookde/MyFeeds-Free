@@ -16,7 +16,7 @@ Make your blog shoppable. Import your merchants' affiliate product feed and plac
 
 Embedding affiliate links by hand eats the time you should spend writing: links that lead nowhere to replace, new products to find, prices to check. Most affiliates lose sales because a link went out of date without telling them, or because a plain text link just doesn't invite a click.
 
-MyFeeds does that for you. Instead of text links that quietly go out of date inside your posts, your readers see product cards that show the merchant, the brand, the title and the price. The cards refresh every day, so the price your reader sees is the price your merchant is charging.
+MyFeeds does that for you. Instead of text links that quietly go out of date inside your posts, your readers see product cards that show the merchant, the brand, the title and the price. With a feed link or Rakuten, the cards refresh every night from your merchant's latest update.
 
 All you do is choose where your products come from: paste the product feed link from your affiliate network (or upload its file), connect Rakuten Advertising, or connect Amazon's API. Once the products are in, the **Product Picker** block lets you search them right inside the block editor, by keyword, with filters when you need them.
 
@@ -29,7 +29,7 @@ Anyone who earns a commission by promoting other companies' products, from solo 
 = What changes for you =
 
 * **Your posts become shoppable.** A grid your readers can scan: image, brand, price, discount, shipping, and your link. You compose it in seconds inside the block editor.
-* **Your prices stop lying.** The price your reader sees comes from your merchant's latest update, checked every night.
+* **Your prices stop lying.** With a feed link or Rakuten, your merchant's latest prices reach your posts every night.
 * **Your posts stay current.** Discontinued products surface so you can replace them. Stock that comes back lights up again. Nothing changes behind your back.
 * **You publish faster.** Two letters in the editor, the product appears, you click, the card is in. You never leave the post you're writing.
 * **Your site stays yours.** Products from your feed live in your own WordPress database, and so do Rakuten's. With a product feed or Rakuten, visitors don't wait on a third-party server: your server asks no other service while a page loads.
@@ -97,7 +97,7 @@ Open any post in the block editor and add the **MyFeeds – Product Picker** blo
 
 = How do I keep affiliate prices up to date on my site? =
 
-MyFeeds re-reads your feed every night and refreshes what is already in your posts, so the price a reader sees is the price the merchant is charging today. A weekly full import catches products that were added or withdrawn. You can also sync any feed by hand at any time.
+MyFeeds re-reads your feed link every night and refreshes what is already in your posts, so a reader sees the price from your merchant's latest update. An uploaded file stays as it was until you upload a new one. A weekly full import catches products that were added or withdrawn. You can also sync any feed by hand at any time.
 
 = Which affiliate networks provide a product feed? =
 
