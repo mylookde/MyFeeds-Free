@@ -129,9 +129,46 @@ class MyFeeds_Amazon_Admin {
     }
 
     /**
+     * What the window's parts may hold, for wp_kses() where they are
+     * printed (render_modal()). A part is escaped by whoever wrote it, and
+     * a filter writes some of them, so the window escapes once more as it
+     * prints: the tags and attributes listed here pass, anything else is
+     * taken out. A part that writes more must name it here first.
+     *
+     * @return array<string,array<string,bool>>
+     */
+    public static function allowed_html() {
+        $marked = array('data-*' => true);
+        return array(
+            'a'      => array('href' => true, 'target' => true, 'rel' => true),
+            'br'     => array(),
+            'button' => $marked + array('type' => true, 'id' => true, 'class' => true, 'title' => true, 'aria-label' => true, 'aria-pressed' => true),
+            'code'   => array(),
+            'div'    => $marked + array('id' => true, 'class' => true),
+            'input'  => array('type' => true, 'id' => true, 'class' => true, 'value' => true, 'autocomplete' => true, 'placeholder' => true),
+            'label'  => array('for' => true),
+            'li'     => array(),
+            'p'      => array('class' => true),
+            'q'      => array('lang' => true),
+            'span'   => $marked + array('id' => true, 'class' => true, 'style' => true),
+            'strong' => array('id' => true),
+            'td'     => array(),
+            'th'     => array('scope' => true),
+            'tr'     => $marked,
+            'ul'     => array(),
+            'svg'    => array('viewbox' => true, 'width' => true, 'height' => true, 'fill' => true, 'stroke' => true, 'stroke-width' => true,
+                'stroke-linecap' => true, 'stroke-linejoin' => true, 'aria-hidden' => true),
+            'path'   => array('class' => true, 'd' => true),
+            'circle' => array('class' => true, 'cx' => true, 'cy' => true, 'r' => true),
+            'line'   => array('class' => true, 'x1' => true, 'y1' => true, 'x2' => true, 'y2' => true),
+        );
+    }
+
+    /**
      * The window's parts, as a link needs them, and as whatever adds to
      * the window makes of them (myfeeds_amazon_modal_sections). Every
-     * part is HTML, escaped by whoever wrote it.
+     * part is HTML, escaped by whoever wrote it; render_modal() passes it
+     * through wp_kses() with allowed_html() once more.
      *
      * @return array<string,string>
      */
@@ -172,19 +209,19 @@ class MyFeeds_Amazon_Admin {
         $partner_tag = MyFeeds_Amazon_Link_Settings::partner_tag($marketplace);
         $badge_id    = MyFeeds_Amazon_Link_Settings::badge_id();
         $s           = self::sections();
-        // Every part below is HTML its author escaped (sections()).
+        $allowed     = self::allowed_html();
         ?>
         <div id="myfeeds-amazon-modal" class="myfeeds-modal-overlay" style="display:none;" data-testid="amazon-modal">
             <div class="myfeeds-modal-content">
                 <div class="myfeeds-modal-header">
-                    <h3><?php echo $s['title']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></h3>
+                    <h3><?php echo wp_kses($s['title'], $allowed); ?></h3>
                     <button type="button" class="myfeeds-modal-close" id="myfeeds-amazon-modal-close">&times;</button>
                 </div>
                 <div class="myfeeds-modal-body">
-                    <?php echo $s['top']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    <?php echo wp_kses($s['top'], $allowed); ?>
 
                     <div class="myfeeds-help-text myfeeds-amz-help">
-                        <?php echo $s['help']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <?php echo wp_kses($s['help'], $allowed); ?>
                     </div>
 
                     <table class="form-table myfeeds-amz-fields" role="presentation">
@@ -198,7 +235,7 @@ class MyFeeds_Amazon_Admin {
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <p class="description"><?php echo $s['site_note']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></p>
+                                <p class="description"><?php echo wp_kses($s['site_note'], $allowed); ?></p>
                             </td>
                         </tr>
                         <tr>
@@ -217,7 +254,7 @@ class MyFeeds_Amazon_Admin {
                                 </label>
                                 <p class="description">
                                     <?php esc_html_e('Amazon sends visitors from other countries to a search on their own Amazon. Your tag earns there only if you turned those countries on in Associates Central under Account Settings, Global Earning Preferences (formerly OneLink). Leave this on unless you did.', 'myfeeds-affiliate-feed-manager'); ?>
-                                    <?php echo $s['abroad_note']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                    <?php echo wp_kses($s['abroad_note'], $allowed); ?>
                                 </p>
                             </td>
                         </tr>
@@ -235,15 +272,15 @@ class MyFeeds_Amazon_Admin {
                                 </p>
                             </td>
                         </tr>
-                        <?php echo $s['fields']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <?php echo wp_kses($s['fields'], $allowed); ?>
                     </table>
 
                     <p class="myfeeds-amz-actions">
-                        <?php echo $s['actions']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <?php echo wp_kses($s['actions'], $allowed); ?>
                         <span id="mf-amz-feedback" class="myfeeds-amz-feedback"></span>
                     </p>
 
-                    <?php echo $s['bottom']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    <?php echo wp_kses($s['bottom'], $allowed); ?>
                 </div>
             </div>
         </div>

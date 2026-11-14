@@ -182,7 +182,7 @@ class MyFeeds_Amazon_Card {
             return;
         }
 
-        wp_register_style(self::HANDLE, false, array(), null);
+        wp_register_style(self::HANDLE, false, array(), MYFEEDS_VERSION);
         wp_enqueue_style(self::HANDLE);
         wp_add_inline_style(self::HANDLE, self::css() . implode('', self::$styles));
     }

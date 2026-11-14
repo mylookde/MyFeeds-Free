@@ -206,8 +206,9 @@ class MyFeeds_Look_Block {
             array('raw_data', $path),
         );
         foreach ($tries as $try) {
-            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $try[0] is one of the two column names written above; the value goes through prepare().
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- MyFeeds' own product table, asked once when an author pastes an address; $try[0] is one of the two column names written above; the value goes through prepare().
             $id = $wpdb->get_var($wpdb->prepare(
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is MyFeeds_DB_Manager::table_name(), {$try[0]} a column name from the list above; the value is the %s.
                 "SELECT external_id FROM {$table} WHERE status = 'active' AND {$try[0]} LIKE %s ORDER BY in_stock DESC LIMIT 1",
                 '%' . $wpdb->esc_like($try[1]) . '%'
             ));

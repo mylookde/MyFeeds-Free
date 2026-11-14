@@ -120,14 +120,14 @@ class MyFeeds_Source_Snapshot {
         if (empty($ids)) {
             return;
         }
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- the snapshot is written and read as a stream, line by line; WP_Filesystem has no stream API
         $fh = @fopen(self::ids_path($path), 'ab');
         if (!$fh) {
             return;
         }
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- one line of the snapshot stream; WP_Filesystem has no stream API
         fwrite($fh, implode("\n", array_map('strval', $ids)) . "\n");
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the snapshot stream opened above
         fclose($fh);
     }
 
@@ -141,7 +141,7 @@ class MyFeeds_Source_Snapshot {
         if (!is_readable($ids)) {
             return $set;
         }
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- the snapshot is written and read as a stream, line by line; WP_Filesystem has no stream API
         $fh = @fopen($ids, 'rb');
         if (!$fh) {
             return $set;
@@ -152,7 +152,7 @@ class MyFeeds_Source_Snapshot {
                 $set[$line] = 1;
             }
         }
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the snapshot stream opened above
         fclose($fh);
 
         return $set;
@@ -200,7 +200,7 @@ class MyFeeds_Source_Snapshot {
             if ($line === '') {
                 continue;
             }
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- one line of the snapshot stream; WP_Filesystem has no stream API
             $n = fwrite($fh, $line . "\n");
             if ($n !== false) {
                 $written += $n;
@@ -252,7 +252,7 @@ class MyFeeds_Source_Snapshot {
             return array('carried' => 0, 'dropped' => 0);
         }
 
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- the snapshot is written and read as a stream, line by line; WP_Filesystem has no stream API
         $in = @fopen($previous, 'rb');
         if (!$in) {
             return array('carried' => 0, 'dropped' => 0);
@@ -288,7 +288,7 @@ class MyFeeds_Source_Snapshot {
                 $batch = array();
             }
         }
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the snapshot stream opened above
         fclose($in);
 
         if (!empty($batch)) {
@@ -349,29 +349,29 @@ class MyFeeds_Source_Snapshot {
         $needs_newline = false;
         $size = file_exists($snapshot) ? (int) filesize($snapshot) : 0;
         if ($size > 0) {
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents -- reads the one last byte of the snapshot, nothing more
             $tail = @file_get_contents($snapshot, false, null, $size - 1, 1);
             $needs_newline = $tail !== "\n";
         }
 
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- the snapshot is written and read as a stream, line by line; WP_Filesystem has no stream API
         $in = @fopen($part, 'rb');
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- the snapshot is written and read as a stream, line by line; WP_Filesystem has no stream API
         $out = @fopen($snapshot, 'ab');
         if (!$in || !$out) {
             if ($in) {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the snapshot stream opened above
                 fclose($in);
             }
             if ($out) {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the snapshot stream opened above
                 fclose($out);
             }
             return new WP_Error('myfeeds_source_write', __('The snapshot could not be extended.', 'myfeeds-affiliate-feed-manager'));
         }
 
         if ($needs_newline) {
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- one line of the snapshot stream; WP_Filesystem has no stream API
             fwrite($out, "\n");
         }
 
@@ -381,12 +381,12 @@ class MyFeeds_Source_Snapshot {
             if ($chunk === false || $chunk === '') {
                 break;
             }
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- one line of the snapshot stream; WP_Filesystem has no stream API
             fwrite($out, $chunk);
         }
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the snapshot stream opened above
         fclose($in);
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the snapshot stream opened above
         fclose($out);
 
         self::discard($work);
@@ -432,7 +432,7 @@ class MyFeeds_Source_Snapshot {
         if (!is_readable($path)) {
             return $counts;
         }
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- the snapshot is written and read as a stream, line by line; WP_Filesystem has no stream API
         $in = @fopen($path, 'rb');
         if (!$in) {
             return $counts;
@@ -455,7 +455,7 @@ class MyFeeds_Source_Snapshot {
                 $batch = array();
             }
         }
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the snapshot stream opened above
         fclose($in);
 
         if (!empty($batch)) {
@@ -476,7 +476,7 @@ class MyFeeds_Source_Snapshot {
         if (!is_readable($path)) {
             return 0;
         }
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- the snapshot is written and read as a stream, line by line; WP_Filesystem has no stream API
         $in = @fopen($path, 'rb');
         if (!$in) {
             return 0;
@@ -487,7 +487,7 @@ class MyFeeds_Source_Snapshot {
                 $count++;
             }
         }
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the snapshot stream opened above
         fclose($in);
 
         return $count;

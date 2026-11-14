@@ -140,6 +140,7 @@ class MyFeeds_Amazon_Cache {
         global $wpdb;
         $table = self::table_name();
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- asks the database itself whether the table exists; an answer kept elsewhere could be one from before it was created
         return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
     }
 
@@ -162,6 +163,7 @@ class MyFeeds_Amazon_Cache {
         $placeholders = implode(',', array_fill(0, count($asins), '%s'));
         $params       = array_merge($asins, array($marketplace));
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- this table is the cache of Amazon's answers; a cache in front of it would keep a price past Amazon's hour
         $rows = $wpdb->get_results($wpdb->prepare(
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb->prefix; the IN list is one %s per ASIN, every value goes through prepare()
             "SELECT * FROM " . self::table_name() . " WHERE asin IN ({$placeholders}) AND marketplace = %s",
@@ -226,6 +228,7 @@ class MyFeeds_Amazon_Cache {
         // Amazon describes it again: whatever it said before no longer holds.
         self::forget_answers(array($item['asin']), $marketplace);
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- writes MyFeeds' own cache table; wpdb::replace() escapes every value
         return false !== $wpdb->replace(
             self::table_name(),
             array(
@@ -265,6 +268,7 @@ class MyFeeds_Amazon_Cache {
 
         $cutoff = time() - self::ITEM_TTL;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- removes expired rows of MyFeeds' own cache table, nothing to cache
         return (int) $wpdb->query($wpdb->prepare(
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table name from $wpdb->prefix, the cutoff goes through prepare()
             'DELETE FROM ' . self::table_name() . ' WHERE item_fetched_at < %d',
@@ -360,6 +364,7 @@ class MyFeeds_Amazon_Cache {
 
         $placeholders = implode(',', array_fill(0, count($asins), '%s'));
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- removes rows of MyFeeds' own cache table, nothing to cache
         return (int) $wpdb->query($wpdb->prepare(
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb->prefix; the IN list is one %s per ASIN, every value goes through prepare()
             'DELETE FROM ' . self::table_name() . " WHERE marketplace = %s AND asin IN ({$placeholders})",
