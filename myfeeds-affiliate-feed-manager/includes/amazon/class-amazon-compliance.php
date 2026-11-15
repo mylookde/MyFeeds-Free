@@ -77,4 +77,19 @@ class MyFeeds_Amazon_Compliance {
     public static function is_valid_asin($asin) {
         return (bool) preg_match('/^[A-Z0-9]{10}$/', strtoupper((string) $asin));
     }
+
+    /*
+     * Both lived in this class until 1.6.8, and a theme that prints Amazon
+     * prices itself calls them here (the disclaimer under its own list of
+     * products). Since 1.6.9 they are MyFeeds_Amazon_Stamp's. A public
+     * method is a promise to code we never see (PublicApiKeptTest).
+     */
+
+    public static function disclaimer($marketplace) {
+        return class_exists('MyFeeds_Amazon_Stamp') ? MyFeeds_Amazon_Stamp::disclaimer($marketplace) : '';
+    }
+
+    public static function format_stamp($marketplace, $fetched_at) {
+        return class_exists('MyFeeds_Amazon_Stamp') ? MyFeeds_Amazon_Stamp::format_stamp($marketplace, $fetched_at) : '';
+    }
 }

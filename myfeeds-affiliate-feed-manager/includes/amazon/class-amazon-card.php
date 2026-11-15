@@ -206,4 +206,20 @@ class MyFeeds_Amazon_Card {
             . '.myfeeds-amazon-cta__text{display:inline-block;font-size:13px;font-weight:600;text-decoration:underline;text-underline-offset:3px}'
             . '.myfeeds-amazon-cta .myfeeds-amazon-badge{display:block;width:120px;min-width:90px;height:auto;margin:6px 0}';
     }
+
+    /*
+     * The price stamp lived in this class until 1.6.8, and a theme that
+     * prints Amazon prices itself calls it here. Since 1.6.9 it is
+     * MyFeeds_Amazon_Stamp's; without these two, such a theme stops with a
+     * fatal error on the first page that shows an Amazon price. A public
+     * method is a promise to code we never see (PublicApiKeptTest).
+     */
+
+    public static function stamp_html($id, $fetched_at, $tag = 'div', $class = '') {
+        return class_exists('MyFeeds_Amazon_Stamp') ? MyFeeds_Amazon_Stamp::stamp_html($id, $fetched_at, $tag, $class) : '';
+    }
+
+    public static function render_stamp($html, $product) {
+        return class_exists('MyFeeds_Amazon_Stamp') ? MyFeeds_Amazon_Stamp::render_stamp($html, $product) : $html;
+    }
 }
