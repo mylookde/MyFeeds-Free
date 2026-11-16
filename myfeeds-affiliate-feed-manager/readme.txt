@@ -241,7 +241,7 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 = 1.1.1 =
 * Fixed: a product without a photo shows a plain grey picture with a picture outline in its place. Before, its card in your post and its tile in the block editor showed a broken-image icon with the product's name. That picture is never given to search engines as the product's photo.
 * Fixed: when a product's photo does not load from the merchant, its card shows a grey box with a picture outline. Before, the broken-image icon and the product's name lay on top of it.
-* Changed: the paid plugin's editor for the look of your cards is called the design editor, on the Design page and in this readme.
+* Changed: the paid plugin's editor for the look of your cards is called the design editor, on the Design page and in this readme. The picture on the Design page shows the editor as it looks today.
 
 = 1.1.0 =
 * New: choose where your products come from. Paste a product feed link or upload its file as before, connect Rakuten Advertising, or connect Amazon's API. Without a source the Feeds screen offers all three; with one, it offers "Change source".
