@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -62,7 +62,7 @@ Install MyFeeds, choose your product source, and make your next post shoppable.
 
 = Related paid plugin =
 
-This plugin is fully functional on its own. A separate, independent paid plugin called **MyFeeds Pro** is available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins), in two plans: Pro and Shop. It adds things like a visual card designer with Google Fonts, auto-play and arrow colours for the carousel, click analytics per post and product, and, on the Shop plan, a full shop with its own categories and filters. It is not required to use this plugin.
+This plugin is fully functional on its own. A separate, independent paid plugin called **MyFeeds Pro** is available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins), in two plans: Pro and Shop. It adds things like a visual design editor with Google Fonts, auto-play and arrow colours for the carousel, click analytics per post and product, and, on the Shop plan, a full shop with its own categories and filters. It is not required to use this plugin.
 
 == Installation ==
 
@@ -231,12 +231,17 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 2. Your picked products, saved in the block. They stay together until you place them, each with its own price and discount. The shop buttons on the cards belong to the Shop plan of MyFeeds Pro.
 3. Those four products published as a live product grid in a real blog post. Your readers see what the merchant is actually selling today, for as long as the post exists.
 4. The same four products as a swipeable carousel. A second way to present what you've curated, for image-heavy posts and roundups.
-5. Card design editor (MyFeeds Pro). Cards that look like your blog wrote them. One save, every card across every post catches up. The live editor opens more than this screen lets on.
+5. Design editor (MyFeeds Pro). Cards that look like your blog wrote them. One save, every card across every post catches up. The live editor opens more than this screen lets on.
 6. Full storefront on your own domain (MyFeeds Pro, Shop plan). Visitors see your real online shop with categories, filters and sorting. The controls they already know from any modern shop, all on your domain. Every checkout goes through your affiliate link.
 7. Category manager (MyFeeds Pro, Shop plan). A shop organised the way your readers shop. Build the tree once, then curate products into each category by hand. Smart keyword search behind the scenes; you stay the editor.
 8. Shop design editor (MyFeeds Pro, Shop plan). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
 
 == Changelog ==
+
+= 1.1.1 =
+* Fixed: a product without a photo shows a plain grey picture with a picture outline in its place. Before, its card in your post and its tile in the block editor showed a broken-image icon with the product's name. That picture is never given to search engines as the product's photo.
+* Fixed: when a product's photo does not load from the merchant, its card shows a grey box with a picture outline. Before, the broken-image icon and the product's name lay on top of it.
+* Changed: the paid plugin's editor for the look of your cards is called the design editor, on the Design page and in this readme.
 
 = 1.1.0 =
 * New: choose where your products come from. Paste a product feed link or upload its file as before, connect Rakuten Advertising, or connect Amazon's API. Without a source the Feeds screen offers all three; with one, it offers "Change source".
@@ -368,6 +373,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 Older entries (1.0.28 and earlier) are in changelog.txt, which ships with the plugin.
 
 == Upgrade Notice ==
+
+= 1.1.1 =
+Fixes the broken-image icon on a product without a photo. Coming from 1.0.x: one product source, now also Rakuten or Amazon's API; a site that ran MyFeeds Pro keeps its biggest source, the others are set aside, not deleted.
 
 = 1.1.0 =
 One product source, now with Rakuten and Amazon's API; every display and the Look; Amazon products by link or ASIN. A site that ran MyFeeds Pro keeps its biggest source; the others are set aside, not deleted.

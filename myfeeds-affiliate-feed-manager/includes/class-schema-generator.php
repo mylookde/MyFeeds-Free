@@ -74,6 +74,11 @@ class MyFeeds_Schema_Generator {
     private static function product_node(array $product) {
         $name = isset($product['title']) ? trim((string) $product['title']) : '';
         $image = isset($product['image_url']) ? trim((string) $product['image_url']) : '';
+        // The card's stand-in for a missing photo is no picture of the
+        // product (rule 20): a product that shows it is not described.
+        if (function_exists('myfeeds_placeholder_image_url') && $image === myfeeds_placeholder_image_url()) {
+            $image = '';
+        }
         $url = isset($product['affiliate_link']) ? trim((string) $product['affiliate_link']) : '';
         // Google reads this URL. A block that lost its backslashes offers
         // one that resolves to nothing.

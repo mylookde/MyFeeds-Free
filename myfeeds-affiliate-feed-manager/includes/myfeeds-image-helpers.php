@@ -907,3 +907,17 @@ if (!function_exists('myfeeds_image_render_attrs')) {
         );
     }
 }
+
+if (!function_exists('myfeeds_placeholder_image_url')) {
+    /**
+     * The picture a card shows for a product that has none: a light grey
+     * square with a picture outline, the same file in both plugins. It
+     * stands in for a missing photo and is never a product's picture, so
+     * the structured data leaves a product that shows it out (rule 20).
+     *
+     * @return string
+     */
+    function myfeeds_placeholder_image_url() {
+        return MYFEEDS_PLUGIN_URL . 'assets/placeholder.png';
+    }
+}

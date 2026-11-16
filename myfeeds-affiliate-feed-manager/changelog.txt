@@ -4,6 +4,11 @@ Full changelog
 The most recent releases are also listed on the plugin page on WordPress.org.
 That listing has a length limit, so the complete history lives here.
 
+= 1.1.1 =
+* Fixed: a product without a photo shows a plain grey picture with a picture outline in its place. Before, its card in your post and its tile in the block editor showed a broken-image icon with the product's name. That picture is never given to search engines as the product's photo.
+* Fixed: when a product's photo does not load from the merchant, its card shows a grey box with a picture outline. Before, the broken-image icon and the product's name lay on top of it.
+* Changed: the paid plugin's editor for the look of your cards is called the design editor, on the Design page and in this readme.
+
 = 1.1.0 =
 * New: choose where your products come from. Paste a product feed link or upload its file as before, connect Rakuten Advertising, or connect Amazon's API. Without a source the Feeds screen offers all three; with one, it offers "Change source".
 * New: Rakuten Advertising as your product source. Your site asks Rakuten's API for the products of the advertisers you choose, as many as you like, imports them like a feed and refreshes them every night. External Services says what is sent and when.

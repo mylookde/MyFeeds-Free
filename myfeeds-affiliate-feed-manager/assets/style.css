@@ -458,6 +458,14 @@ html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeed
     opacity: 0.5 !important;
 }
 
+/* The give-up script hides the picture with an inline style, which loses to
+   the display rule of the card's picture above: the reader saw the browser's
+   broken-image icon and the alt text over this fallback. */
+html body .myfeeds-product-grid .myfeeds-product-card .myfeeds-product-image.myfeeds-img-error img,
+html body .myfeeds-product-carousel .splide__slide .myfeeds-product-card .myfeeds-product-image.myfeeds-img-error img {
+    display: none !important;
+}
+
 /* ==========================================================================
    ELEMENTOR / PAGE BUILDER CONFLICT OVERRIDE
    html body prefix for maximum specificity

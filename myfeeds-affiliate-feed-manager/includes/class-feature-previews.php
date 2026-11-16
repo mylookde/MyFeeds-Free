@@ -2,7 +2,7 @@
 /**
  * Marketing-only preview pages for the paid-tier features.
  *
- * Adds three submenu entries (Shop, Card Design, Analytics) with a
+ * Adds three submenu entries (Shop, Design, Analytics) with a
  * brand-coloured tier badge. Each one opens a static info
  * page describing the feature with screenshots, benefit bullets, and
  * a direct trial CTA to the Freemius checkout.
@@ -191,7 +191,7 @@ class MyFeeds_Feature_Previews {
             'screenshots' => array(
                 array(
                     'image'       => $this->preview_image_url('card-design.png'),
-                    'placeholder' => __('Card design editor with live preview', 'myfeeds-affiliate-feed-manager'),
+                    'placeholder' => __('Design editor with live preview', 'myfeeds-affiliate-feed-manager'),
                     'caption'     => __('Move a slider on the left, the card on the right updates the moment you let go.', 'myfeeds-affiliate-feed-manager'),
                 ),
             ),
@@ -345,7 +345,7 @@ class MyFeeds_Feature_Previews {
                 // Nothing else here is a design editor, so the short form
                 // cannot be misread — and it matches the one-word siblings.
                 'menu_title'  => __('Design', 'myfeeds-affiliate-feed-manager'),
-                'page_title'  => __('MyFeeds — Card Design', 'myfeeds-affiliate-feed-manager'),
+                'page_title'  => __('MyFeeds — Design', 'myfeeds-affiliate-feed-manager'),
                 'tier'        => 'PRO',
             ),
             array(

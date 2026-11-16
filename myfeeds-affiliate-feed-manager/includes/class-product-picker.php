@@ -341,7 +341,7 @@ class MyFeeds_Product_Picker {
             return '<div' . self::wrapper_attributes($attrs, 'myfeeds-no-products') . '>' . esc_html__('No products selected.', 'myfeeds-affiliate-feed-manager') . '</div>';
         }
 
-        $placeholder_url = MYFEEDS_PLUGIN_URL . 'assets/placeholder.png';
+        $placeholder_url = myfeeds_placeholder_image_url();
         $use_db = class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode();
 
         static $cached_card_design = null;
@@ -792,7 +792,12 @@ class MyFeeds_Product_Picker {
      */
     private function render_product_card($product, $placeholder_url, $card_design = null) {
         $title          = (string) ($product['title']          ?? '');
-        $image_url      = (string) ($product['image_url']      ?? $placeholder_url);
+        // A product without a photo shows the plugin's stand-in picture. An
+        // empty src is no missing picture to a browser but a failed one.
+        $image_url      = trim((string) ($product['image_url'] ?? ''));
+        if ($image_url === '') {
+            $image_url = $placeholder_url;
+        }
         $brand          = (string) ($product['brand']          ?? '');
         $merchant       = (string) ($product['merchant']       ?? '');
         $affiliate_link = myfeeds_repair_saved_link((string) ($product['affiliate_link'] ?? '#'));
