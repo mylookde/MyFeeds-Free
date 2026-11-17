@@ -1353,6 +1353,17 @@ class MyFeeds_Search_Engine {
         // and one for the count: "sneaker" with one merchant ticked sent
         // seven full-text passes and took 50 seconds on mylook.com.de.
         $facets = self::merged_facets($table, $match_sql, $args, $match_params, $facets);
+        if (!isset($facets['_total_dedup'])) {
+            // The pass stopped at its cap and saw a slice of the products.
+            // The price hint has to span all of them, as it did when it was
+            // a query of its own: "sneaker" in one shop read 25.98-179.99
+            // from the slice, 1.98-249.99 from the shop.
+            unset($facets['price_range']);
+            $range = self::price_range($table, $match_sql, $args, $match_params);
+            if ($range !== null) {
+                $facets['price_range'] = $range;
+            }
+        }
         foreach (self::FACET_FILTERS as $facet) {
             if (empty($args[$facet])) {
                 continue;
@@ -1368,6 +1379,25 @@ class MyFeeds_Search_Engine {
         }
 
         return self::cache_facets($cache_key, $facets);
+    }
+
+    /** Lowest and highest price among the matches, every filter applied. */
+    private static function price_range($table, $match_sql, $args, $match_params) {
+        global $wpdb;
+        $f   = self::build_filter_clause($args);
+        $sql = "SELECT MIN(price) AS min_price, MAX(price) AS max_price
+                FROM {$table}
+                WHERE status = 'active'
+                AND price > 0
+                {$f['sql']}
+                AND {$match_sql}";
+        $params = array_merge($f['params'], (array) $match_params);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $table is $wpdb->prefix + a constant, the filter and match fragments are joined constants; every value goes through prepare().
+        $row = $wpdb->get_row($params ? $wpdb->prepare($sql, ...$params) : $sql, ARRAY_A);
+        if (empty($row) || $row['min_price'] === null) {
+            return null;
+        }
+        return array('min' => (float) $row['min_price'], 'max' => (float) $row['max_price']);
     }
 
     /**
