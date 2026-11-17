@@ -901,7 +901,7 @@ class MyFeeds_Search_Engine {
 
     /**
      * Build the SQL filter fragment for caller-supplied filters: brand,
-     * colour, price range, on_sale, in_stock. Returns SQL prefixed with
+     * merchant, colour, price range, on_sale, in_stock. Returns SQL prefixed with
      * ' AND ' (or empty string) plus the parameter values that match the
      * %s/%d placeholders inside the fragment. The fragment is meant to be
      * concatenated to the main search WHERE clause; every dynamic value
@@ -919,6 +919,18 @@ class MyFeeds_Search_Engine {
                 $sql .= " AND LOWER(brand) IN ({$placeholders})";
                 foreach ($brands as $b) {
                     $params[] = mb_strtolower($b);
+                }
+            }
+        }
+        // The merchant is the feed a row came from: feed_name is what the
+        // card shows as its shop and what the storefront filters on.
+        if (!empty($args['merchant']) && is_array($args['merchant'])) {
+            $merchants = array_values(array_filter(array_map('strval', $args['merchant']), 'strlen'));
+            if (!empty($merchants)) {
+                $placeholders = implode(',', array_fill(0, count($merchants), '%s'));
+                $sql .= " AND LOWER(feed_name) IN ({$placeholders})";
+                foreach ($merchants as $m) {
+                    $params[] = mb_strtolower($m);
                 }
             }
         }
@@ -1030,14 +1042,40 @@ class MyFeeds_Search_Engine {
      * pass and the merged pass each did their own array_slice().
      */
     private static function facet_for_display($rows, $facet) {
+        if ($facet === 'merchant') {
+            $rows = self::one_spelling_per_merchant($rows);
+        }
         $out = array_slice(self::tally_facet_with_size_strip($rows), 0, 50);
-        if ($facet === 'brand') {
+        if ($facet === 'brand' || $facet === 'merchant') {
             usort($out, function ($a, $b) {
                 $cmp = strcasecmp((string) $a['value'], (string) $b['value']);
                 return $cmp !== 0 ? $cmp : strcmp((string) $a['value'], (string) $b['value']);
             });
         }
         return $out;
+    }
+
+    /**
+     * A merchant is offered under its feed's own name, not lowercased the
+     * way a brand is: "JD Sports" would read "Jd Sports". The filter
+     * compares without case, so spellings that differ only in case are
+     * one merchant and one entry - under the same spelling every time,
+     * whichever order the rows came back in.
+     */
+    private static function one_spelling_per_merchant($rows) {
+        $rows     = (array) $rows;
+        $spelling = array();
+        foreach ($rows as $r) {
+            $value = (string) ($r['facet_value'] ?? '');
+            $key   = mb_strtolower($value);
+            if (!isset($spelling[$key]) || strcmp($value, $spelling[$key]) < 0) {
+                $spelling[$key] = $value;
+            }
+        }
+        foreach ($rows as $i => $r) {
+            $rows[$i]['facet_value'] = $spelling[mb_strtolower((string) ($r['facet_value'] ?? ''))];
+        }
+        return $rows;
     }
 
     private static function merged_facets($table, $match_sql, $args, $match_params, $facets) {
@@ -1051,6 +1089,7 @@ class MyFeeds_Search_Engine {
         $sql = "SELECT LOWER(brand) AS brand_v,
                        LOWER(colour) AS colour_v,
                        LOWER(category) AS category_v,
+                       feed_name AS merchant_v,
                        product_name,
                        {$vk_col}
                        COALESCE(LOWER(colour), '') AS colour_norm,
@@ -1060,7 +1099,7 @@ class MyFeeds_Search_Engine {
                 WHERE status = 'active'
                 {$f['sql']}
                 AND {$match_sql}
-                GROUP BY brand_v, colour_v, category_v, product_name, colour_norm{$vk_grp}
+                GROUP BY brand_v, colour_v, category_v, merchant_v, product_name, colour_norm{$vk_grp}
                 LIMIT 10000";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
@@ -1075,7 +1114,7 @@ class MyFeeds_Search_Engine {
         // arsort(), which leaves equal counts in whatever order they were
         // first seen, while tally_facet_with_size_strip() breaks those ties
         // alphabetically.
-        $per_facet = array('brand' => array(), 'colour' => array(), 'category' => array());
+        $per_facet = array('brand' => array(), 'colour' => array(), 'category' => array(), 'merchant' => array());
         $distinct  = array();
         $min = null;
         $max = null;
@@ -1088,7 +1127,7 @@ class MyFeeds_Search_Engine {
             );
             $distinct[self::group_key($shared)] = true;
 
-            foreach (array('brand', 'colour') as $facet) {
+            foreach (array('brand', 'colour', 'merchant') as $facet) {
                 $value = $r[$facet . '_v'] ?? '';
                 if ($value === '' || $value === null) continue;
                 $per_facet[$facet][] = array('facet_value' => $value) + $shared;
@@ -1274,6 +1313,7 @@ class MyFeeds_Search_Engine {
             // Partial matches change WHICH rows are counted, so a wide
             // search must not be served the narrow search's chip counts.
             !empty($args['loose']),
+            $args['merchant'] ?? array(),
         )));
         $cached = get_transient($cache_key);
         if (is_array($cached)) {
@@ -1304,7 +1344,8 @@ class MyFeeds_Search_Engine {
         // GROUP BY LOWER(brand) cannot use an index, so each of these is a
         // temporary table over the whole match set. Three became one for
         // the case that is by far the most common, the first search.
-        $facet_filters_active = !empty($args['brand']) || !empty($args['colour']) || !empty($args['category']);
+        $facet_filters_active = !empty($args['brand']) || !empty($args['colour']) || !empty($args['category'])
+            || !empty($args['merchant']);
 
         if (!$facet_filters_active) {
             return self::cache_facets($cache_key, self::merged_facets($table, $match_sql, $args, $match_params, $facets));
@@ -1381,6 +1422,22 @@ class MyFeeds_Search_Engine {
             );
         }
         $facets['category'] = self::facet_for_display($cat_rows, 'category');
+
+        // Merchant facets: apply every filter except merchant[]
+        $args_no_merchant = array_merge($args, array('merchant' => array()));
+        $fm = self::build_filter_clause($args_no_merchant);
+        $sql_merchant = "SELECT feed_name AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm{$vk_col}
+                         FROM {$table}
+                         WHERE status = 'active'
+                         AND feed_name IS NOT NULL AND feed_name <> ''
+                         {$fm['sql']}
+                         AND {$match_sql}
+                         GROUP BY feed_name, product_name, colour_norm{$vk_grp}
+                         LIMIT 10000";
+        $params_merchant = array_merge($fm['params'], $match_params);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $table is $wpdb->prefix + a constant, the filter and match fragments are joined constants; every value goes through prepare().
+        $rows_merchant = $wpdb->get_results($wpdb->prepare($sql_merchant, ...$params_merchant), ARRAY_A);
+        $facets['merchant'] = self::facet_for_display($rows_merchant, 'merchant');
 
         // Price range hint (min/max in the keyword-matched set, respecting brand+colour filters)
         $args_for_range = $args;
@@ -1904,6 +1961,7 @@ class MyFeeds_Search_Engine {
             'parsed_query'   => null,
             // Filters
             'brand'          => array(),    // string[] (any-of)
+            'merchant'       => array(),    // string[] (any-of) - feed names
             'colour'         => array(),    // string[] (any-of)
             'category'       => array(),    // string[] (any-of) - raw merchant categories
             'min_price'      => null,       // float
@@ -2141,7 +2199,7 @@ class MyFeeds_Search_Engine {
 
             if (empty($rows)) {
                 myfeeds_log("SEARCH: FULLTEXT returned 0 results, falling back to LIKE", 'debug');
-                $rows = self::like_fallback_search($table, $original_tokens, $synonym_map, $gender_tokens, $fetch_limit);
+                $rows = self::like_fallback_search($table, $original_tokens, $synonym_map, $gender_tokens, $fetch_limit, $filter_data);
                 // This rescue matches substrings, so it answers the WIDE
                 // question even when the reader asked the narrow one. It
                 // has to be reported, or the line above the results
@@ -2151,7 +2209,7 @@ class MyFeeds_Search_Engine {
             }
         } else {
             myfeeds_log("SEARCH: No search_text column/FULLTEXT index, using LIKE fallback", 'debug');
-            $rows = self::like_fallback_search($table, $original_tokens, $synonym_map, $gender_tokens, $fetch_limit);
+            $rows = self::like_fallback_search($table, $original_tokens, $synonym_map, $gender_tokens, $fetch_limit, $filter_data);
             $answered_loosely = !empty($rows);
         }
 
@@ -2451,6 +2509,7 @@ class MyFeeds_Search_Engine {
                 'facets'     => $facets,
                 'applied'    => array(
                     'brand'     => $args['brand'],
+                    'merchant'  => $args['merchant'],
                     'colour'    => $args['colour'],
                     'category'  => $args['category'],
                     'min_price' => $args['min_price'],
@@ -2475,9 +2534,13 @@ class MyFeeds_Search_Engine {
      * @param array $synonym_map Token => synonyms mapping
      * @param array $gender_tokens Gender tokens to exclude from query
      * @param int $limit Max rows
+     * @param array $filter build_filter_clause() of the request. The rescue
+     *        widens the words, never the filters: without them a search for
+     *        words one ticked merchant does not carry came back with every
+     *        other merchant's products under that merchant's chip.
      * @return array DB rows
      */
-    private static function like_fallback_search($table, $original_tokens, $synonym_map, $gender_tokens, $limit) {
+    private static function like_fallback_search($table, $original_tokens, $synonym_map, $gender_tokens, $limit, $filter = array()) {
         global $wpdb;
 
         if (empty($original_tokens)) {
@@ -2556,11 +2619,13 @@ class MyFeeds_Search_Engine {
             return array();
         }
 
-        $where = implode(' AND ', $and_groups);
+        $where      = implode(' AND ', $and_groups);
+        $filter_sql = is_array($filter) ? (string) ($filter['sql'] ?? '') : '';
+        $all_values = array_merge(is_array($filter) ? (array) ($filter['params'] ?? array()) : array(), $all_values);
         $all_values[] = $limit;
 
-        $sql = "SELECT " . self::candidate_columns() . " FROM {$table} WHERE status = 'active' AND {$where} LIMIT %d";
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table is $wpdb->prefix + a constant, the columns are a class constant, $where joins constant fragments ('search_text LIKE %s' etc.); every value goes through prepare().
+        $sql = "SELECT " . self::candidate_columns() . " FROM {$table} WHERE status = 'active'{$filter_sql} AND {$where} LIMIT %d";
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table is $wpdb->prefix + a constant, the columns are a class constant, $where and $filter_sql join constant fragments ('search_text LIKE %s', 'LOWER(brand) IN (%s)' etc.); every value goes through prepare().
         $rows = $wpdb->get_results($wpdb->prepare($sql, ...$all_values), ARRAY_A);
 
         return $rows ?: array();

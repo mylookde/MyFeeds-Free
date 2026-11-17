@@ -3489,6 +3489,7 @@ class MyFeeds_Feed_Manager {
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
             if ($with_meta && class_exists('MyFeeds_Search_Engine')) {
                 $brand_param    = $req->get_param('brand');
+                $merchant_param = $req->get_param('merchant');
                 $colour_param   = $req->get_param('colour');
                 $category_param = $req->get_param('category');
                 $args = array(
@@ -3496,6 +3497,7 @@ class MyFeeds_Feed_Manager {
                     'offset'         => $offset,
                     'return_meta'    => true,
                     'brand'          => is_array($brand_param) ? array_map('sanitize_text_field', $brand_param) : array(),
+                    'merchant'       => is_array($merchant_param) ? array_map('sanitize_text_field', $merchant_param) : array(),
                     'colour'         => is_array($colour_param) ? array_map('sanitize_text_field', $colour_param) : array(),
                     'category'       => is_array($category_param) ? array_map('sanitize_text_field', $category_param) : array(),
                     'min_price'      => $req->get_param('min_price') !== null ? (float) $req->get_param('min_price') : null,
