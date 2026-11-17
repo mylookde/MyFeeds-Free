@@ -992,19 +992,20 @@ class MyFeeds_Search_Engine {
         foreach ((array) $rows as $r) {
             $value = $r['facet_value'] ?? '';
             if ($value === '') continue;
-            $key = self::group_key($r);
-            if (!isset($buckets[$value])) {
-                $buckets[$value] = array();
-            }
-            $buckets[$value][$key] = true;
+            $buckets[$value][self::group_key($r)] = true;
         }
+        return self::ranked(array_map('count', $buckets));
+    }
+
+    /** value => products, as a list: the most products first, equal counts by name. */
+    private static function ranked($counts) {
         $out = array();
-        foreach ($buckets as $value => $set) {
-            $out[] = array('value' => $value, 'count' => count($set));
+        foreach ((array) $counts as $value => $count) {
+            $out[] = array('value' => $value, 'count' => (int) $count);
         }
         usort($out, function ($a, $b) {
             if ($b['count'] === $a['count']) {
-                return strcmp($a['value'], $b['value']);
+                return strcmp((string) $a['value'], (string) $b['value']);
             }
             return $b['count'] - $a['count'];
         });
@@ -1041,16 +1042,25 @@ class MyFeeds_Search_Engine {
      * Both readers call this. They had drifted once already: the single
      * pass and the merged pass each did their own array_slice().
      */
-    private static function facet_for_display($rows, $facet) {
+    private static function facet_for_display($counts, $facet) {
         if ($facet === 'merchant') {
-            $rows = self::one_spelling_per_merchant($rows);
+            $counts = self::one_spelling_per_merchant($counts);
         }
-        $out = array_slice(self::tally_facet_with_size_strip($rows), 0, 50);
+        $out = array_slice(self::ranked($counts), 0, 50);
         if ($facet === 'brand' || $facet === 'merchant') {
             usort($out, function ($a, $b) {
                 $cmp = strcasecmp((string) $a['value'], (string) $b['value']);
                 return $cmp !== 0 ? $cmp : strcmp((string) $a['value'], (string) $b['value']);
             });
+        }
+        return $out;
+    }
+
+    /** facet => (value => products), each made into the list a facet shows. */
+    private static function facets_for_display($counts_by_facet) {
+        $out = array();
+        foreach ($counts_by_facet as $facet => $counts) {
+            $out[$facet] = self::facet_for_display($counts, $facet);
         }
         return $out;
     }
@@ -1062,20 +1072,39 @@ class MyFeeds_Search_Engine {
      * one merchant and one entry - under the same spelling every time,
      * whichever order the rows came back in.
      */
-    private static function one_spelling_per_merchant($rows) {
-        $rows     = (array) $rows;
+    private static function one_spelling_per_merchant($counts) {
         $spelling = array();
-        foreach ($rows as $r) {
-            $value = (string) ($r['facet_value'] ?? '');
+        $sum      = array();
+        foreach ((array) $counts as $value => $count) {
+            $value = (string) $value;
             $key   = mb_strtolower($value);
             if (!isset($spelling[$key]) || strcmp($value, $spelling[$key]) < 0) {
                 $spelling[$key] = $value;
             }
+            $sum[$key] = ($sum[$key] ?? 0) + (int) $count;
         }
-        foreach ($rows as $i => $r) {
-            $rows[$i]['facet_value'] = $spelling[mb_strtolower((string) ($r['facet_value'] ?? ''))];
+        $out = array();
+        foreach ($sum as $key => $count) {
+            $out[$spelling[$key]] = $count;
         }
-        return $rows;
+        return $out;
+    }
+
+    /**
+     * The most products one facet pass reads back. Past it the pass has seen
+     * a slice of the matches, and what it counts is no longer the answer.
+     * Measured on mylook.com.de (400,000 rows): "sneaker" matches 21,133
+     * products, "jacket" 12,484; reading back the 21,133 took 30 MB.
+     */
+    const FACET_GROUP_CAP = 25000;
+
+    /**
+     * What makes rows one product: the variant key, or for a row without one
+     * its name and colour (sizes in the name are stripped later, in PHP).
+     */
+    private static function product_key_sql() {
+        $by_name = "CONCAT(product_name, '|', COALESCE(LOWER(colour), ''))";
+        return self::has_variant_key() ? "COALESCE(NULLIF(variant_key, ''), {$by_name})" : $by_name;
     }
 
     private static function merged_facets($table, $match_sql, $args, $match_params, $facets) {
@@ -1084,60 +1113,64 @@ class MyFeeds_Search_Engine {
         $f      = self::build_filter_clause($args);
         $params = array_merge($f['params'], (array) $match_params);
 
-        $vk_col = self::has_variant_key() ? 'variant_key,' : "'' AS variant_key,";
-        $vk_grp = self::has_variant_key() ? ', variant_key' : '';
+        // One group per product and facet values, not per name: a feed that
+        // names every size ("- Size 8.0 M") made a group of every size, and
+        // "sneaker" on mylook.com.de hit the old cap of 10,000 groups with
+        // 4,640 of its 21,133 products - Famous Footwear's sizes crowded out
+        // whole merchants.
+        $vk_col = self::has_variant_key() ? 'MIN(variant_key) AS variant_key,' : "'' AS variant_key,";
+        $cap    = self::FACET_GROUP_CAP;
         $sql = "SELECT LOWER(brand) AS brand_v,
                        LOWER(colour) AS colour_v,
                        LOWER(category) AS category_v,
                        feed_name AS merchant_v,
-                       product_name,
+                       MIN(product_name) AS product_name,
                        {$vk_col}
-                       COALESCE(LOWER(colour), '') AS colour_norm,
+                       MIN(COALESCE(LOWER(colour), '')) AS colour_norm,
                        MIN(price) AS price_min,
                        MAX(price) AS price_max
                 FROM {$table}
                 WHERE status = 'active'
                 {$f['sql']}
                 AND {$match_sql}
-                GROUP BY brand_v, colour_v, category_v, merchant_v, product_name, colour_norm{$vk_grp}
-                LIMIT 10000";
+                GROUP BY brand_v, colour_v, category_v, merchant_v, " . self::product_key_sql() . "
+                LIMIT {$cap}";
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A);
         $rows = (array) $rows;
 
         $brand_lookup = self::get_brand_lookup();
-        // Re-shaped into exactly what the separate queries returned, then
-        // handed to the same tally the separate queries used. Counting them
-        // here a second time would have been a second implementation to keep
-        // in step, and it would already have differed: this path sorted with
-        // arsort(), which leaves equal counts in whatever order they were
-        // first seen, while tally_facet_with_size_strip() breaks those ties
-        // alphabetically.
-        $per_facet = array('brand' => array(), 'colour' => array(), 'category' => array(), 'merchant' => array());
-        $distinct  = array();
+        // Counted into sets of product keys per value, the way
+        // tally_facet_with_size_strip() counts, without first copying every
+        // product into a row per facet: four arrays per product at 25,000.
+        $sets = array('brand' => array(), 'colour' => array(), 'category' => array(), 'merchant' => array());
+        $norm_of  = array();
+        $distinct = array();
         $min = null;
         $max = null;
 
         foreach ($rows as $r) {
-            $shared = array(
+            $key = self::group_key(array(
                 'product_name' => $r['product_name'] ?? '',
                 'colour_norm'  => $r['colour_norm'] ?? '',
                 'variant_key'  => $r['variant_key'] ?? '',
-            );
-            $distinct[self::group_key($shared)] = true;
+            ));
+            $distinct[$key] = true;
 
             foreach (array('brand', 'colour', 'merchant') as $facet) {
                 $value = $r[$facet . '_v'] ?? '';
                 if ($value === '' || $value === null) continue;
-                $per_facet[$facet][] = array('facet_value' => $value) + $shared;
+                $sets[$facet][$value][$key] = true;
             }
 
             $cat = $r['category_v'] ?? '';
             if ($cat !== '' && $cat !== null) {
-                $norm = self::normalize_category_path($cat, $brand_lookup);
-                if ($norm !== '') {
-                    $per_facet['category'][] = array('facet_value' => $norm) + $shared;
+                if (!isset($norm_of[$cat])) {
+                    $norm_of[$cat] = self::normalize_category_path($cat, $brand_lookup);
+                }
+                if ($norm_of[$cat] !== '') {
+                    $sets['category'][$norm_of[$cat]][$key] = true;
                 }
             }
 
@@ -1149,9 +1182,11 @@ class MyFeeds_Search_Engine {
             }
         }
 
-        foreach ($per_facet as $facet => $facet_rows) {
-            $facets[$facet] = self::facet_for_display($facet_rows, $facet);
+        $counts = array();
+        foreach ($sets as $facet => $by_value) {
+            $counts[$facet] = array_map('count', $by_value);
         }
+        $facets = array_merge((array) $facets, self::facets_for_display($counts));
 
         if ($min !== null) {
             $facets['price_range'] = array('min' => $min, 'max' => $max);
@@ -1160,10 +1195,77 @@ class MyFeeds_Search_Engine {
         // The caller can skip its own DISTINCT query with this. Only honest
         // while the group stayed under the cap - past that we have seen a
         // slice of the match set, not all of it.
-        if (count($rows) < 10000) {
+        if (count($rows) < $cap) {
             $facets['_total_dedup'] = count($distinct);
         }
 
+        return $facets;
+    }
+
+    /**
+     * A pass that stopped at its cap saw a slice of the products, and a
+     * merchant missing from the slice was not offered at all. Merchants are
+     * a handful of values, so they are counted whole in one grouped query -
+     * with every filter but their own, like any facet - and the total and
+     * the price range of the request come out of the same answer: the
+     * products of the ticked merchants, or of all of them. The search then
+     * sends neither its own count nor a range query, so a request without a
+     * gender word asks the full-text index no more often than before.
+     * The count is SQL's: a row without a variant key whose name carries a
+     * size counts as a product of its own here. Once the key backfill has
+     * run, every row has a key.
+     */
+    private static function count_merchants_whole($table, $match_sql, $args, $match_params, $facets) {
+        global $wpdb;
+
+        $f      = self::build_filter_clause(array_merge($args, array('merchant' => array())));
+        $params = array_merge($f['params'], (array) $match_params);
+        $key    = self::product_key_sql();
+        $sql = "SELECT feed_name AS merchant_v,
+                       COUNT(DISTINCT {$key}) AS products,
+                       MIN(CASE WHEN price > 0 THEN price END) AS price_min,
+                       MAX(CASE WHEN price > 0 THEN price END) AS price_max
+                FROM {$table}
+                WHERE status = 'active'
+                {$f['sql']}
+                AND {$match_sql}
+                GROUP BY feed_name";
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $table is $wpdb->prefix + a constant, the filter, key and match fragments are joined constants; every value goes through prepare().
+        $rows = (array) $wpdb->get_results($params ? $wpdb->prepare($sql, ...$params) : $sql, ARRAY_A);
+
+        $ticked = array();
+        foreach ((array) ($args['merchant'] ?? array()) as $m) {
+            if ((string) $m !== '') {
+                $ticked[] = mb_strtolower((string) $m);
+            }
+        }
+        $counts = array();
+        $total  = 0;
+        $min    = null;
+        $max    = null;
+        foreach ($rows as $r) {
+            $name     = (string) ($r['merchant_v'] ?? '');
+            $products = (int) ($r['products'] ?? 0);
+            if ($name !== '') {
+                $counts[$name] = ($counts[$name] ?? 0) + $products;
+            }
+            if (!empty($ticked) && !in_array(mb_strtolower($name), $ticked, true)) {
+                continue;
+            }
+            $total += $products;
+            if ($r['price_min'] !== null && $r['price_max'] !== null) {
+                $min = ($min === null) ? (float) $r['price_min'] : min($min, (float) $r['price_min']);
+                $max = ($max === null) ? (float) $r['price_max'] : max($max, (float) $r['price_max']);
+            }
+        }
+
+        $shown = self::facets_for_display(array('merchant' => $counts));
+        $facets['merchant']     = $shown['merchant'];
+        $facets['_total_dedup'] = $total;
+        unset($facets['price_range']);
+        if ($min !== null) {
+            $facets['price_range'] = array('min' => $min, 'max' => $max);
+        }
         return $facets;
     }
 
@@ -1342,10 +1444,7 @@ class MyFeeds_Search_Engine {
         // That matters: GROUP BY LOWER(brand) cannot use an index, so every
         // pass is a temporary table over the whole match set, and on a broad
         // search a full-text pass on top.
-        if (!self::has_facet_filter($args)) {
-            return self::cache_facets($cache_key, self::merged_facets($table, $match_sql, $args, $match_params, $facets));
-        }
-
+        //
         // With one set, the same single pass with every filter still answers
         // every facet nobody filtered on, the range and the total. Only a
         // facet that is filtered on needs one more pass, with its own filter
@@ -1353,51 +1452,35 @@ class MyFeeds_Search_Engine {
         // and one for the count: "sneaker" with one merchant ticked sent
         // seven full-text passes and took 50 seconds on mylook.com.de.
         $facets = self::merged_facets($table, $match_sql, $args, $match_params, $facets);
-        if (!isset($facets['_total_dedup'])) {
-            // The pass stopped at its cap and saw a slice of the products.
-            // The price hint has to span all of them, as it did when it was
-            // a query of its own: "sneaker" in one shop read 25.98-179.99
-            // from the slice, 1.98-249.99 from the shop.
-            unset($facets['price_range']);
-            $range = self::price_range($table, $match_sql, $args, $match_params);
-            if ($range !== null) {
-                $facets['price_range'] = $range;
-            }
+        $merchants_whole = !isset($facets['_total_dedup']);
+        if ($merchants_whole) {
+            $facets = self::count_merchants_whole($table, $match_sql, $args, $match_params, $facets);
         }
+        if (!self::has_facet_filter($args)) {
+            return self::cache_facets($cache_key, $facets);
+        }
+
         foreach (self::FACET_FILTERS as $facet) {
-            if (empty($args[$facet])) {
+            // Counted whole above, already with its own filter lifted.
+            if (empty($args[$facet]) || ($facet === 'merchant' && $merchants_whole)) {
                 continue;
             }
             $lifted = array_merge($args, array($facet => array()));
             // With nothing else ticked, the lifted question is the one the
             // search asked before the tick, and its answer is usually still
             // remembered under its own key.
-            $answer = self::has_facet_filter($lifted)
-                ? self::merged_facets($table, $match_sql, $lifted, $match_params, array())
-                : self::compute_facets($table, $ft_query_str, $short_tokens, $lifted, $phrase_constraints, $predicate);
+            if (self::has_facet_filter($lifted)) {
+                $answer = self::merged_facets($table, $match_sql, $lifted, $match_params, array());
+                if ($facet === 'merchant' && !isset($answer['_total_dedup'])) {
+                    $answer = self::count_merchants_whole($table, $match_sql, $lifted, $match_params, $answer);
+                }
+            } else {
+                $answer = self::compute_facets($table, $ft_query_str, $short_tokens, $lifted, $phrase_constraints, $predicate);
+            }
             $facets[$facet] = isset($answer[$facet]) ? $answer[$facet] : array();
         }
 
         return self::cache_facets($cache_key, $facets);
-    }
-
-    /** Lowest and highest price among the matches, every filter applied. */
-    private static function price_range($table, $match_sql, $args, $match_params) {
-        global $wpdb;
-        $f   = self::build_filter_clause($args);
-        $sql = "SELECT MIN(price) AS min_price, MAX(price) AS max_price
-                FROM {$table}
-                WHERE status = 'active'
-                AND price > 0
-                {$f['sql']}
-                AND {$match_sql}";
-        $params = array_merge($f['params'], (array) $match_params);
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $table is $wpdb->prefix + a constant, the filter and match fragments are joined constants; every value goes through prepare().
-        $row = $wpdb->get_row($params ? $wpdb->prepare($sql, ...$params) : $sql, ARRAY_A);
-        if (empty($row) || $row['min_price'] === null) {
-            return null;
-        }
-        return array('min' => (float) $row['min_price'], 'max' => (float) $row['max_price']);
     }
 
     /**
@@ -2383,9 +2466,15 @@ class MyFeeds_Search_Engine {
         // is true is the one that survived it.
         $gender_narrowed = $gender_count < count($rows_before_gender);
 
+        // A total counted inside a window or under a cap is a floor, not the
+        // number of matches. The picker shows it as "867+": without the mark,
+        // ticking a merchant could show more results than the search had.
+        $total_at_least = false;
+
         $total_after_dedup = $dedup_count;
         if ($gender_narrowed) {
             // keep $dedup_count: what came through is what there is
+            $total_at_least = $fulltext_count >= $fetch_limit;
         } elseif (isset($known_total)) {
             // The candidate window held every match, so the total is
             // already in hand. Asking again is a second full-text pass
@@ -2413,6 +2502,7 @@ class MyFeeds_Search_Engine {
                     $seen_distinct[self::group_key($cr)] = true;
                 }
                 $total_after_dedup = count($seen_distinct);
+                $total_at_least    = count($count_rows) >= 5000;
             }
         }
 
@@ -2454,6 +2544,7 @@ class MyFeeds_Search_Engine {
             return array(
                 'products'   => array_values($products),
                 'total'      => $total_after_dedup,
+                'total_at_least' => $total_at_least,
                 'suggestion' => $suggestion,
                 'parsed'     => $parsed,
                 // Whether these rows answer the wide question. The
