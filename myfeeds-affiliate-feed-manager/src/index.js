@@ -391,6 +391,9 @@
     const [facets, setFacets] = useState(null);
     const [parsedHint, setParsedHint] = useState(null);
     const [totalResults, setTotalResults] = useState(0);
+    // The total is a floor, not the number of matches: the route says so
+    // when it counted inside its window. Shown as "867+".
+    const [totalAtLeast, setTotalAtLeast] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     // Whole-word matching is the default. A search word has to START a
     // word, the way the full-text index has always treated long words.
@@ -601,6 +604,7 @@
           } else {
             setResults(found);
             setTotalResults((answer && typeof answer.total === 'number') ? answer.total : found.length);
+            setTotalAtLeast(false);
             if (found.length === 0) {
               setError('No products found for "' + searchTerm + '" on ' + ext.label + '. Try other keywords.');
             }
@@ -658,6 +662,7 @@
             // not showing.
             setAnsweredLoosely(!!(payload && payload.loose));
             setTotalResults((payload && typeof payload.total === 'number') ? payload.total : newProducts.length);
+            setTotalAtLeast(!!(payload && payload.total_at_least));
             if (newProducts.length === 0 && !(payload && payload.suggestion)) {
               // Distinguish "typo / no products" from "filters too narrow"
               var hasFilters = (filterBrand.length + filterMerchant.length + filterColour.length + filterCategory.length) > 0
@@ -748,6 +753,7 @@
       setExtPage(0);
       setHasMoreResults(false);
       setTotalResults(0);
+      setTotalAtLeast(false);
       setResults([]);
       setError(null);
       setSourceId(next ? id : 'feeds');
@@ -1344,7 +1350,7 @@
             // Sort + filter toolbar row, only when actively searching
             searchTerm && searchTerm.length >= 2 && React.createElement("div", { style: { display: "flex", gap: "10px", alignItems: "center", marginTop: "10px", flexWrap: "wrap" } },
               React.createElement("div", { style: { color: "#374151", fontSize: "13px" } },
-                isLoading ? "Searching…" : (totalResults > 0 ? (totalResults + " result" + (totalResults === 1 ? "" : "s")) : "")
+                isLoading ? "Searching…" : (totalResults > 0 ? (totalResults + (totalAtLeast ? "+" : "") + " result" + (totalResults === 1 && !totalAtLeast ? "" : "s")) : "")
               ),
               // Beside the count, not under it. On its own line it cost a
               // row of whitespace inside a modal whose whole job is to
@@ -1408,38 +1414,38 @@
               filterBrand.map(function (b) {
                 return React.createElement("span", { key: "fbchip-" + b, style: { background: "#eef2ff", border: "1px solid #c7d2fe", color: "#3730a3", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
                   "Brand: " + b,
-                  React.createElement("button", { onClick: function () { setFilterBrand(filterBrand.filter(function (x) { return x !== b; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#3730a3", fontWeight: 600, padding: 0 } }, "×")
+                  React.createElement("button", { "aria-label": "Remove filter Brand: " + b, title: "Remove", onClick: function () { setFilterBrand(filterBrand.filter(function (x) { return x !== b; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#3730a3", fontWeight: 600, padding: 0 } }, "×")
                 );
               }),
               filterMerchant.map(function (m) {
                 return React.createElement("span", { key: "fmchip-" + m, style: { background: "#f1f5f9", border: "1px solid #cbd5e1", color: "#334155", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
                   "Merchant: " + m,
-                  React.createElement("button", { onClick: function () { toggleMerchant(m); }, style: { background: "none", border: "none", cursor: "pointer", color: "#334155", fontWeight: 600, padding: 0 } }, "×")
+                  React.createElement("button", { "aria-label": "Remove filter Merchant: " + m, title: "Remove", onClick: function () { toggleMerchant(m); }, style: { background: "none", border: "none", cursor: "pointer", color: "#334155", fontWeight: 600, padding: 0 } }, "×")
                 );
               }),
               filterColour.map(function (c) {
                 return React.createElement("span", { key: "fcchip-" + c, style: { background: "#fdf4ff", border: "1px solid #f5d0fe", color: "#86198f", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
                   "Colour: " + c,
-                  React.createElement("button", { onClick: function () { setFilterColour(filterColour.filter(function (x) { return x !== c; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#86198f", fontWeight: 600, padding: 0 } }, "×")
+                  React.createElement("button", { "aria-label": "Remove filter Colour: " + c, title: "Remove", onClick: function () { setFilterColour(filterColour.filter(function (x) { return x !== c; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#86198f", fontWeight: 600, padding: 0 } }, "×")
                 );
               }),
               filterCategory.map(function (c) {
                 return React.createElement("span", { key: "fcatchip-" + c, style: { background: "#fef3c7", border: "1px solid #fde68a", color: "#92400e", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
                   "Category: " + c,
-                  React.createElement("button", { onClick: function () { setFilterCategory(filterCategory.filter(function (x) { return x !== c; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#92400e", fontWeight: 600, padding: 0 } }, "×")
+                  React.createElement("button", { "aria-label": "Remove filter Category: " + c, title: "Remove", onClick: function () { setFilterCategory(filterCategory.filter(function (x) { return x !== c; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#92400e", fontWeight: 600, padding: 0 } }, "×")
                 );
               }),
               (filterMinPrice !== '' || filterMaxPrice !== '') && React.createElement("span", { style: { background: "#ecfeff", border: "1px solid #a5f3fc", color: "#155e75", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
                 "Price: " + (filterMinPrice || '0') + "€ – " + (filterMaxPrice || '∞'),
-                React.createElement("button", { onClick: function () { setFilterMinPrice(''); setFilterMaxPrice(''); }, style: { background: "none", border: "none", cursor: "pointer", color: "#155e75", fontWeight: 600, padding: 0 } }, "×")
+                React.createElement("button", { "aria-label": "Remove filter Price", title: "Remove", onClick: function () { setFilterMinPrice(''); setFilterMaxPrice(''); }, style: { background: "none", border: "none", cursor: "pointer", color: "#155e75", fontWeight: 600, padding: 0 } }, "×")
               ),
               filterOnSale && React.createElement("span", { style: { background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
                 "On sale",
-                React.createElement("button", { onClick: function () { setFilterOnSale(false); }, style: { background: "none", border: "none", cursor: "pointer", color: "#991b1b", fontWeight: 600, padding: 0 } }, "×")
+                React.createElement("button", { "aria-label": "Remove filter On sale", title: "Remove", onClick: function () { setFilterOnSale(false); }, style: { background: "none", border: "none", cursor: "pointer", color: "#991b1b", fontWeight: 600, padding: 0 } }, "×")
               ),
               filterInStock && React.createElement("span", { style: { background: "#ecfdf5", border: "1px solid #a7f3d0", color: "#065f46", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
                 "In stock",
-                React.createElement("button", { onClick: function () { setFilterInStock(false); }, style: { background: "none", border: "none", cursor: "pointer", color: "#065f46", fontWeight: 600, padding: 0 } }, "×")
+                React.createElement("button", { "aria-label": "Remove filter In stock", title: "Remove", onClick: function () { setFilterInStock(false); }, style: { background: "none", border: "none", cursor: "pointer", color: "#065f46", fontWeight: 600, padding: 0 } }, "×")
               ),
               React.createElement(Button, { isLink: true, onClick: clearAllFilters, style: { padding: "0 6px", fontSize: "12px", color: "#6b7280" } }, "Clear all")
             ),
@@ -1456,7 +1462,7 @@
                 ".myfeeds-fp__grid{display:grid;grid-template-columns:1.15fr 1.15fr 1.15fr 220px;gap:18px;align-items:start}" +
                 ".myfeeds-fp__right-stack{display:flex;flex-direction:column;gap:12px;min-width:0}" +
                 ".myfeeds-fp__right-stack > .myfeeds-fp__section{flex:1;min-width:0}" +
-                "@media (max-width:980px){.myfeeds-fp__grid{grid-template-columns:1fr 1fr}.myfeeds-fp__right-stack{grid-column:span 2;flex-direction:row}}" +
+                "@media (max-width:980px){.myfeeds-fp__grid{grid-template-columns:1fr 1fr}.myfeeds-fp__right-stack{grid-column:span 2;flex-direction:row;align-items:flex-start}}" +
                 "@media (max-width:600px){.myfeeds-fp__grid{grid-template-columns:1fr}.myfeeds-fp__right-stack{grid-column:auto;flex-direction:column}}" +
                 ".myfeeds-fp__section{display:flex;flex-direction:column;min-height:0;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px}" +
                 ".myfeeds-fp__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:11px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.06em}" +
@@ -1467,8 +1473,10 @@
                 ".myfeeds-fp__row:hover{background:#f3f4f6}" +
                 ".myfeeds-fp__row .label{flex:1;text-transform:capitalize;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
                 ".myfeeds-fp__row .count{color:#9ca3af;font-size:11px;font-variant-numeric:tabular-nums}" +
-                ".myfeeds-fp__section--merchant .myfeeds-fp__scroll{max-height:118px}" +
-                ".myfeeds-fp__section--merchant .myfeeds-fp__row .label{text-transform:none}" +
+                ".myfeeds-fp__section--merchant .myfeeds-fp__scroll{max-height:88px}" +
+                ".myfeeds-fp__section--merchant .myfeeds-fp__row{align-items:flex-start}" +
+                ".myfeeds-fp__section--merchant .myfeeds-fp__row .label{text-transform:none;white-space:normal;overflow-wrap:anywhere}" +
+                ".myfeeds-fp__checks{display:flex;flex-wrap:wrap;gap:0 14px;margin-top:8px}" +
                 ".myfeeds-fp__swatches{display:flex;flex-wrap:wrap;gap:6px}" +
                 ".myfeeds-fp__swatch{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #e5e7eb;background:#fff;border-radius:999px;cursor:pointer;font-size:12px;color:#374151;text-transform:capitalize;line-height:1.4;transition:border-color .12s,transform .08s}" +
                 ".myfeeds-fp__swatch:hover{border-color:#9ca3af}" +
@@ -1548,10 +1556,13 @@
                       : React.createElement("div", { className: "myfeeds-fp__empty" }, "Run a search to see categories")
                   ),
                   // Right column stack: Merchant (when there is a choice),
-                  // Price, Show Only. All three are short lists, so stacking
-                  // them in a single narrow column saves the dead whitespace
-                  // they leave behind when each owns a full equal-width grid
-                  // track.
+                  // then Price with the two "show only" boxes side by side
+                  // under it. Short lists in one narrow column, so the panel
+                  // is hardly taller than the brand list beside it: in boxes
+                  // of their own the three pushed the first row of results
+                  // below a 1100x800 window.
+                  // The merchant list shows three and a half rows - the half
+                  // says it scrolls.
                   React.createElement("div", { className: "myfeeds-fp__right-stack" },
                     showMerchantFilter && React.createElement("div", { className: "myfeeds-fp__section myfeeds-fp__section--merchant" },
                       React.createElement("div", { className: "myfeeds-fp__head" },
@@ -1578,17 +1589,16 @@
                         React.createElement("input", { type: "number", placeholder: "Min", value: filterMinPrice, onChange: function (e) { setFilterMinPrice(e.target.value); } }),
                         React.createElement("span", { style: { color: "#9ca3af" } }, "–"),
                         React.createElement("input", { type: "number", placeholder: "Max", value: filterMaxPrice, onChange: function (e) { setFilterMaxPrice(e.target.value); } })
-                      )
-                    ),
-                    React.createElement("div", { className: "myfeeds-fp__section" },
-                      React.createElement("div", { className: "myfeeds-fp__head" }, "Show only"),
-                      React.createElement("label", { className: "myfeeds-fp__row" },
-                        React.createElement("input", { type: "checkbox", checked: filterOnSale, onChange: function () { setFilterOnSale(!filterOnSale); } }),
-                        React.createElement("span", { className: "label" }, "On sale")
                       ),
-                      React.createElement("label", { className: "myfeeds-fp__row" },
-                        React.createElement("input", { type: "checkbox", checked: filterInStock, onChange: function () { setFilterInStock(!filterInStock); } }),
-                        React.createElement("span", { className: "label" }, "In stock")
+                      React.createElement("div", { className: "myfeeds-fp__checks" },
+                        React.createElement("label", { className: "myfeeds-fp__row" },
+                          React.createElement("input", { type: "checkbox", checked: filterOnSale, onChange: function () { setFilterOnSale(!filterOnSale); } }),
+                          React.createElement("span", { className: "label" }, "On sale")
+                        ),
+                        React.createElement("label", { className: "myfeeds-fp__row" },
+                          React.createElement("input", { type: "checkbox", checked: filterInStock, onChange: function () { setFilterInStock(!filterInStock); } }),
+                          React.createElement("span", { className: "label" }, "In stock")
+                        )
                       )
                     )
                   )
@@ -1647,6 +1657,13 @@
                 minWidth: "200px"
               }
             }, isLoadingMore ? "Loading..." : "Load More Results")
+          ),
+          // The search reads a window of rows, and a word that matches tens
+          // of thousands can run out of window before it runs out of
+          // products. The count above is every match; this says where the
+          // list stops instead of letting it end without a word.
+          !ext && !hasMoreResults && !isLoading && !isLoadingMore && results.length >= 50 && results.length < totalResults && React.createElement("div", { className: "myfeeds-results-end", style: { textAlign: "center", padding: "12px 0 6px", fontSize: "12px", color: "#6b7280" } },
+            "Showing the first " + results.length + " of " + totalResults + " results. Add a word or a filter to reach the others."
           )
         ),
 

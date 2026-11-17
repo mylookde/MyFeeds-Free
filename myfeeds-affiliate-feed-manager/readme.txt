@@ -241,9 +241,13 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 = 1.1.2 =
 * New: the filters of the product search in the block editor have a Merchant section. When the products a search finds come from two merchants or more, tick one or several to see only theirs. It works together with the other filters, shows as a chip above the results and goes with "Clear all". With Rakuten Advertising as your product source, each advertiser is a merchant.
 * Fixed: when a search found nothing with whole words and fell back to words inside longer words, it dropped the filters you had set and showed products of any brand, merchant or price. The fallback now keeps your filters.
-* Fixed: in a narrow editor window the short filter lists of the product search (Merchant, Price, Show only) sit side by side instead of each taking a full row.
+* Fixed: in a narrow editor window the short filter lists of the product search (Merchant, Price) sit side by side instead of each taking a full row.
+* Changed: in the filters of the product search, "On sale" and "In stock" sit under the price, so the filter panel is no taller than its longest list and the first results stay in view.
 * Faster: with a filter set in the product search (brand, colour, category or merchant), the counts beside the filters take one pass over the matching products, plus one for each list you filtered on, instead of a query for every list.
 * Fixed: with a filter set, the category counts of the product search could count two products with the same name and colour as one. They now count products the way the brand and colour lists do.
+* Fixed: on a search that matches thousands of products, the number of results and the counts beside the filters count every match. Before, they counted part of them: a merchant could be missing from the list, and ticking a filter could show more results than the search without it. Where the search can count only part, the number says so with a "+" (for example "867+ results"), and where the list holds fewer products than the number, a line under it says so.
+* Faster: a search that matches thousands of products counts its results in the pass that counts the filters, not in a second one.
+* Fixed: the × on an active filter tells screen readers which filter it removes.
 
 = 1.1.1 =
 * Fixed: a product without a photo shows a plain grey picture with a picture outline in its place. Before, its card in your post and its tile in the block editor showed a broken-image icon with the product's name. That picture is never given to search engines as the product's photo.
