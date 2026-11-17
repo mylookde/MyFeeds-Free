@@ -242,6 +242,8 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 * New: the filters of the product search in the block editor have a Merchant section. When the products a search finds come from two merchants or more, tick one or several to see only theirs. It works together with the other filters, shows as a chip above the results and goes with "Clear all". With Rakuten Advertising as your product source, each advertiser is a merchant.
 * Fixed: when a search found nothing with whole words and fell back to words inside longer words, it dropped the filters you had set and showed products of any brand, merchant or price. The fallback now keeps your filters.
 * Fixed: in a narrow editor window the short filter lists of the product search (Merchant, Price, Show only) sit side by side instead of each taking a full row.
+* Faster: with a filter set in the product search (brand, colour, category or merchant), the counts beside the filters take one pass over the matching products, plus one for each list you filtered on, instead of a query for every list.
+* Fixed: with a filter set, the category counts of the product search could count two products with the same name and colour as one. They now count products the way the brand and colour lists do.
 
 = 1.1.1 =
 * Fixed: a product without a photo shows a plain grey picture with a picture outline in its place. Before, its card in your post and its tile in the block editor showed a broken-image icon with the product's name. That picture is never given to search engines as the product's photo.

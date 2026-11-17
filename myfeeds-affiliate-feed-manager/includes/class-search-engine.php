@@ -1277,7 +1277,6 @@ class MyFeeds_Search_Engine {
     }
 
     private static function compute_facets($table, $ft_query_str, $short_tokens, $args, $phrase_constraints = array(), $predicate = null) {
-        global $wpdb;
         $facets = array('brand' => array(), 'colour' => array());
 
         $has_ft_local    = !empty($ft_query_str);
@@ -1338,127 +1337,52 @@ class MyFeeds_Search_Engine {
 
         // Each facet has to be counted with its own filter lifted, or
         // picking a brand would leave that brand as the only one on offer.
-        // When none of the three is set there is nothing to lift, the three
-        // queries are the same query, and one pass answers all of them -
-        // plus the price range and the deduplicated total. That matters:
-        // GROUP BY LOWER(brand) cannot use an index, so each of these is a
-        // temporary table over the whole match set. Three became one for
-        // the case that is by far the most common, the first search.
-        $facet_filters_active = !empty($args['brand']) || !empty($args['colour']) || !empty($args['category'])
-            || !empty($args['merchant']);
-
-        if (!$facet_filters_active) {
+        // When none is set there is nothing to lift, and one pass answers
+        // every facet - plus the price range and the deduplicated total.
+        // That matters: GROUP BY LOWER(brand) cannot use an index, so every
+        // pass is a temporary table over the whole match set, and on a broad
+        // search a full-text pass on top.
+        if (!self::has_facet_filter($args)) {
             return self::cache_facets($cache_key, self::merged_facets($table, $match_sql, $args, $match_params, $facets));
         }
 
-        // Brand facets: apply every filter except brand[]
-        $args_no_brand = array_merge($args, array('brand' => array()));
-        $fb = self::build_filter_clause($args_no_brand);
-        $vk_col = self::has_variant_key() ? ', variant_key' : ", '' AS variant_key";
-        $vk_grp = self::has_variant_key() ? ', variant_key' : '';
-        $sql_brand = "SELECT LOWER(brand) AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm{$vk_col}
-                      FROM {$table}
-                      WHERE status = 'active'
-                      AND brand IS NOT NULL AND brand <> ''
-                      {$fb['sql']}
-                      AND {$match_sql}
-                      GROUP BY LOWER(brand), product_name, colour_norm{$vk_grp}
-                      LIMIT 10000";
-        $params_brand = array_merge($fb['params'], $match_params);
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-        $rows_brand = $wpdb->get_results($wpdb->prepare($sql_brand, ...$params_brand), ARRAY_A);
-        $facets['brand'] = self::facet_for_display($rows_brand, 'brand');
-
-        // Colour facets: apply every filter except colour[]
-        $args_no_colour = array_merge($args, array('colour' => array()));
-        $fc = self::build_filter_clause($args_no_colour);
-        $sql_colour = "SELECT LOWER(colour) AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm{$vk_col}
-                       FROM {$table}
-                       WHERE status = 'active'
-                       AND colour IS NOT NULL AND colour <> ''
-                       {$fc['sql']}
-                       AND {$match_sql}
-                       GROUP BY LOWER(colour), product_name, colour_norm{$vk_grp}
-                       LIMIT 10000";
-        $params_colour = array_merge($fc['params'], $match_params);
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-        $rows_colour = $wpdb->get_results($wpdb->prepare($sql_colour, ...$params_colour), ARRAY_A);
-        $facets['colour'] = self::facet_for_display($rows_colour, 'colour');
-
-        // Category facets: apply every filter except category[]. Categories
-        // are raw merchant labels (no taxonomy mapping yet). normalize_category_path
-        // collapses brand-leaf duplicates ("Lifestyle > T-Shirts > Nike" +
-        // "Lifestyle > T-Shirts > Adidas" → "Lifestyle > T-Shirts") so we
-        // bucket by the normalized path while still deduplicating products.
-        $args_no_category = array_merge($args, array('category' => array()));
-        $fcat = self::build_filter_clause($args_no_category);
-        $sql_category = "SELECT LOWER(category) AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm{$vk_col}
-                         FROM {$table}
-                         WHERE status = 'active'
-                         AND category IS NOT NULL AND category <> ''
-                         {$fcat['sql']}
-                         AND {$match_sql}
-                         GROUP BY LOWER(category), product_name, colour_norm{$vk_grp}
-                         LIMIT 10000";
-        $params_category = array_merge($fcat['params'], $match_params);
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-        $rows_category = $wpdb->get_results($wpdb->prepare($sql_category, ...$params_category), ARRAY_A);
-
-        // Normalize the path first, then tally the same way brand and colour
-        // are tallied. This used to count into its own buckets and sort with
-        // arsort(), which put equal counts in first-seen order while the
-        // other two facets - and the merged path below - break those ties
-        // alphabetically.
-        $brand_lookup = self::get_brand_lookup();
-        $cat_rows = array();
-        foreach ((array) $rows_category as $r) {
-            if (empty($r['facet_value'])) continue;
-            $norm = self::normalize_category_path($r['facet_value'], $brand_lookup);
-            if ($norm === '') continue;
-            $cat_rows[] = array(
-                'facet_value'  => $norm,
-                'product_name' => $r['product_name'] ?? '',
-                'colour_norm'  => $r['colour_norm'] ?? '',
-            );
-        }
-        $facets['category'] = self::facet_for_display($cat_rows, 'category');
-
-        // Merchant facets: apply every filter except merchant[]
-        $args_no_merchant = array_merge($args, array('merchant' => array()));
-        $fm = self::build_filter_clause($args_no_merchant);
-        $sql_merchant = "SELECT feed_name AS facet_value, product_name, COALESCE(LOWER(colour), '') AS colour_norm{$vk_col}
-                         FROM {$table}
-                         WHERE status = 'active'
-                         AND feed_name IS NOT NULL AND feed_name <> ''
-                         {$fm['sql']}
-                         AND {$match_sql}
-                         GROUP BY feed_name, product_name, colour_norm{$vk_grp}
-                         LIMIT 10000";
-        $params_merchant = array_merge($fm['params'], $match_params);
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $table is $wpdb->prefix + a constant, the filter and match fragments are joined constants; every value goes through prepare().
-        $rows_merchant = $wpdb->get_results($wpdb->prepare($sql_merchant, ...$params_merchant), ARRAY_A);
-        $facets['merchant'] = self::facet_for_display($rows_merchant, 'merchant');
-
-        // Price range hint (min/max in the keyword-matched set, respecting brand+colour filters)
-        $args_for_range = $args;
-        $fr = self::build_filter_clause($args_for_range);
-        $sql_range = "SELECT MIN(price) AS min_price, MAX(price) AS max_price
-                      FROM {$table}
-                      WHERE status = 'active'
-                      AND price > 0
-                      {$fr['sql']}
-                      AND {$match_sql}";
-        $params_range = array_merge($fr['params'], $match_params);
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-        $row_range = $wpdb->get_row($wpdb->prepare($sql_range, ...$params_range), ARRAY_A);
-        if (!empty($row_range) && $row_range['min_price'] !== null) {
-            $facets['price_range'] = array(
-                'min' => (float) $row_range['min_price'],
-                'max' => (float) $row_range['max_price'],
-            );
+        // With one set, the same single pass with every filter still answers
+        // every facet nobody filtered on, the range and the total. Only a
+        // facet that is filtered on needs one more pass, with its own filter
+        // lifted. This used to be a query per facet plus one for the range
+        // and one for the count: "sneaker" with one merchant ticked sent
+        // seven full-text passes and took 50 seconds on mylook.com.de.
+        $facets = self::merged_facets($table, $match_sql, $args, $match_params, $facets);
+        foreach (self::FACET_FILTERS as $facet) {
+            if (empty($args[$facet])) {
+                continue;
+            }
+            $lifted = array_merge($args, array($facet => array()));
+            // With nothing else ticked, the lifted question is the one the
+            // search asked before the tick, and its answer is usually still
+            // remembered under its own key.
+            $answer = self::has_facet_filter($lifted)
+                ? self::merged_facets($table, $match_sql, $lifted, $match_params, array())
+                : self::compute_facets($table, $ft_query_str, $short_tokens, $lifted, $phrase_constraints, $predicate);
+            $facets[$facet] = isset($answer[$facet]) ? $answer[$facet] : array();
         }
 
         return self::cache_facets($cache_key, $facets);
+    }
+
+    /**
+     * The filters that are also facets: each is counted with every filter
+     * but its own. Price, sale and stock narrow every facet alike.
+     */
+    const FACET_FILTERS = array('brand', 'colour', 'category', 'merchant');
+
+    private static function has_facet_filter($args) {
+        foreach (self::FACET_FILTERS as $facet) {
+            if (!empty($args[$facet])) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
