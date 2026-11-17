@@ -380,6 +380,7 @@
     // sort mode, OR-faceted aggregates, smart-parser extracted hint.
     const [suggestion, setSuggestion] = useState(null);
     const [filterBrand, setFilterBrand] = useState([]);
+    const [filterMerchant, setFilterMerchant] = useState([]);
     const [filterColour, setFilterColour] = useState([]);
     const [filterCategory, setFilterCategory] = useState([]);
     const [filterMinPrice, setFilterMinPrice] = useState('');
@@ -544,6 +545,7 @@
       if (withFacets) u += '&include_facets=1';
       if (sortMode && sortMode !== 'relevance') u += '&sort=' + encodeURIComponent(sortMode);
       (filterBrand || []).forEach(function (b) { u += '&brand[]=' + encodeURIComponent(b); });
+      (filterMerchant || []).forEach(function (m) { u += '&merchant[]=' + encodeURIComponent(m); });
       (filterColour || []).forEach(function (c) { u += '&colour[]=' + encodeURIComponent(c); });
       (filterCategory || []).forEach(function (c) { u += '&category[]=' + encodeURIComponent(c); });
       if (filterMinPrice !== '' && filterMinPrice !== null) u += '&min_price=' + encodeURIComponent(filterMinPrice);
@@ -658,7 +660,7 @@
             setTotalResults((payload && typeof payload.total === 'number') ? payload.total : newProducts.length);
             if (newProducts.length === 0 && !(payload && payload.suggestion)) {
               // Distinguish "typo / no products" from "filters too narrow"
-              var hasFilters = (filterBrand.length + filterColour.length + filterCategory.length) > 0
+              var hasFilters = (filterBrand.length + filterMerchant.length + filterColour.length + filterCategory.length) > 0
                 || filterMinPrice !== '' || filterMaxPrice !== ''
                 || filterOnSale || filterInStock;
               setError(hasFilters
@@ -708,7 +710,7 @@
       if (!searchTerm || searchTerm.length < 2) return undefined;
       var t = setTimeout(function () { fetchProducts(false); }, 280);
       return function () { clearTimeout(t); };
-    }, [searchTerm, sortMode, filterBrand, filterColour, filterCategory, filterMinPrice, filterMaxPrice, filterOnSale, filterInStock, looseMatch, sourceId, extSort, JSON.stringify(extOptions)]);
+    }, [searchTerm, sortMode, filterBrand, filterMerchant, filterColour, filterCategory, filterMinPrice, filterMaxPrice, filterOnSale, filterInStock, looseMatch, sourceId, extSort, JSON.stringify(extOptions)]);
 
     // Opening the window searches at once, and so does every later press
     // of the button that opened it (props.searchKey moves): a line under
@@ -753,6 +755,7 @@
 
     const clearAllFilters = function () {
       setFilterBrand([]);
+      setFilterMerchant([]);
       setFilterColour([]);
       setFilterCategory([]);
       setFilterMinPrice('');
@@ -762,7 +765,7 @@
       setSortMode('relevance');
     };
 
-    const activeFilterCount = filterBrand.length + filterColour.length + filterCategory.length
+    const activeFilterCount = filterBrand.length + filterMerchant.length + filterColour.length + filterCategory.length
       + (filterOnSale ? 1 : 0) + (filterInStock ? 1 : 0)
       + (filterMinPrice !== '' ? 1 : 0) + (filterMaxPrice !== '' ? 1 : 0);
 
@@ -771,6 +774,28 @@
       var has = arr.some(function (x) { return String(x) === v; });
       return has ? arr.filter(function (x) { return String(x) !== v; }) : arr.concat([v]);
     };
+
+    // The server compares merchants without case and offers each under
+    // its feed's own name, so ticking and unticking compare the same way.
+    const sameMerchant = function (a, b) { return String(a).toLowerCase() === String(b).toLowerCase(); };
+    const toggleMerchant = function (value) {
+      var has = filterMerchant.some(function (x) { return sameMerchant(x, value); });
+      setFilterMerchant(has
+        ? filterMerchant.filter(function (x) { return !sameMerchant(x, value); })
+        : filterMerchant.concat([String(value)]));
+    };
+    // One merchant filters nothing - a free site with one feed would only
+    // get a box to look past. A ticked merchant stays listed even when this
+    // search no longer finds it, or it could not be unticked here.
+    const merchantRows = (function () {
+      var rows = (facets && Array.isArray(facets.merchant)) ? facets.merchant.slice() : [];
+      filterMerchant.forEach(function (m) {
+        if (!rows.some(function (r) { return sameMerchant(r.value, m); })) rows.push({ value: m, count: 0 });
+      });
+      return rows;
+    })();
+    const showMerchantFilter = ((facets && Array.isArray(facets.merchant)) ? facets.merchant.length : 0) >= 2
+      || filterMerchant.length > 0;
 
     const acceptSuggestion = function () {
       if (suggestion && typeof suggestion === 'string') {
@@ -1386,6 +1411,12 @@
                   React.createElement("button", { onClick: function () { setFilterBrand(filterBrand.filter(function (x) { return x !== b; })); }, style: { background: "none", border: "none", cursor: "pointer", color: "#3730a3", fontWeight: 600, padding: 0 } }, "×")
                 );
               }),
+              filterMerchant.map(function (m) {
+                return React.createElement("span", { key: "fmchip-" + m, style: { background: "#f1f5f9", border: "1px solid #cbd5e1", color: "#334155", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
+                  "Merchant: " + m,
+                  React.createElement("button", { onClick: function () { toggleMerchant(m); }, style: { background: "none", border: "none", cursor: "pointer", color: "#334155", fontWeight: 600, padding: 0 } }, "×")
+                );
+              }),
               filterColour.map(function (c) {
                 return React.createElement("span", { key: "fcchip-" + c, style: { background: "#fdf4ff", border: "1px solid #f5d0fe", color: "#86198f", borderRadius: "999px", padding: "3px 10px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" } },
                   "Colour: " + c,
@@ -1418,13 +1449,15 @@
             !ext && showFilters && searchTerm && searchTerm.length >= 2 && React.createElement(Fragment, null,
               // One-off styles for the panel — scrollbar hiding, swatch chip,
               // facet row hover. Kept inline so the bundle stays self-contained.
+              // The right stack's base rule stands before the breakpoints: after
+              // them it won, and the 980px row never happened.
               React.createElement("style", null,
                 ".myfeeds-fp{margin-top:10px;padding:16px;background:#fafafa;border:1px solid #e5e7eb;border-radius:10px}" +
                 ".myfeeds-fp__grid{display:grid;grid-template-columns:1.15fr 1.15fr 1.15fr 220px;gap:18px;align-items:start}" +
-                "@media (max-width:980px){.myfeeds-fp__grid{grid-template-columns:1fr 1fr}.myfeeds-fp__right-stack{grid-column:span 2;flex-direction:row}}" +
-                "@media (max-width:600px){.myfeeds-fp__grid{grid-template-columns:1fr}.myfeeds-fp__right-stack{grid-column:auto;flex-direction:column}}" +
                 ".myfeeds-fp__right-stack{display:flex;flex-direction:column;gap:12px;min-width:0}" +
                 ".myfeeds-fp__right-stack > .myfeeds-fp__section{flex:1;min-width:0}" +
+                "@media (max-width:980px){.myfeeds-fp__grid{grid-template-columns:1fr 1fr}.myfeeds-fp__right-stack{grid-column:span 2;flex-direction:row}}" +
+                "@media (max-width:600px){.myfeeds-fp__grid{grid-template-columns:1fr}.myfeeds-fp__right-stack{grid-column:auto;flex-direction:column}}" +
                 ".myfeeds-fp__section{display:flex;flex-direction:column;min-height:0;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px}" +
                 ".myfeeds-fp__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:11px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.06em}" +
                 ".myfeeds-fp__head .total{font-weight:500;color:#9ca3af;font-size:11px;text-transform:none;letter-spacing:0}" +
@@ -1434,6 +1467,8 @@
                 ".myfeeds-fp__row:hover{background:#f3f4f6}" +
                 ".myfeeds-fp__row .label{flex:1;text-transform:capitalize;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
                 ".myfeeds-fp__row .count{color:#9ca3af;font-size:11px;font-variant-numeric:tabular-nums}" +
+                ".myfeeds-fp__section--merchant .myfeeds-fp__scroll{max-height:118px}" +
+                ".myfeeds-fp__section--merchant .myfeeds-fp__row .label{text-transform:none}" +
                 ".myfeeds-fp__swatches{display:flex;flex-wrap:wrap;gap:6px}" +
                 ".myfeeds-fp__swatch{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #e5e7eb;background:#fff;border-radius:999px;cursor:pointer;font-size:12px;color:#374151;text-transform:capitalize;line-height:1.4;transition:border-color .12s,transform .08s}" +
                 ".myfeeds-fp__swatch:hover{border-color:#9ca3af}" +
@@ -1512,11 +1547,28 @@
                         )
                       : React.createElement("div", { className: "myfeeds-fp__empty" }, "Run a search to see categories")
                   ),
-                  // Right column stack: Price on top, Show Only below.
-                  // Both sections are compact, so stacking them in a single
-                  // narrow column saves the dead whitespace they leave behind
-                  // when each owns a full equal-width grid track.
+                  // Right column stack: Merchant (when there is a choice),
+                  // Price, Show Only. All three are short lists, so stacking
+                  // them in a single narrow column saves the dead whitespace
+                  // they leave behind when each owns a full equal-width grid
+                  // track.
                   React.createElement("div", { className: "myfeeds-fp__right-stack" },
+                    showMerchantFilter && React.createElement("div", { className: "myfeeds-fp__section myfeeds-fp__section--merchant" },
+                      React.createElement("div", { className: "myfeeds-fp__head" },
+                        React.createElement("span", null, "Merchant"),
+                        React.createElement("span", { className: "total" }, merchantRows.length)
+                      ),
+                      React.createElement("div", { className: "myfeeds-fp__scroll" },
+                        merchantRows.map(function (m) {
+                          var checked = filterMerchant.some(function (x) { return sameMerchant(x, m.value); });
+                          return React.createElement("label", { key: "fm-" + m.value, className: "myfeeds-fp__row", title: m.value },
+                            React.createElement("input", { type: "checkbox", checked: checked, onChange: function () { toggleMerchant(m.value); } }),
+                            React.createElement("span", { className: "label" }, m.value),
+                            React.createElement("span", { className: "count" }, m.count)
+                          );
+                        })
+                      )
+                    ),
                     React.createElement("div", { className: "myfeeds-fp__section" },
                       React.createElement("div", { className: "myfeeds-fp__head" },
                         React.createElement("span", null, "Price"),
