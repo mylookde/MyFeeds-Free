@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.1.1
+Stable tag: 1.1.2
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -238,6 +238,11 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.1.2 =
+* New: the filters of the product search in the block editor have a Merchant section. When the products a search finds come from two merchants or more, tick one or several to see only theirs. It works together with the other filters, shows as a chip above the results and goes with "Clear all". With Rakuten Advertising as your product source, each advertiser is a merchant.
+* Fixed: when a search found nothing with whole words and fell back to words inside longer words, it dropped the filters you had set and showed products of any brand, merchant or price. The fallback now keeps your filters.
+* Fixed: in a narrow editor window the short filter lists of the product search (Merchant, Price, Show only) sit side by side instead of each taking a full row.
+
 = 1.1.1 =
 * Fixed: a product without a photo shows a plain grey picture with a picture outline in its place. Before, its card in your post and its tile in the block editor showed a broken-image icon with the product's name. That picture is never given to search engines as the product's photo.
 * Fixed: when a product's photo does not load from the merchant, its card shows a grey box with a picture outline. Before, the broken-image icon and the product's name lay on top of it.
@@ -373,6 +378,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 Older entries (1.0.28 and earlier) are in changelog.txt, which ships with the plugin.
 
 == Upgrade Notice ==
+
+= 1.1.2 =
+Adds a Merchant filter to the product search. Coming from 1.0.x: one product source, now also Rakuten or Amazon's API; a site that ran MyFeeds Pro keeps its biggest source, the others are set aside, not deleted.
 
 = 1.1.1 =
 Fixes the broken-image icon on a product without a photo. Coming from 1.0.x: one product source, now also Rakuten or Amazon's API; a site that ran MyFeeds Pro keeps its biggest source, the others are set aside, not deleted.
