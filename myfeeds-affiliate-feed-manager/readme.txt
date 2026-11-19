@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, amazon affiliate, product feed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.1.3
+Stable tag: 1.1.4
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -253,6 +253,10 @@ To rebuild the editor bundle from source (terser, configured in `package.json`),
 
 == Changelog ==
 
+= 1.1.4 =
+* New: a carousel can play by itself. In the block's Display Settings, turn on "Auto-play" and choose how long each slide stays, from 2 to 15 seconds (3 by default). It is off until you turn it on, and it pauses while a reader points at the carousel or moves through it with the keyboard.
+* Fixed: the plugin directory listed the Product Picker block as "MyFeeds u2013 Product Picker". The block's name now carries a real dash.
+
 = 1.1.3 =
 * Fixed: with Rakuten Advertising as your product source, two advertisers can use the same product number for two different products (merchants of one group often share their article numbers). A card in your post could then show the other advertiser's product, price and link. A product you pick in the block editor now keeps the advertiser it came from, and its card shows that one. Blocks saved before this update find their product by the merchant name they saved.
 * Fixed: the product search in the block editor could count two such products and show only one, because the second replaced the first. Both show now, each with its merchant.
@@ -406,6 +410,9 @@ To rebuild the editor bundle from source (terser, configured in `package.json`),
 Older entries (1.0.28 and earlier) are in changelog.txt, which ships with the plugin.
 
 == Upgrade Notice ==
+
+= 1.1.4 =
+Adds auto-play for the carousel, off until you turn it on. Coming from 1.0.x: one product source, now also Rakuten or Amazon's API; a site that ran MyFeeds Pro keeps its biggest source, the others are set aside, not deleted.
 
 = 1.1.3 =
 Fixes cards that could show another advertiser's product, price and link when two Rakuten advertisers use the same product numbers. Coming from 1.0.x: one product source, now also Rakuten or Amazon's API; a site that ran MyFeeds Pro keeps its biggest source, the others are set aside, not deleted.
