@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, product feed, datafeed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.1.2
+Stable tag: 1.1.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -238,6 +238,13 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Changelog ==
 
+= 1.1.3 =
+* Fixed: with Rakuten Advertising as your product source, two advertisers can use the same product number for two different products (merchants of one group often share their article numbers). A card in your post could then show the other advertiser's product, price and link. A product you pick in the block editor now keeps the advertiser it came from, and its card shows that one. Blocks saved before this update find their product by the merchant name they saved.
+* Fixed: the product search in the block editor could count two such products and show only one, because the second replaced the first. Both show now, each with its merchant.
+* Fixed: the points of a Look, the sizes and colours in a product's details and the refresh of your saved products when you open a post in the block editor keep to the advertiser a product came from, too.
+* Fixed: the nightly update of the products in your posts stopped at the first advertiser with a product number and could write that advertiser's price, picture and link onto the other one's product. Each advertiser's product is now updated from its own feed.
+* Fixed: when a full import found a product gone from one advertiser, a product with the same number from another advertiser was marked unavailable too and left your posts. Only the advertiser's own product is marked now.
+
 = 1.1.2 =
 * New: the filters of the product search in the block editor have a Merchant section. When the products a search finds come from two merchants or more, tick one or several to see only theirs. It works together with the other filters, shows as a chip above the results and goes with "Clear all". With Rakuten Advertising as your product source, each advertiser is a merchant.
 * Fixed: when a search found nothing with whole words and fell back to words inside longer words, it dropped the filters you had set and showed products of any brand, merchant or price. The fallback now keeps your filters.
@@ -384,6 +391,9 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 Older entries (1.0.28 and earlier) are in changelog.txt, which ships with the plugin.
 
 == Upgrade Notice ==
+
+= 1.1.3 =
+Fixes cards that could show another advertiser's product, price and link when two Rakuten advertisers use the same product numbers. Coming from 1.0.x: one product source, now also Rakuten or Amazon's API; a site that ran MyFeeds Pro keeps its biggest source, the others are set aside, not deleted.
 
 = 1.1.2 =
 Adds a Merchant filter to the product search. Coming from 1.0.x: one product source, now also Rakuten or Amazon's API; a site that ran MyFeeds Pro keeps its biggest source, the others are set aside, not deleted.

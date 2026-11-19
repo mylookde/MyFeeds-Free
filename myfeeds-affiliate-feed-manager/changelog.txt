@@ -4,6 +4,13 @@ Full changelog
 The most recent releases are also listed on the plugin page on WordPress.org.
 That listing has a length limit, so the complete history lives here.
 
+= 1.1.3 =
+* Fixed: with Rakuten Advertising as your product source, two advertisers can use the same product number for two different products (merchants of one group often share their article numbers). A card in your post could then show the other advertiser's product, price and link. A product you pick in the block editor now keeps the advertiser it came from, and its card shows that one. Blocks saved before this update find their product by the merchant name they saved.
+* Fixed: the product search in the block editor could count two such products and show only one, because the second replaced the first. Both show now, each with its merchant.
+* Fixed: the points of a Look, the sizes and colours in a product's details and the refresh of your saved products when you open a post in the block editor keep to the advertiser a product came from, too.
+* Fixed: the nightly update of the products in your posts stopped at the first advertiser with a product number and could write that advertiser's price, picture and link onto the other one's product. Each advertiser's product is now updated from its own feed.
+* Fixed: when a full import found a product gone from one advertiser, a product with the same number from another advertiser was marked unavailable too and left your posts. Only the advertiser's own product is marked now.
+
 = 1.1.2 =
 * New: the filters of the product search in the block editor have a Merchant section. When the products a search finds come from two merchants or more, tick one or several to see only theirs. It works together with the other filters, shows as a chip above the results and goes with "Clear all". With Rakuten Advertising as your product source, each advertiser is a merchant.
 * Fixed: when a search found nothing with whole words and fell back to words inside longer words, it dropped the filters you had set and showed products of any brand, merchant or price. The fallback now keeps your filters.
