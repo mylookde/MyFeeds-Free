@@ -53,6 +53,7 @@
   var PanelBody = wp.components.PanelBody;
   var SelectControl = wp.components.SelectControl;
   var ToggleControl = wp.components.ToggleControl;
+  var RangeControl = wp.components.RangeControl;
   var TextControl = wp.components.TextControl;
   var Button = wp.components.Button;
   var Spinner = wp.components.Spinner;
@@ -774,6 +775,23 @@
                 value: shownStyle,
                 options: styles,
                 onChange: function (val) { setAttributes({ comparisonStyle: val }); }
+              })
+            : null,
+          // A carousel can play by itself; off until the author turns it
+          // on.
+          shownMode === 'carousel' && ToggleControl
+            ? createElement(ToggleControl, {
+                label: 'Auto-play',
+                checked: !!attributes.autoplay,
+                onChange: function (val) { setAttributes({ autoplay: val }); }
+              })
+            : null,
+          shownMode === 'carousel' && attributes.autoplay && RangeControl
+            ? createElement(RangeControl, {
+                label: 'Slide interval (seconds)',
+                value: attributes.autoplayInterval || 3,
+                onChange: function (val) { setAttributes({ autoplayInterval: val }); },
+                min: 2, max: 15, step: 1
               })
             : null,
           children(list(applyFilters('myfeeds.picker.inspector', [], ctx)))

@@ -10,8 +10,9 @@
  * carousel on the page. Drop either attribute and nothing errors - the
  * arrows turn the wrong colour, or the cards stay a still stack.
  *
- * The standard carousel moves by its arrows, in #333333. Two filters let
- * another part of a site change that for one block:
+ * The standard carousel moves by its arrows, in #333333, and plays by
+ * itself when its block says so (Auto-play).
+ * Two filters let another part of a site change that for one block:
  *   myfeeds_carousel_options     ($options, $attrs)  the Splide options
  *   myfeeds_carousel_arrow_color ('#333333', $attrs) a hex colour
  *
@@ -96,6 +97,18 @@ class MyFeeds_Picker_Carousel {
         $align = MyFeeds_Product_Picker::align_class($attrs);
         if ($align === 'alignwide' || $align === 'alignfull') {
             $options['myfeedsFit'] = array('slide' => 260, 'max' => 6);
+        }
+
+        // The block stores seconds, Splide wants milliseconds. The sidebar
+        // offers 2 to 15; a saved value outside that (or none) is held to it,
+        // so a carousel never spins at 0 ms.
+        if (!empty($attrs['autoplay'])) {
+            $seconds = isset($attrs['autoplayInterval']) && is_numeric($attrs['autoplayInterval'])
+                ? (int) $attrs['autoplayInterval'] : 3;
+            $options['autoplay']     = true;
+            $options['interval']     = max(2, min(15, $seconds)) * 1000;
+            $options['pauseOnHover'] = true;
+            $options['pauseOnFocus'] = true;
         }
 
         $filtered = apply_filters('myfeeds_carousel_options', $options, $attrs);
