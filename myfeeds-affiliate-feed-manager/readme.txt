@@ -1,6 +1,6 @@
 === MyFeeds — Affiliate Product Feed Importer & Shoppable Product Cards ===
 Contributors: myfeeds
-Tags: affiliate, affiliate marketing, product feed, datafeed, product import
+Tags: affiliate, affiliate marketing, amazon affiliate, product feed, product import
 Requires at least: 5.8
 Tested up to: 7.1
 Stable tag: 1.1.3
