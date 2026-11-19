@@ -415,7 +415,7 @@ Older entries (1.0.28 and earlier) are in changelog.txt, which ships with the pl
 Adds auto-play for the carousel, off until you turn it on. Coming from 1.0.x: one product source, now also Rakuten or Amazon's API; a site that ran MyFeeds Pro keeps its biggest source, the others are set aside, not deleted.
 
 = 1.1.3 =
-Fixes cards that could show another advertiser's product, price and link when two Rakuten advertisers use the same product numbers. Coming from 1.0.x: one product source, now also Rakuten or Amazon's API; a site that ran MyFeeds Pro keeps its biggest source, the others are set aside, not deleted.
+Fixes cards that could show another advertiser's product, price and link when two Rakuten advertisers share product numbers. Coming from 1.0.x: one product source, now also Rakuten or Amazon's API; a site that ran MyFeeds Pro keeps its biggest source, the others are set aside, not deleted.
 
 = 1.1.2 =
 Adds a Merchant filter to the product search. Coming from 1.0.x: one product source, now also Rakuten or Amazon's API; a site that ran MyFeeds Pro keeps its biggest source, the others are set aside, not deleted.
