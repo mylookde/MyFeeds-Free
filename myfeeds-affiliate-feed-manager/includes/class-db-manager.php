@@ -1289,69 +1289,155 @@ class MyFeeds_DB_Manager {
      * Resolve a single product by external_id
      * Returns the product as an associative array matching the old JSON format,
      * or null if not found.
-     * 
+     *
      * The returned array always contains 'id' matching external_id — this is
      * the key invariant for Gutenberg block compatibility.
      *
+     * An external_id alone does not name a product. Two feeds can hand out
+     * the same one for two different products: Rakuten passes the
+     * merchant's own SKU on, and JD Sports and Finish Line - one group, one
+     * catalogue - shared 38,754 of them on mylook.com.de (19.11.2026). The
+     * id alone named whichever row the database returned first, and a post
+     * showed the other merchant's card, price and link. A product is its
+     * feed and its id; pick_row() decides for a reference saved before
+     * references carried their feed.
+     *
      * @param string $external_id The product ID (same as selectedProducts[x]['id'] in blocks)
+     * @param int    $feed_id     The feed it came from (selectedProducts[x]['feed_id']); 0 = not known.
+     * @param string $merchant    The merchant name a block saved with it.
+     * @param string $link        The affiliate link a block saved with it.
      * @return array|null Product data array or null
      */
-    public static function get_product($external_id) {
+    public static function get_product($external_id, $feed_id = 0, $merchant = '', $link = '') {
         global $wpdb;
         $table = self::table_name();
         $external_id = (string) $external_id;
 
-        // Debug: Log what we're searching for
-        self::log('get_product_query', array(
-            'external_id' => $external_id,
-            'table' => $table,
-            'id_length' => strlen($external_id),
-            'id_hex' => bin2hex(substr($external_id, 0, 20)),
-        ), 'debug');
-
-        $row = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$table} WHERE external_id = %s AND status = 'active' LIMIT 1",
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE external_id = %s",
             $external_id
         ), ARRAY_A);
 
+        $row = self::pick_row((array) $rows, $feed_id, $merchant, $link);
         if (!$row) {
-            // Also check unavailable products (for placeholder rendering)
-            $row = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM {$table} WHERE external_id = %s LIMIT 1",
-                $external_id
-            ), ARRAY_A);
-            
-            if (!$row) {
-                // Debug: check if ANY row exists with similar ID
-                $like_check = $wpdb->get_var($wpdb->prepare(
-                    "SELECT external_id FROM {$table} WHERE external_id LIKE %s LIMIT 1",
-                    '%' . $wpdb->esc_like(substr($external_id, 0, 10)) . '%'
-                ));
-                self::log('get_product_not_found', array(
-                    'searched_id' => $external_id,
-                    'similar_id_in_db' => $like_check ?: 'NONE',
-                    'total_rows' => $wpdb->get_var("SELECT COUNT(*) FROM {$table}"),
-                    'sample_ids' => $wpdb->get_col("SELECT external_id FROM {$table} LIMIT 5"),
-                    'wpdb_error' => $wpdb->last_error,
-                ));
-                return null;
-            } else {
-                self::log('get_product_found_non_active', array(
-                    'external_id' => $external_id,
-                    'status' => $row['status'],
-                ));
-            }
+            self::log('get_product_not_found', array(
+                'searched_id' => $external_id,
+                'feed_id'     => (int) $feed_id,
+                'rows'        => is_array($rows) ? count($rows) : 0,
+            ), 'debug');
+            return null;
+        }
+        if (($row['status'] ?? '') !== 'active') {
+            self::log('get_product_found_non_active', array(
+                'external_id' => $external_id,
+                'status'      => $row['status'] ?? '',
+            ));
         }
 
         return self::row_to_product($row);
     }
 
     /**
-     * Get multiple products by external_ids
-     * 
-     * @param array $external_ids Array of product IDs
-     * @return array Associative array [external_id => product_data]
+     * Which of the rows behind one external_id a reference means.
+     *
+     * The feed, where the reference knows it. Without one - a block saved
+     * before references carried their feed - the merchant name the block
+     * saved (the feed's name, or the merchant name in the feed's own
+     * record), then the affiliate link it saved. Whatever is left: an
+     * active row before an inactive one, then the lowest feed id, so one
+     * reference names the same row on every request instead of whichever
+     * the database happens to return first.
+     *
+     * A reference whose feed no longer has the id is not handed another
+     * merchant's product: only a feed of the same merchant may stand in
+     * (a feed deleted and added again gets a new id). Another merchant's
+     * card is a different offer, with a different price and link.
+     *
+     * @param array  $rows     Rows of one external_id; feed_id, feed_name
+     *                         and status read, raw_data and affiliate_link
+     *                         where present.
+     * @param int    $feed_id  0 = not known.
+     * @param string $merchant Saved merchant name, '' = not known.
+     * @param string $link     Saved affiliate link, '' = not known.
+     * @return array|null
      */
+    public static function pick_row(array $rows, $feed_id = 0, $merchant = '', $link = '') {
+        $rows = array_values(array_filter($rows, 'is_array'));
+        if (empty($rows)) {
+            return null;
+        }
+        $feed_id = (int) $feed_id;
+        $name    = self::merchant_key($merchant);
+        $by_name = function (array $candidates) use ($name) {
+            if ($name === '') {
+                return array();
+            }
+            return array_values(array_filter($candidates, function ($r) use ($name) {
+                return self::merchant_key($r['feed_name'] ?? '') === $name
+                    || self::merchant_key(self::raw_merchant_name($r)) === $name;
+            }));
+        };
+
+        if ($feed_id > 0) {
+            $own = array_values(array_filter($rows, function ($r) use ($feed_id) {
+                return (int) ($r['feed_id'] ?? 0) === $feed_id;
+            }));
+            $rows = !empty($own) ? $own : $by_name($rows);
+            if (empty($rows)) {
+                return null;
+            }
+        } elseif (count($rows) > 1) {
+            $named = $by_name($rows);
+            if (!empty($named)) {
+                $rows = $named;
+            }
+            $link = trim((string) $link);
+            if (count($rows) > 1 && $link !== '') {
+                $linked = array_values(array_filter($rows, function ($r) use ($link) {
+                    return isset($r['affiliate_link']) && trim((string) $r['affiliate_link']) === $link;
+                }));
+                if (!empty($linked)) {
+                    $rows = $linked;
+                }
+            }
+        }
+
+        usort($rows, function ($a, $b) {
+            $active = (($b['status'] ?? '') === 'active') <=> (($a['status'] ?? '') === 'active');
+            return $active !== 0 ? $active : ((int) ($a['feed_id'] ?? 0) <=> (int) ($b['feed_id'] ?? 0));
+        });
+        return $rows[0];
+    }
+
+    /** A merchant name as two of them are compared: case, spaces and accents aside. */
+    private static function merchant_key($name) {
+        $name = trim(preg_replace('/\s+/u', ' ', (string) $name));
+        if ($name === '') {
+            return '';
+        }
+        if (function_exists('remove_accents')) {
+            $name = remove_accents($name);
+        }
+        return function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
+    }
+
+    /** The merchant name in a row's own record, where the feed sent one. */
+    private static function raw_merchant_name(array $row) {
+        if (empty($row['raw_data'])) {
+            return '';
+        }
+        $raw = is_array($row['raw_data']) ? $row['raw_data'] : json_decode((string) $row['raw_data'], true);
+        if (!is_array($raw)) {
+            return '';
+        }
+        foreach (array('merchant_name', 'shopname', 'merchantname', 'merchant') as $key) {
+            if (!empty($raw[$key]) && is_string($raw[$key])) {
+                return $raw[$key];
+            }
+        }
+        return '';
+    }
+
     /**
      * The columns the editor's selected tiles are refreshed from.
      *
@@ -1372,11 +1458,59 @@ class MyFeeds_DB_Manager {
      * arrived through the raw_data merge - drop raw_data without this and
      * the old price silently stops refreshing, with nothing visibly broken
      * to point at it.
+     *
+     * Keyed by external_id, so one id is one answer: where two feeds hold
+     * it, pick_row() without a reference's feed decides. Callers that know
+     * the feed ask get_products_for_refs().
      */
     public static function get_products($external_ids) {
+        $products = array();
+        foreach (self::tile_rows_by_id($external_ids) as $external_id => $rows) {
+            $row = self::pick_row($rows);
+            if ($row) {
+                $products[$external_id] = self::tile_product($row);
+            }
+        }
+        return $products;
+    }
+
+    /**
+     * One answer per reference, in its order: the product a block's saved
+     * item means, or null.
+     *
+     * @param array $refs Each array('id' => external_id, 'feed_id' => int,
+     *                    'merchant' => string, 'link' => string); everything
+     *                    but the id may be missing.
+     * @return array Same keys as $refs: a product (get_products() shape) or null.
+     */
+    public static function get_products_for_refs(array $refs) {
+        $ids = array();
+        foreach ($refs as $ref) {
+            if (is_array($ref) && isset($ref['id']) && (string) $ref['id'] !== '') {
+                $ids[] = (string) $ref['id'];
+            }
+        }
+        $by_id = self::tile_rows_by_id($ids);
+
+        $out = array();
+        foreach ($refs as $key => $ref) {
+            $id  = is_array($ref) && isset($ref['id']) ? (string) $ref['id'] : '';
+            $row = ($id !== '' && isset($by_id[$id])) ? self::pick_row(
+                $by_id[$id],
+                (int) ($ref['feed_id'] ?? 0),
+                (string) ($ref['merchant'] ?? ''),
+                (string) ($ref['link'] ?? '')
+            ) : null;
+            $out[$key] = $row ? self::tile_product($row) : null;
+        }
+        return $out;
+    }
+
+    /** TILE_COLUMNS rows grouped by external_id, every feed's row. */
+    private static function tile_rows_by_id($external_ids) {
         global $wpdb;
         $table = self::table_name();
-
+        $external_ids = array_values(array_unique(array_map('strval', (array) $external_ids)));
         if (empty($external_ids)) {
             return array();
         }
@@ -1390,30 +1524,33 @@ class MyFeeds_DB_Manager {
 
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Query built via $wpdb->prepare() above
         $rows = $wpdb->get_results($query, ARRAY_A);
-        $products = array();
-
+        $by_id = array();
         foreach ((array) $rows as $row) {
-            $products[$row['external_id']] = array(
-                'id'             => $row['external_id'],
-                'title'          => $row['product_name'] ?? '',
-                'price'          => floatval($row['price'] ?? 0),
-                'original_price' => floatval($row['original_price'] ?? 0),
-                'old_price'      => floatval($row['original_price'] ?? 0),
-                'currency'       => $row['currency'] ?? 'EUR',
-                'image_url'      => $row['image_url'] ?? '',
-                'affiliate_link' => $row['affiliate_link'] ?? '',
-                'brand'          => $row['brand'] ?? '',
-                'category'       => $row['category'] ?? '',
-                'colour'         => $row['colour'] ?? '',
-                'in_stock'       => (int) ($row['in_stock'] ?? 1),
-                'status'         => $row['status'] ?? 'active',
-                'merchant'       => $row['feed_name'] ?? '',
-                'feed_id'        => (int) ($row['feed_id'] ?? 0),
-                'last_updated'   => $row['last_updated'] ?? '',
-            );
+            $by_id[(string) $row['external_id']][] = $row;
         }
+        return $by_id;
+    }
 
-        return $products;
+    /** One TILE_COLUMNS row in the shape the editor tiles consume. */
+    private static function tile_product(array $row) {
+        return array(
+            'id'             => $row['external_id'],
+            'title'          => $row['product_name'] ?? '',
+            'price'          => floatval($row['price'] ?? 0),
+            'original_price' => floatval($row['original_price'] ?? 0),
+            'old_price'      => floatval($row['original_price'] ?? 0),
+            'currency'       => $row['currency'] ?? 'EUR',
+            'image_url'      => $row['image_url'] ?? '',
+            'affiliate_link' => $row['affiliate_link'] ?? '',
+            'brand'          => $row['brand'] ?? '',
+            'category'       => $row['category'] ?? '',
+            'colour'         => $row['colour'] ?? '',
+            'in_stock'       => (int) ($row['in_stock'] ?? 1),
+            'status'         => $row['status'] ?? 'active',
+            'merchant'       => $row['feed_name'] ?? '',
+            'feed_id'        => (int) ($row['feed_id'] ?? 0),
+            'last_updated'   => $row['last_updated'] ?? '',
+        );
     }
 
     // =========================================================================
@@ -1536,24 +1673,29 @@ class MyFeeds_DB_Manager {
      * @param string $external_id The size currently open.
      * @return array<int,array>
      */
-    public static function get_size_variants($external_id) {
+    public static function get_size_variants($external_id, $feed_id = 0) {
         global $wpdb;
         $table = self::table_name();
 
         $external_id = (string) $external_id;
+        $feed_id     = (int) $feed_id;
         if ($external_id === '') {
             return array();
         }
 
         $vk_select = self::has_variant_key_column() ? ', variant_key' : '';
-        // The same external_id can sit in two feeds (an archived copy
-        // from a deleted feed next to the live one); the live row is the
-        // one whose sizes are wanted.
+        // The same external_id can sit in two feeds: an archived copy from
+        // a deleted feed next to the live one, or two merchants that hand
+        // out the same ids (get_product()). The feed decides where it is
+        // known; otherwise the live row is the one whose sizes are wanted.
         // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $vk_select is '' or the literal ', variant_key'.
         $current = $wpdb->get_row($wpdb->prepare(
             "SELECT product_name, colour, feed_id{$vk_select} FROM {$table}
-             WHERE external_id = %s ORDER BY (status = 'active') DESC LIMIT 1",
-            $external_id
+             WHERE external_id = %s AND (%d = 0 OR feed_id = %d)
+             ORDER BY (status = 'active') DESC, feed_id ASC LIMIT 1",
+            $external_id,
+            $feed_id,
+            $feed_id
         ), ARRAY_A);
 
         if (!$current || (string) $current['product_name'] === '') {
@@ -1585,7 +1727,7 @@ class MyFeeds_DB_Manager {
 
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders built above
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT external_id, product_name, colour, price, original_price, currency,
+            "SELECT external_id, feed_id, product_name, colour, price, original_price, currency,
                     image_url, affiliate_link, in_stock, raw_data
              FROM {$table} WHERE {$where} LIMIT 100",
             $args
@@ -1603,6 +1745,7 @@ class MyFeeds_DB_Manager {
             $out[] = array(
                 'size'           => $size,
                 'external_id'    => (string) $row['external_id'],
+                'feed_id'        => (int) $row['feed_id'],
                 'in_stock'       => (int) $row['in_stock'] === 1,
                 'price'          => $row['price'],
                 'original_price' => $row['original_price'],
@@ -1668,22 +1811,22 @@ class MyFeeds_DB_Manager {
         // of that name and colour, then read the group it belongs to -
         // the same group the size-variants endpoint returns.
         if (!empty($colour)) {
-            $external_id = $wpdb->get_var($wpdb->prepare(
-                "SELECT external_id FROM {$table} WHERE product_name = %s AND colour = %s AND status = 'active' LIMIT 1",
+            $found = $wpdb->get_row($wpdb->prepare(
+                "SELECT external_id, feed_id FROM {$table} WHERE product_name = %s AND colour = %s AND status = 'active' LIMIT 1",
                 $product_name, $colour
-            ));
+            ), ARRAY_A);
         } else {
-            $external_id = $wpdb->get_var($wpdb->prepare(
-                "SELECT external_id FROM {$table} WHERE product_name = %s AND status = 'active' AND (colour IS NULL OR colour = '') LIMIT 1",
+            $found = $wpdb->get_row($wpdb->prepare(
+                "SELECT external_id, feed_id FROM {$table} WHERE product_name = %s AND status = 'active' AND (colour IS NULL OR colour = '') LIMIT 1",
                 $product_name
-            ));
+            ), ARRAY_A);
         }
-        if (empty($external_id)) {
+        if (empty($found['external_id'])) {
             return array();
         }
 
         $sizes = array();
-        foreach (self::get_size_variants((string) $external_id) as $variant) {
+        foreach (self::get_size_variants((string) $found['external_id'], (int) $found['feed_id']) as $variant) {
             $sizes[] = (string) $variant['size'];
         }
         return $sizes;
@@ -1725,19 +1868,25 @@ class MyFeeds_DB_Manager {
      *                 affiliate_link, in_stock, price, original_price,
      *                 currency, is_current.
      */
-    public static function get_color_siblings($external_id) {
+    public static function get_color_siblings($external_id, $feed_id = 0) {
         global $wpdb;
         $table = self::table_name();
 
         $external_id = (string) $external_id;
+        $feed_id     = (int) $feed_id;
         if ($external_id === '') {
             return array();
         }
 
+        // In the feed the product came from: another merchant may hand out
+        // the same id (get_product()), and its colours are not this one's.
         $current = $wpdb->get_row($wpdb->prepare(
             "SELECT external_id, feed_id, feed_name, product_name, colour, raw_data
-             FROM {$table} WHERE external_id = %s AND status = 'active' LIMIT 1",
-            $external_id
+             FROM {$table} WHERE external_id = %s AND status = 'active'
+             AND (%d = 0 OR feed_id = %d) ORDER BY feed_id ASC LIMIT 1",
+            $external_id,
+            $feed_id,
+            $feed_id
         ), ARRAY_A);
 
         if (!$current) {
@@ -1850,6 +1999,7 @@ class MyFeeds_DB_Manager {
             if (!isset($by_colour[$key]) || (intval($r['in_stock']) === 1 && intval($by_colour[$key]['in_stock']) !== 1)) {
                 $by_colour[$key] = array(
                     'external_id'    => (string) $r['external_id'],
+                    'feed_id'        => $feed_id,
                     'product_name'   => (string) ($r['product_name'] ?? $product_name),
                     'colour'         => $c,
                     'image_url'      => (string) ($r['image_url'] ?? ''),
@@ -2361,14 +2511,44 @@ class MyFeeds_DB_Manager {
                 'affiliate_link' => $affiliate_link,
                 'last_updated' => current_time('mysql'),
             ),
-            array(
-                'external_id' => $external_id,
-            ),
+            // The feed's own row: another feed may hold the same id for
+            // another product (get_product()), and must not take this
+            // feed's price, picture and link.
+            (int) $feed_id > 0
+                ? array('external_id' => $external_id, 'feed_id' => (int) $feed_id)
+                : array('external_id' => $external_id),
             array('%f', '%f', '%d', '%s', '%s', '%s'),
-            array('%s')
+            (int) $feed_id > 0 ? array('%s', '%d') : array('%s')
         );
 
         return $result !== false;
+    }
+
+    /**
+     * Which feeds hold each of these external ids: external_id =>
+     * array(feed_id => true). Two feeds can hold one id for two products
+     * (get_product()); Quick Sync refreshes each from its own feed.
+     *
+     * @param array $external_ids
+     * @return array<string,array<int,bool>>
+     */
+    public static function feeds_of_ids(array $external_ids) {
+        global $wpdb;
+        $table = self::table_name();
+        $out = array();
+        $external_ids = array_values(array_unique(array_map('strval', $external_ids)));
+        foreach (array_chunk($external_ids, 1000) as $chunk) {
+            $ph = implode(',', array_fill(0, count($chunk), '%s'));
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders built above
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT external_id, feed_id FROM {$table} WHERE external_id IN ({$ph})",
+                $chunk
+            ), ARRAY_A);
+            foreach ((array) $rows as $r) {
+                $out[(string) $r['external_id']][(int) $r['feed_id']] = true;
+            }
+        }
+        return $out;
     }
 
     /**
@@ -2385,9 +2565,13 @@ class MyFeeds_DB_Manager {
      *             count rows whose values were already identical, so this
      *             is a floor, not a total. Only used for the log line.
      */
-    public static function quick_sync_products(array $products) {
+    public static function quick_sync_products(array $products, $feed_id = 0) {
         global $wpdb;
         $table = self::table_name();
+        // Only the rows of the feed the products came from: another feed
+        // may hold the same ids for other products (get_product()). Before
+        // this, the first feed's price, picture and link went onto both.
+        $feed_id = (int) $feed_id;
 
         $rows = array();
         foreach ($products as $product) {
@@ -2435,8 +2619,8 @@ class MyFeeds_DB_Manager {
                 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders built above
                 $stored = $wpdb->get_results($wpdb->prepare(
                     "SELECT external_id, feed_id, product_name, brand, colour, image_url, variant_key
-                     FROM {$table} WHERE external_id IN ({$ids_ph})",
-                    array_keys($chunk)
+                     FROM {$table} WHERE external_id IN ({$ids_ph}) AND (%d = 0 OR feed_id = %d)",
+                    array_merge(array_keys($chunk), array($feed_id, $feed_id))
                 ), ARRAY_A);
                 foreach ((array) $stored as $st) {
                     $eid = (string) $st['external_id'];
@@ -2479,9 +2663,11 @@ class MyFeeds_DB_Manager {
             foreach ($ids as $external_id) {
                 $args[] = $external_id;
             }
+            $args[] = $feed_id;
+            $args[] = $feed_id;
 
             $sql = "UPDATE {$table} SET " . implode(', ', $assignments)
-                 . " WHERE external_id IN ({$placeholders})";
+                 . " WHERE external_id IN ({$placeholders}) AND (%d = 0 OR feed_id = %d)";
 
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- built from a fixed column list, every value is a placeholder
             $result = $wpdb->query($wpdb->prepare($sql, $args));
@@ -2659,16 +2845,29 @@ class MyFeeds_DB_Manager {
         // Single bulk UPDATE replaces a per-row $wpdb->update() loop. The AND status='active'
         // guard preserves the original semantics: a product that someone else already
         // flipped to 'unavailable' between the SELECT above and now is left untouched.
+        //
+        // Per feed: an orphan of one feed is that feed's row only. Two feeds
+        // can hold the same id for two products (Rakuten passes merchants'
+        // own SKUs on; a feed added twice holds the same file), and the
+        // other feed's product, imported a moment ago, went unavailable
+        // with it - a whole brand once disappeared from a site that way.
         if (!empty($orphaned)) {
-            $eids = array_map(function ($row) { return $row['external_id']; }, $orphaned);
-            $placeholders = implode(',', array_fill(0, count($eids), '%s'));
             $now = current_time('mysql');
-            $marked_unavailable = (int) $wpdb->query($wpdb->prepare(
-                "UPDATE {$table} SET status = 'unavailable', last_updated = %s
-                 WHERE status = 'active' AND external_id IN ({$placeholders})",
-                $now,
-                ...$eids
-            ));
+            $by_feed = array();
+            foreach ($orphaned as $row) {
+                $by_feed[(int) $row['feed_id']][] = (string) $row['external_id'];
+            }
+            foreach ($by_feed as $feed_id => $eids) {
+                foreach (array_chunk($eids, 500) as $chunk) {
+                    $placeholders = implode(',', array_fill(0, count($chunk), '%s'));
+                    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- placeholders built above
+                    $marked_unavailable += (int) $wpdb->query($wpdb->prepare(
+                        "UPDATE {$table} SET status = 'unavailable', last_updated = %s
+                         WHERE status = 'active' AND feed_id = %d AND external_id IN ({$placeholders})",
+                        array_merge(array($now, (int) $feed_id), $chunk)
+                    ));
+                }
+            }
         }
 
         if ($marked_unavailable > 0) {

@@ -207,13 +207,17 @@ class MyFeeds_Look_Block {
         );
         foreach ($tries as $try) {
             // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- MyFeeds' own product table, asked once when an author pastes an address; $try[0] is one of the two column names written above; the value goes through prepare().
-            $id = $wpdb->get_var($wpdb->prepare(
+            $hit = $wpdb->get_row($wpdb->prepare(
                 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- {$table} is MyFeeds_DB_Manager::table_name(), {$try[0]} a column name from the list above; the value is the %s.
-                "SELECT external_id FROM {$table} WHERE status = 'active' AND {$try[0]} LIKE %s ORDER BY in_stock DESC LIMIT 1",
+                "SELECT external_id, feed_id FROM {$table} WHERE status = 'active' AND {$try[0]} LIKE %s ORDER BY in_stock DESC LIMIT 1",
                 '%' . $wpdb->esc_like($try[1]) . '%'
-            ));
-            if ($id) {
-                return class_exists('MyFeeds_Product_Resolver') ? MyFeeds_Product_Resolver::resolve((string) $id) : null;
+            ), ARRAY_A);
+            if ($hit) {
+                // The row the address matched, with its feed: another
+                // feed may hold the same id for another product.
+                return class_exists('MyFeeds_Product_Resolver')
+                    ? MyFeeds_Product_Resolver::resolve((string) $hit['external_id'], array('feed_id' => (int) $hit['feed_id']))
+                    : null;
             }
         }
         return null;
@@ -673,6 +677,11 @@ class MyFeeds_Look_Block {
                 'brand' => sanitize_text_field((string) ($p['brand'] ?? '')),
                 'name'  => sanitize_text_field((string) ($p['name'] ?? '')),
                 'note'  => sanitize_text_field((string) ($p['note'] ?? '')),
+                // The feed the product came from, and for a point saved
+                // before points carried it, its shop: two feeds can hold
+                // one id for two products (MyFeeds_DB_Manager::get_product()).
+                'feed_id' => (int) ($p['feed_id'] ?? 0),
+                'shop'  => sanitize_text_field((string) ($p['shop'] ?? '')),
             );
         }
 
@@ -850,7 +859,10 @@ class MyFeeds_Look_Block {
         if (!class_exists('MyFeeds_Product_Resolver')) {
             return null;
         }
-        $product = MyFeeds_Product_Resolver::resolve($p['id']);
+        $product = MyFeeds_Product_Resolver::resolve($p['id'], array(
+            'feed_id'  => (int) ($p['feed_id'] ?? 0),
+            'merchant' => (string) ($p['shop'] ?? ''),
+        ));
         if (is_array($product) && ($product['status'] ?? '') === 'unavailable' && class_exists('MyFeeds_Variants')) {
             $product = MyFeeds_Variants::replacement_for($product);
         }

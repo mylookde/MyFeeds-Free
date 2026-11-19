@@ -613,7 +613,7 @@ class MyFeeds_Picker_Displays {
             return '';
         }
         $sizes = 0;
-        foreach (MyFeeds_DB_Manager::get_size_variants((string) $product['id']) as $variant) {
+        foreach (MyFeeds_DB_Manager::get_size_variants((string) $product['id'], (int) ($product['feed_id'] ?? 0)) as $variant) {
             if (!empty($variant['in_stock'])) {
                 $sizes++;
             }

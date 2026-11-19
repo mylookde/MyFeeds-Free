@@ -1840,13 +1840,30 @@ class MyFeeds_Batch_Importer {
         }
         $found_count = 0;
         $remaining_ids = $active_ids_hash; // Track which IDs we still need to find
+        // Every feed that holds a placed id is asked for it. Two feeds can
+        // hold one id for two products (MyFeeds_DB_Manager::get_product()):
+        // the id used to be crossed off when the first feed found it, the
+        // second feed's product was never refreshed, and the write put the
+        // first feed's price, picture and link onto both rows.
+        $feeds_of_id   = $use_db ? MyFeeds_DB_Manager::feeds_of_ids(array_keys($active_ids_hash)) : array();
+        $found_in      = array(); // feed id => external id => true
+        $live_feed_ids = array();
+        foreach ($feeds as $live_feed) {
+            if (!empty($live_feed['stable_id'])) {
+                $live_feed_ids[(int) $live_feed['stable_id']] = true;
+            }
+        }
+        $pending_pairs = 0;
+        foreach ($feeds_of_id as $held_in) {
+            $pending_pairs += count(array_intersect_key($held_in, $live_feed_ids));
+        }
         $feeds_with_errors = 0; // Track feed download failures
         $run_id = md5('quick_sync_' . $status['started_at']);
         
         // Process each feed - but STOP EARLY when all IDs are found!
         foreach ($feeds as $key => $feed) {
             // EARLY EXIT: When all IDs found, stop immediately!
-            if (empty($remaining_ids)) {
+            if (empty($remaining_ids) && $pending_pairs <= 0) {
                 myfeeds_log("Quick Sync: All $total_active IDs found! Stopping early.", 'info');
                 break;
             }
@@ -1908,7 +1925,23 @@ class MyFeeds_Batch_Importer {
                 update_option(self::OPTION_IMPORT_STATUS, $status, false);
             };
 
-            $result = $this->quick_extract_products_by_ids($cache_path, $feed['mapping'], $remaining_ids, $feed['detected_format'] ?? '', $key, $report_progress);
+            // What this feed is asked for: every id nobody has found yet,
+            // and every id this feed holds that it has not delivered yet.
+            $feed_stable_id = (int) ($feed['stable_id'] ?? 0);
+            if ($feed_stable_id === 0) {
+                $live_feeds_now = get_option('myfeeds_feeds', array());
+                $feed_stable_id = (int) ($live_feeds_now[$key]['stable_id'] ?? 0);
+            }
+            $wanted = $remaining_ids;
+            if ($feed_stable_id > 0) {
+                foreach ($feeds_of_id as $aid => $held_in) {
+                    if (isset($held_in[$feed_stable_id]) && !isset($found_in[$feed_stable_id][$aid])) {
+                        $wanted[$aid] = true;
+                    }
+                }
+            }
+
+            $result = $this->quick_extract_products_by_ids($cache_path, $feed['mapping'], $wanted, $feed['detected_format'] ?? '', $key, $report_progress);
             if (!empty($result['repaired_mapping'])) {
                 $feed['mapping'] = $result['repaired_mapping'];
             }
@@ -1936,6 +1969,12 @@ class MyFeeds_Batch_Importer {
                     }
                     $found_count++;
                     unset($remaining_ids[$product_id]); // Mark as found
+                    if ($qs_stable_id > 0 && !isset($found_in[$qs_stable_id][$product_id])) {
+                        $found_in[$qs_stable_id][$product_id] = true;
+                        if (isset($feeds_of_id[$product_id][$qs_stable_id], $live_feed_ids[$qs_stable_id])) {
+                            $pending_pairs--;
+                        }
+                    }
 
                     // Update progress in real-time
                     $status['found_products'] = $found_count;
@@ -1944,7 +1983,7 @@ class MyFeeds_Batch_Importer {
 
                 // One statement per 100 products instead of one per product.
                 if (!empty($to_write)) {
-                    $changed = MyFeeds_DB_Manager::quick_sync_products($to_write);
+                    $changed = MyFeeds_DB_Manager::quick_sync_products($to_write, $qs_stable_id);
                     myfeeds_log("Quick Sync: wrote " . count($to_write) . " products for feed '{$feed['name']}' ({$changed} rows changed)", 'info');
                 }
             }
@@ -1970,23 +2009,25 @@ class MyFeeds_Batch_Importer {
                 myfeeds_log("Quick Sync (DB): " . count($remaining_ids) . " products not found in feeds — NOT marking as unavailable (Quick Sync policy)", 'info');
             }
             // Re-activate products that were previously marked unavailable but are now found
-            // in feeds. The single bulk UPDATE below replaces a per-product UPDATE loop —
-            // same WHERE guard (status='unavailable'), identical semantics, 1 round trip
-            // instead of N.
+            // in feeds. One bulk UPDATE per feed below replaces a per-product UPDATE
+            // loop — same WHERE guard (status='unavailable'), one round trip per feed
+            // instead of one per product.
             $reactivated_count = 0;
-            $found_ids = array();
-            foreach ($active_ids_hash as $aid => $v) {
-                if (!isset($remaining_ids[$aid])) {
-                    $found_ids[] = (string) $aid;
+            // Per feed: the row of the feed that delivered the product
+            // again. Another feed's row with the same id is another
+            // product and keeps its own status.
+            global $wpdb;
+            $table = MyFeeds_DB_Manager::table_name();
+            foreach ($found_in as $found_feed => $ids_here) {
+                $found_ids = array_map('strval', array_keys($ids_here));
+                if (empty($found_ids)) {
+                    continue;
                 }
-            }
-            if (!empty($found_ids)) {
-                global $wpdb;
-                $table = MyFeeds_DB_Manager::table_name();
                 $placeholders = implode(',', array_fill(0, count($found_ids), '%s'));
-                $reactivated_count = (int) $wpdb->query($wpdb->prepare(
+                $reactivated_count += (int) $wpdb->query($wpdb->prepare(
                     "UPDATE {$table} SET status = 'active'
-                     WHERE status = 'unavailable' AND external_id IN ({$placeholders})",
+                     WHERE status = 'unavailable' AND feed_id = %d AND external_id IN ({$placeholders})",
+                    (int) $found_feed,
                     ...$found_ids
                 ));
             }

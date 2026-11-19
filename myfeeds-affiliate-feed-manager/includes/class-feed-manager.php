@@ -3375,6 +3375,45 @@ class MyFeeds_Feed_Manager {
      */
     public function rest_get_products_by_ids(WP_REST_Request $req) {
         $body = $req->get_json_params();
+
+        // References: the id, the feed it came from and, for an item saved
+        // before items carried their feed, the merchant and the link it
+        // saved. Two feeds can hold one id for two products
+        // (MyFeeds_DB_Manager::get_product()), so each answer carries
+        // 'ref', its reference's place in the request: the id alone cannot
+        // say which of two references it answers. 'ids' alone is what an
+        // editor bundle from before this sends.
+        if (isset($body['refs']) && is_array($body['refs'])) {
+            $refs = array();
+            foreach (array_slice(array_values($body['refs']), 0, 100) as $i => $ref) {
+                if (!is_array($ref) || !isset($ref['id']) || !is_scalar($ref['id']) || (string) $ref['id'] === '') {
+                    continue;
+                }
+                $refs[$i] = array(
+                    'id'       => sanitize_text_field((string) $ref['id']),
+                    'feed_id'  => isset($ref['feed_id']) && is_numeric($ref['feed_id']) ? (int) $ref['feed_id'] : 0,
+                    'merchant' => isset($ref['merchant']) && is_scalar($ref['merchant']) ? sanitize_text_field((string) $ref['merchant']) : '',
+                    // Only compared with the stored links, never output;
+                    // sanitize_text_field() would strip its %-escapes.
+                    'link'     => isset($ref['link']) && is_scalar($ref['link']) ? substr(trim((string) $ref['link']), 0, 2048) : '',
+                );
+            }
+            if (empty($refs) || !class_exists('MyFeeds_DB_Manager') || !MyFeeds_DB_Manager::is_db_mode()) {
+                return rest_ensure_response(array());
+            }
+            $products = array();
+            foreach (MyFeeds_DB_Manager::get_products_for_refs($refs) as $i => $product) {
+                if (is_array($product)) {
+                    $product['ref'] = (int) $i;
+                    $products[] = $product;
+                }
+            }
+            if (function_exists('myfeeds_upgrade_product_image_urls')) {
+                $products = myfeeds_upgrade_product_image_urls($products);
+            }
+            return rest_ensure_response($products);
+        }
+
         $ids = isset($body['ids']) ? $body['ids'] : array();
         if (empty($ids) || !is_array($ids)) {
             return rest_ensure_response(array());
@@ -3439,7 +3478,7 @@ class MyFeeds_Feed_Manager {
         }
 
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
-            return rest_ensure_response(MyFeeds_DB_Manager::get_size_variants($id));
+            return rest_ensure_response(MyFeeds_DB_Manager::get_size_variants($id, (int) $req->get_param('feed_id')));
         }
 
         return rest_ensure_response(array());
@@ -3452,7 +3491,7 @@ class MyFeeds_Feed_Manager {
         }
 
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
-            $siblings = MyFeeds_DB_Manager::get_color_siblings($id);
+            $siblings = MyFeeds_DB_Manager::get_color_siblings($id, (int) $req->get_param('feed_id'));
             // Detail-modal swatches render image_url straight from this
             // response, so route it through the same CDN upgrader the
             // selected-tiles and frontend cards use.
@@ -4061,7 +4100,13 @@ class MyFeeds_Feed_Manager {
         // DB MODE: Direct query by external_id
         // =====================================================================
         if (class_exists('MyFeeds_DB_Manager') && MyFeeds_DB_Manager::is_db_mode()) {
-            $product = MyFeeds_DB_Manager::get_product((string) $id);
+            // The feed, or the merchant a block saved: another feed may
+            // hold the same id for another product.
+            $product = MyFeeds_DB_Manager::get_product(
+                (string) $id,
+                (int) $request->get_param('feed_id'),
+                sanitize_text_field((string) $request->get_param('merchant'))
+            );
             if ($product) {
                 return rest_ensure_response($product);
             }

@@ -273,12 +273,17 @@ class MyFeeds_Variants {
         if (MyFeeds_DB_Manager::has_variant_key_column()) {
             $key = (string) ($product['variant_key'] ?? '');
             if ($key === '' && $id !== '') {
+                // Two feeds can hold the id for two products
+                // (MyFeeds_DB_Manager::get_product()): the product's own
+                // feed, else the merchant a block saved, else always the
+                // same row.
                 $key = (string) $wpdb->get_var($wpdb->prepare(
                     "SELECT variant_key FROM {$table}
                      WHERE external_id = %s AND variant_key IS NOT NULL
-                     ORDER BY (feed_id = %d) DESC LIMIT 1",
+                     ORDER BY (feed_id = %d) DESC, (feed_name = %s) DESC, feed_id ASC LIMIT 1",
                     $id,
-                    $feed
+                    $feed,
+                    (string) ($product['merchant'] ?? '')
                 ));
             }
             if ($key === '' && $feed > 0 && $name !== '' && !empty($product['image_url'])) {

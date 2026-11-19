@@ -35,7 +35,8 @@ class MyFeeds_Product_Resolver {
      * NEVER returns null if ANY data source has the product.
      * 
      * @param string $product_id Product ID to resolve (= external_id = block attr id)
-     * @param array $hints Optional hints (color, image_url) for variant matching
+     * @param array $hints Optional hints (color, image_url) for variant matching;
+     *                     feed_id, merchant and affiliate_link name the feed
      * @return array|null Product data or null only if ALL sources fail
      */
     public static function resolve($product_id, $hints = array()) {
@@ -68,15 +69,29 @@ class MyFeeds_Product_Resolver {
      * Uses wp_cache (object cache) for per-request deduplication only.
      */
     private static function resolve_from_db($product_id, $hints = array()) {
+        // Which feed the block's item came from, or for an item saved
+        // before items carried it, the merchant and link it saved: two
+        // feeds can hold the same id for two products (see
+        // MyFeeds_DB_Manager::get_product()). The cache key carries them,
+        // or the first item of a page decided for every later one.
+        $feed_id  = isset($hints['feed_id']) ? (int) $hints['feed_id'] : 0;
+        $merchant = isset($hints['merchant']) ? (string) $hints['merchant'] : '';
+        $link     = isset($hints['affiliate_link']) ? (string) $hints['affiliate_link'] : '';
+
         // Per-request cache via WP object cache (non-persistent by default)
         $cache_key = 'myfeeds_product_' . $product_id;
+        if ($feed_id > 0) {
+            $cache_key .= '|f' . $feed_id;
+        } elseif ($merchant !== '' || $link !== '') {
+            $cache_key .= '|' . md5($merchant . '|' . $link);
+        }
         $cached = wp_cache_get($cache_key, 'myfeeds');
         if ($cached !== false) {
             return $cached;
         }
         
         // Source 1: DB table
-        $product = MyFeeds_DB_Manager::get_product($product_id);
+        $product = MyFeeds_DB_Manager::get_product($product_id, $feed_id, $merchant, $link);
         if ($product) {
             wp_cache_set($cache_key, $product, 'myfeeds', 300);
             return $product;

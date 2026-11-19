@@ -12,6 +12,31 @@
   const nonce = data.nonce || '';
   const PLACEHOLDER_IMG = pluginUrl + "assets/placeholder.png";
 
+  // A product is its feed and its id. Two feeds can hand out the same id
+  // for two products - Rakuten passes the merchant's own SKU on, and JD
+  // Sports and Finish Line, one group, shared 38,754 of them - so the id
+  // alone named whichever row the database returned first. An item saved
+  // before items carried their feed has none: the server then decides by
+  // the merchant and the link it saved, and here the id alone compares,
+  // as it always did.
+  function feedOf(p) {
+    const f = parseInt(p && p.feed_id, 10);
+    return f > 0 ? f : 0;
+  }
+  function idOf(p) {
+    return String((p && (p.id || p.aw_product_id)) || '');
+  }
+  function sameProduct(a, b) {
+    const id = idOf(a);
+    if (id === '' || id !== idOf(b)) return false;
+    const fa = feedOf(a), fb = feedOf(b);
+    return !fa || !fb || fa === fb;
+  }
+  function productKey(p) {
+    const f = feedOf(p);
+    return (f ? f + ':' : '') + idOf(p);
+  }
+
   // Each picker block refreshes its saved tiles from the database when it
   // mounts. Blocks mount independently, so a post with seven pickers made
   // seven POSTs to the same endpoint - and what costs the time in each is
@@ -29,7 +54,19 @@
   // blocks can clear that in one batch.
   const IDS_PER_REQUEST = 100;
 
-  function postProductIds(ids) {
+  // What the server needs to find a saved item: the id, the feed and, for
+  // an item without one, the merchant and link it was saved with.
+  function refOf(item) {
+    if (item && typeof item === 'object') {
+      return { id: idOf(item), feed_id: feedOf(item), merchant: String(item.merchant || ''), link: String(item.affiliate_link || '') };
+    }
+    return { id: String(item), feed_id: 0, merchant: '', link: '' };
+  }
+  function refKey(ref) {
+    return ref.feed_id ? ref.feed_id + ':' + ref.id : '0:' + ref.id + '|' + ref.merchant.toLowerCase() + '|' + ref.link;
+  }
+
+  function postProductRefs(refs) {
     return fetch(apiUrl + 'products-by-ids', {
       method: 'POST',
       credentials: 'include',
@@ -37,7 +74,7 @@
         'Content-Type': 'application/json',
         'X-WP-Nonce': nonce
       },
-      body: JSON.stringify({ ids: ids })
+      body: JSON.stringify({ refs: refs })
     })
       .then(function (r) { return r.json(); })
       // One failed chunk must not lose the products the others found.
@@ -48,9 +85,9 @@
     const waiters = pendingWaiters;
     const seen = {};
     const unique = [];
-    pendingIds.forEach(function (id) {
-      const key = String(id);
-      if (!seen[key]) { seen[key] = true; unique.push(key); }
+    pendingIds.forEach(function (ref) {
+      const key = refKey(ref);
+      if (!seen[key]) { seen[key] = true; unique.push(ref); }
     });
 
     pendingIds = [];
@@ -62,28 +99,31 @@
       chunks.push(unique.slice(i, i + IDS_PER_REQUEST));
     }
 
-    Promise.all(chunks.map(postProductIds)).then(function (lists) {
-      const byId = {};
-      lists.forEach(function (list) {
+    // Each answer names its reference by place ('ref'): two references
+    // can share an id, so the id cannot say which one it answers.
+    Promise.all(chunks.map(postProductRefs)).then(function (lists) {
+      const byKey = {};
+      lists.forEach(function (list, c) {
         if (!Array.isArray(list)) return;
         list.forEach(function (p) {
-          const pid = String(p.id || p.aw_product_id || '');
-          if (pid) byId[pid] = p;
+          const ref = p && chunks[c][p.ref];
+          if (ref) byKey[refKey(ref)] = p;
         });
       });
       waiters.forEach(function (w) {
-        w.resolve(w.ids
-          .map(function (id) { return byId[String(id)]; })
-          .filter(Boolean));
+        w.resolve(w.refs.map(function (ref) { return byKey[refKey(ref)] || null; }));
       });
     });
   }
 
-  function fetchProductsByIds(ids) {
+  // Saved items (or bare ids) in, the product each one means out, in the
+  // same order; null where none is left.
+  function fetchProductsByIds(items) {
     return new Promise(function (resolve) {
-      if (!apiUrl || !ids || ids.length === 0) { resolve([]); return; }
-      pendingIds = pendingIds.concat(ids);
-      pendingWaiters.push({ ids: ids, resolve: resolve });
+      if (!apiUrl || !items || items.length === 0) { resolve([]); return; }
+      const refs = items.map(refOf);
+      pendingIds = pendingIds.concat(refs);
+      pendingWaiters.push({ refs: refs, resolve: resolve });
       if (pendingTimer === null) {
         pendingTimer = setTimeout(flushProductBatch, 0);
       }
@@ -490,7 +530,7 @@
           // the same key the search and the shop use. The label-only
           // product-sizes request is no longer needed: labels come
           // with the rows.
-          fetch(apiUrl + 'product-size-variants?id=' + encodeURIComponent(String(productId)), {
+          fetch(apiUrl + 'product-size-variants?id=' + encodeURIComponent(String(productId)) + '&feed_id=' + feedOf(showProductDetail), {
             credentials: 'include',
             headers: { 'X-WP-Nonce': nonce }
           })
@@ -516,7 +556,7 @@
         // otherwise it returns []. Either way we set state without
         // breaking the local-parse fallback.
         if (productId && apiUrl) {
-          fetch(apiUrl + 'product-color-siblings?id=' + encodeURIComponent(String(productId)), {
+          fetch(apiUrl + 'product-color-siblings?id=' + encodeURIComponent(String(productId)) + '&feed_id=' + feedOf(showProductDetail), {
             credentials: 'include',
             headers: { 'X-WP-Nonce': nonce }
           })
@@ -598,8 +638,8 @@
           if (loadMore) {
             setResults(function (prev) {
               var seen = {};
-              prev.forEach(function (p) { seen[String(p.id)] = true; });
-              return prev.concat(found.filter(function (p) { return !seen[String(p.id)]; }));
+              prev.forEach(function (p) { seen[productKey(p)] = true; });
+              return prev.concat(found.filter(function (p) { return !seen[productKey(p)]; }));
             });
           } else {
             setResults(found);
@@ -646,8 +686,8 @@
           if (loadMore) {
             setResults(function(prev) {
               var existingIds = {};
-              prev.forEach(function(p) { existingIds[String(p.id || p.aw_product_id)] = true; });
-              var unique = newProducts.filter(function(p) { return !existingIds[String(p.id || p.aw_product_id)]; });
+              prev.forEach(function(p) { existingIds[productKey(p)] = true; });
+              var unique = newProducts.filter(function(p) { return !existingIds[productKey(p)]; });
               return prev.concat(unique);
             });
           } else {
@@ -855,7 +895,7 @@
       if (!product || (!product.id && !product.aw_product_id)) return;
       try {
         var next = [product].concat((recents || []).filter(function (r) {
-          return String(r.id || r.aw_product_id) !== String(product.id || product.aw_product_id);
+          return !sameProduct(r, product);
         })).slice(0, 10);
         setRecents(next);
         if (window.localStorage) {
@@ -900,6 +940,7 @@
 
       const enriched = {
         id: String(awId),
+        feed_id: feedOf(product),
         title: title,
         image_url: mainImage,
         affiliate_link: deepLink,
@@ -915,8 +956,8 @@
       console.log("💾 MYFEEDS: Enriched product data:", enriched);
       
       setSelected(function(prev){
-        const exists = prev.some(function(p){ return String(p.id) === enriched.id; });
-        if (exists) { return prev.filter(function(p){ return String(p.id) !== enriched.id; }); }
+        const exists = prev.some(function(p){ return sameProduct(p, enriched); });
+        if (exists) { return prev.filter(function(p){ return !sameProduct(p, enriched); }); }
         return single ? [enriched] : prev.concat([enriched]);
       });
     };
@@ -976,10 +1017,10 @@
     };
 
     const productCard = function(product, index){
-      const isSelected = (selected || []).some(function(p){ return String(p.id) === String(product.id || product.aw_product_id); });
+      const isSelected = (selected || []).some(function(p){ return sameProduct(p, product); });
       const shopName = resolveShopName(product);
       const brandName = product.brand || product.brand_name || product.manufacturer || product.make || product.vendor || "";
-      return React.createElement("div", { key: 'result-' + String(product.id || product.aw_product_id) + '-' + index, style: { border: isSelected ? "2px solid #667eea" : "1px solid #e5e7eb", borderRadius: "8px", background: "#fff", cursor: "pointer", overflow: "hidden", transition: "box-shadow .2s", boxShadow: isSelected ? "0 0 0 2px rgba(102,126,234,0.15)" : "0 1px 2px rgba(0,0,0,0.06)" }, onClick: function(){ toggleProduct(product); } },
+      return React.createElement("div", { key: 'result-' + productKey(product) + '-' + index, style: { border: isSelected ? "2px solid #667eea" : "1px solid #e5e7eb", borderRadius: "8px", background: "#fff", cursor: "pointer", overflow: "hidden", transition: "box-shadow .2s", boxShadow: isSelected ? "0 0 0 2px rgba(102,126,234,0.15)" : "0 1px 2px rgba(0,0,0,0.06)" }, onClick: function(){ toggleProduct(product); } },
         React.createElement("div", { style: { position: "relative", height: "160px", background: "#fff", overflow: "hidden" } },
           React.createElement("img", { src: product.image_url || product.merchant_image_url || product.large_image || product.aw_image_url || product.image || product.picture || PLACEHOLDER_IMG, alt: product.title || product.product_name || 'Product', style: { width: "100%", height: "100%", objectFit: "contain" } }),
           (ext && ext.detail === false) ? null : infoButton(function(e){ 
@@ -1269,6 +1310,7 @@
         id: sibling.external_id,
         aw_product_id: sibling.external_id,
         external_id: sibling.external_id,
+        feed_id: sibling.feed_id || showProductDetail.feed_id,
         title: sibling.product_name || showProductDetail.title,
         product_name: sibling.product_name || showProductDetail.product_name,
         colour: sibling.colour,
@@ -1922,6 +1964,7 @@
                                 id: row.external_id,
                                 external_id: row.external_id,
                                 aw_product_id: row.external_id,
+                                feed_id: row.feed_id || showProductDetail.feed_id,
                                 price: row.price,
                                 old_price: row.original_price,
                                 original_price: row.original_price,
@@ -1970,7 +2013,7 @@
               toggleProduct(showProductDetail, true);
               setShowProductDetail(null);
             }
-          }, (selected || []).some(function(p){ return String(p.id) === String(showProductDetail && showProductDetail.id); }) ? "Remove from Selection" : "Add to Selection")
+          }, (selected || []).some(function(p){ return showProductDetail && sameProduct(p, showProductDetail); }) ? "Remove from Selection" : "Add to Selection")
         )
       )
     );
@@ -2021,22 +2064,19 @@
       useEffect(function() {
         if (!selected || selected.length === 0 || !apiUrl) return;
         
-        var ids = selected.map(function(p) { return String(p.id); });
-        
-        fetchProductsByIds(ids)
+        fetchProductsByIds(selected)
         .then(function(freshProducts) {
           if (!Array.isArray(freshProducts) || freshProducts.length === 0) return;
           
-          var freshMap = {};
-          freshProducts.forEach(function(p) {
-            var pid = String(p.id || p.aw_product_id || '');
-            if (pid) freshMap[pid] = p;
-          });
-          
-          var updated = selected.map(function(existing) {
-            var fresh = freshMap[String(existing.id)];
+          // One answer per saved item, in its order. An item saved before
+          // items carried their feed takes the feed of the product the
+          // server found for its merchant, so the next render and every
+          // later refresh ask for exactly that one.
+          var updated = selected.map(function(existing, i) {
+            var fresh = freshProducts[i];
             if (fresh) {
               return Object.assign({}, existing, {
+                feed_id: feedOf(existing) || feedOf(fresh),
                 title: fresh.title || fresh.product_name || existing.title,
                 price: fresh.price || existing.price,
                 original_price: fresh.original_price || existing.original_price,
@@ -2067,8 +2107,8 @@
         setSearchKey(function (k) { return k + 1; });
       };
 
-      const removeSelectedProduct = function (productId) {
-        const newSelected = (selected || []).filter(function(p){ return String(p.id) !== String(productId); });
+      const removeSelectedProduct = function (product) {
+        const newSelected = (selected || []).filter(function(p){ return !sameProduct(p, product); });
         setSelected(newSelected);
         setAttributes({ selectedProducts: newSelected });
       };
@@ -2338,8 +2378,8 @@
           React.createElement("h4", { style: { margin: "0 0 10px 0", fontSize: "14px" } }, labelProductsSelected(selected.length)),
           React.createElement("div", { style: { display: "flex", flexWrap: "wrap", justifyContent: "flex-start", gap: "10px" } },
             selected.map(function(product, index){
-              return React.createElement("div", { key: "selected-" + product.id + "-" + index, className: "myfeeds-selected-product-tile", style: { border: "1px solid #e5e7eb", borderRadius: "4px", padding: "6px", textAlign: "center", fontSize: "12px", position: "relative", backgroundColor: "#fff", width: "130px", flexShrink: 0 } },
-                React.createElement("button", { className: "myfeeds-remove-button", onClick: function(e){ e.stopPropagation(); removeSelectedProduct(product.id); }, title: "Remove" }, "\u2715"),
+              return React.createElement("div", { key: "selected-" + productKey(product) + "-" + index, className: "myfeeds-selected-product-tile", style: { border: "1px solid #e5e7eb", borderRadius: "4px", padding: "6px", textAlign: "center", fontSize: "12px", position: "relative", backgroundColor: "#fff", width: "130px", flexShrink: 0 } },
+                React.createElement("button", { className: "myfeeds-remove-button", onClick: function(e){ e.stopPropagation(); removeSelectedProduct(product); }, title: "Remove" }, "\u2715"),
                 React.createElement("img", { src: product.image_url || PLACEHOLDER_IMG, alt: product.title || '', style: { width: "100%", height: "90px", objectFit: "contain", borderRadius: "2px" } }),
                 product.brand && React.createElement("div", { style: { fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.3px", fontWeight: 600, marginTop: "4px", lineHeight: 1.2, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" } }, product.brand),
                 React.createElement("div", { style: { marginTop: "2px", fontWeight: 600, fontSize: "11px", lineHeight: 1.3 } }, (product.title || '').substring(0, 28) + ((product.title || '').length > 28 ? '...' : '')),

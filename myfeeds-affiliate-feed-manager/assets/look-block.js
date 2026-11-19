@@ -195,7 +195,7 @@
         }
         var r = readAsin(v);
         if (!r.id) { setMsg({ error: true, text: r.error }); return; }
-        update({ kind: 'amazon', id: r.id, brand: '', name: amazon.nameFromLink === false ? '' : nameFromAmazonLink(v), img: '' });
+        update({ kind: 'amazon', id: r.id, feed_id: 0, brand: '', name: amazon.nameFromLink === false ? '' : nameFromAmazonLink(v), img: '' });
         setText('');
         if (r.moved) setMsg({ text: r.moved });
         return;
@@ -252,12 +252,13 @@
       // only, as when one is pasted.
       if (String(prod.id).indexOf('amzn:') === 0) {
         setMsg(null);
-        update({ kind: 'amazon', id: String(prod.id), brand: '', name: '', img: '', shop: '', price: '' });
+        update({ kind: 'amazon', id: String(prod.id), feed_id: 0, brand: '', name: '', img: '', shop: '', price: '' });
         setText('');
         return;
       }
       choose({
         id: prod.id,
+        feed_id: prod.feed_id,
         title: prod.title,
         brand: prod.brand,
         image_url: prod.image_url,
@@ -270,6 +271,9 @@
       update({
         kind: 'feed',
         id: String(prod.id),
+        // The feed it came from: two feeds can hand out one id for two
+        // products, and the id alone would name either.
+        feed_id: parseInt(prod.feed_id, 10) || 0,
         brand: prod.brand || '',
         name: prod.title || '',
         img: prod.image_url || '',
@@ -366,7 +370,7 @@
               !isAmazon && p.price ? el('span', null, p.price) : null,
               el('button', { type: 'button', className: 'myfeeds-look-ed__change', onClick: function () {
                 setMsg(null);
-                update({ kind: '', id: '', brand: '', name: '', img: '', shop: '', price: '' });
+                update({ kind: '', id: '', feed_id: 0, brand: '', name: '', img: '', shop: '', price: '' });
               } }, 'Change')
             )
           )

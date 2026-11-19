@@ -455,6 +455,9 @@ class MyFeeds_Product_Picker {
                 $product_data = MyFeeds_Product_Resolver::resolve($requested_id, array(
                     'color' => $current_item['color'] ?? '',
                     'image_url' => $current_item['image_url'] ?? '',
+                    'feed_id' => (int) ($current_item['feed_id'] ?? 0),
+                    'merchant' => (string) ($current_item['merchant'] ?? ''),
+                    'affiliate_link' => (string) ($current_item['affiliate_link'] ?? ''),
                 ));
                 if ($product_data) {
                     $data_source = $use_db ? 'db' : 'json';

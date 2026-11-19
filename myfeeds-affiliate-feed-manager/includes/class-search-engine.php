@@ -2526,7 +2526,10 @@ class MyFeeds_Search_Engine {
         $products = array();
         foreach ($scored_rows as $item) {
             $product = self::row_to_product_simple($item['row']);
-            $products[$product['id']] = $product;
+            // Feed and id: keyed by the id alone, a second feed's product
+            // with the same id overwrote the first, and a search that
+            // counted 10 showed 8 (JD Sports and Finish Line, 19.11.2026).
+            $products[$product['feed_id'] . ':' . $product['id']] = $product;
         }
 
         if ($args['return_meta']) {
@@ -2956,6 +2959,9 @@ class MyFeeds_Search_Engine {
             'in_stock'            => (int) ($row['in_stock'] ?? 1),
             'status'              => $row['status'] ?? 'active',
             'merchant'            => $row['feed_name'] ?? '',
+            // With the id, what the picker saves: two feeds can hold one id
+            // for two products (MyFeeds_DB_Manager::get_product()).
+            'feed_id'             => (int) ($row['feed_id'] ?? 0),
             'last_updated'        => $row['last_updated'] ?? '',
             // The group behind this row: how many sizes, what they cost,
             // whether any of them can be bought. From the collapse, no
