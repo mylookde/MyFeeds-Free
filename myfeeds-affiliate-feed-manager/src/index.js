@@ -2024,7 +2024,7 @@
   window.myfeedsProductSearch = { Modal: ProductSearchModal };
 
   registerBlockType("myfeeds/product-picker", {
-    title: "MyFeeds \u2013 Product Picker",
+    title: "MyFeeds – Product Picker",
     icon: "cart",
     category: "widgets",
     description: "Display affiliate products from your configured feeds with smart search",

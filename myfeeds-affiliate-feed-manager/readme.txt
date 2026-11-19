@@ -32,11 +32,11 @@ Your time should go into content that helps your readers, not into fixing produc
 
 = Where your products come from =
 
-**Product feeds from your affiliate networks.** Most affiliate networks offer product feeds: a file or a link with all the products a merchant sells. Paste the link or upload the file. MyFeeds recognizes common fields like title, price, image and link on its own. If a feed names them differently, you match them yourself in the mapping editor. CSV, TSV, XML and JSON all work, compressed or not. The products are stored in your WordPress database. A feed link is updated every night; an uploaded file stays as it is until you upload a new one.
+**Product feeds from your affiliate networks.** Most affiliate networks offer product feeds: a file or a link with all the products a merchant sells. Paste the link or upload the file. MyFeeds recognizes common fields like title, price, image and link on its own. If a feed names them differently, you match them yourself in the mapping editor. CSV, TSV, XML and JSON all work, compressed or not. A feed link is updated every night; an uploaded file stays as it is until you upload a new one.
 
 **Rakuten Advertising.** Connect your account and choose the advertisers you work with. Their products come in like a feed and are updated every night.
 
-**Amazon, with or without the API.** Add any Amazon product by its link or ASIN. You write the product text yourself, and MyFeeds creates the link with your Amazon tracking ID. No API is needed for this. If your Amazon Associates account meets Amazon's requirements for its API, you can use Amazon's API as your product source instead: search Amazon in the editor and show Amazon's title, picture and price.
+**Amazon, with or without the API.** Add any Amazon product by its link or ASIN. MyFeeds takes the name from the link, which you can change, and adds your Amazon tracking ID. No API is needed for this. If your Amazon Associates account meets Amazon's requirements for its API, you can use Amazon's API as your product source instead: search Amazon in the editor and show Amazon's title, picture and price.
 
 You use one product source at a time, and Amazon products by link work next to it. You can change the source later on the Feeds screen.
 
@@ -48,13 +48,13 @@ You use one product source at a time, and Amazon products by link work next to i
 * **Comparison table.** Your pick large, alternatives beside or below, each with a label like "Budget pick" or "Premium pick", so readers can compare at a glance.
 * **Look block.** Your own photo with numbered points, each linked to a product: an outfit, a room, a desk setup. A list under the photo shows the same products.
 
-Recommendation cards and comparison tables also work well with Amazon products you add by link, because your own text carries them.
+Recommendation cards and comparison tables also work with Amazon products you add by link.
 
 = How MyFeeds keeps your posts current =
 
 * With a feed link or Rakuten, the products in your posts are updated every night.
 * Once a week, a full import brings in new products and notices the ones that are gone.
-* When a product is no longer available, it is no longer shown in your posts. MyFeeds lists it under "Content health" together with the posts it appeared in, so you can replace it. If it comes back, it is shown again.
+* When a product is no longer available, it is no longer shown in your posts. MyFeeds lists the posts it appeared in under "Content health", so you can replace it. If it comes back, it is shown again.
 * Your products are stored in your own WordPress database. With a feed or Rakuten, product cards are built from there, without contacting an outside service on each page view. Only the pictures load from the merchant's image server.
 * After each import, MyFeeds clears the cached copies of the posts that show products, for the common cache plugins.
 
@@ -76,7 +76,7 @@ Install MyFeeds, choose where your products come from and add your first product
 
 = Related paid plugin =
 
-This plugin is fully functional on its own. A separate, independent paid plugin called **MyFeeds Pro** is available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins), in two plans: Pro and Shop. Pro adds several product sources side by side, a visual design editor with Google Fonts, more display options (comparison tables with equal rows, carousel auto-play and arrow colors) and click analytics per post and product. The Shop plan adds a full storefront on your own domain, with its own categories, filters and sorting. It is not required to use this plugin.
+This plugin is fully functional on its own. A separate, independent paid plugin called **MyFeeds Pro** is available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins), in two plans: Pro and Shop. Pro adds several product sources side by side and a design editor that fits your cards to your style: colors, spacing, fonts and what each card shows. Its click analytics show which posts, products, brands and networks bring the most clicks. They also list the products that have left your feeds and lead you to the posts that show them; a relisted product is swapped in one click. The Shop plan adds a storefront on your own domain, with categories, filters and sorting. MyFeeds Pro is not required to use the free plugin.
 
 == Installation ==
 
@@ -84,18 +84,18 @@ This plugin is fully functional on its own. A separate, independent paid plugin 
 2. Activate the plugin through the **Plugins** screen in WordPress.
 3. Go to **MyFeeds** in your admin sidebar and choose your product source: **+ Add a feed**, **+ Add API source** for Rakuten Advertising, or **Connect Amazon's API**.
 4. For a feed, paste a product feed URL from your affiliate network (or upload its file) and click **Create Feed**.
-5. In the block editor, add the **MyFeeds – Product Picker** block to any post or page.
+5. In the block editor, add the **MyFeeds – Product Picker** block to any post or page, or **MyFeeds Look** for a photo with clickable products.
 6. Search for products, select them, and publish.
 
 = Where do I get a product feed URL? =
 
-Sign up with an affiliate network (such as AWIN, CJ Affiliate, or Impact), navigate to the product feed section (usually labelled "Create a feed" or "Product feeds"), and copy the feed URL. With Rakuten Advertising, choose **+ Add API source** instead.
+Sign up with an affiliate network (such as AWIN), open its product feed section (often called "Create a feed", "Product feeds" or "Datafeeds") and copy the feed link. If your network offers a file, upload it. With Rakuten Advertising, choose **+ Add API source** instead.
 
 == Frequently Asked Questions ==
 
 = Who is MyFeeds for? =
 
-Anyone in affiliate marketing who promotes other companies' products and earns a commission on the sale, from solo bloggers and niche sites to large publishers, magazines and deal sites. They use MyFeeds to show those products as cards inside their posts, with an image, the price and their affiliate link, and the cards keep themselves current. If your network gives you a product feed or a datafeed, MyFeeds can import it.
+Anyone in affiliate marketing who promotes other companies' products and earns a commission on the sale, from solo bloggers and niche sites to large publishers, magazines and deal sites. They use MyFeeds to show those products as cards inside their posts, with an image, the price and their affiliate link. If your network gives you a product feed or a datafeed, MyFeeds can import it, and Amazon products work by link, without Amazon's API.
 
 = Where do my products come from? =
 
@@ -103,11 +103,11 @@ You choose one: a product feed (by link or file), Rakuten Advertising (with as m
 
 = How do I upload a merchant product feed to WordPress? =
 
-Install MyFeeds, open **MyFeeds → Feeds**, and paste the feed URL your affiliate network gave you. MyFeeds downloads the file, works out which column is the title, the price, the image and the affiliate link, and imports every product into your own database. CSV, TSV, XML and JSON all work, compressed or not, and nothing has to be uploaded by hand.
+Install MyFeeds, open **MyFeeds → Feeds**, choose **+ Add a feed** and paste the feed link your affiliate network gave you, or upload its file. MyFeeds works out which column is the title, the price, the image and the affiliate link, and imports the products into your own database. CSV, TSV, XML and JSON all work, compressed or not. A feed link is read again every night.
 
 = How do I add affiliate products to a blog post? =
 
-Open any post in the block editor and add the **MyFeeds – Product Picker** block. Search your imported catalogue by name, brand, colour or category, tick the products you want, and they appear as product cards with image, price and a buy button. No copying links, no HTML.
+Open any post in the block editor and add the **MyFeeds – Product Picker** block. Search your products, narrow them by brand, color, category or shop, tick the ones you want, and choose how they show: product grid, carousel, recommendation card or comparison table. Every card carries your affiliate link. No copying links, no HTML. For a photo with clickable products, add the **MyFeeds Look** block.
 
 = How do I keep affiliate prices up to date on my site? =
 
@@ -115,7 +115,7 @@ MyFeeds re-reads your feed link every night and refreshes what is already in you
 
 = Which affiliate networks provide a product feed? =
 
-Most of the large ones do: AWIN, Tradedoubler, CJ Affiliate, Impact, Rakuten Advertising, Pepperjam and FlexOffers all offer product feeds, and so do many merchants directly. Some hand you a link, some a file to download. Look in your network's dashboard for a section called "Product feeds", "Datafeeds" or "Create a feed". MyFeeds takes either: paste the link or upload the file.
+Most of the large ones do: AWIN, Tradedoubler, CJ Affiliate, Impact, Rakuten Advertising, Pepperjam and FlexOffers all offer product feeds, and so do many merchants directly. Some hand you a link, some a file to download. Look in your network's dashboard for a section called "Product feeds", "Datafeeds" or "Create a feed". MyFeeds takes either: paste the link or upload the file. Rakuten Advertising can also be connected through its API (**+ Add API source**).
 
 = Can I build an affiliate store or shop page with this? =
 
@@ -127,7 +127,7 @@ It depends on the feed size. A feed with 10,000 products typically takes 2–5 m
 
 = Why are some products missing after import? =
 
-Only products with valid data (title, price, image, and affiliate link) are imported. Check your feed source for incomplete entries.
+MyFeeds imports every row from which it can read a product number. Rows without one are skipped, and a number that appears twice in a feed is one product. If many products are missing, open the mapping editor and check which column holds the product number.
 
 = Does MyFeeds slow down my site? =
 
@@ -143,7 +143,7 @@ No. MyFeeds requires the block editor.
 
 = Which affiliate networks are supported? =
 
-If your affiliate program hands you a product feed URL you can download, MyFeeds will almost certainly read it. The plugin handles the common feed formats automatically and recognises the field structure that most networks use. For everything custom there's a manual mapping editor inside the plugin.
+If your affiliate program gives you a product feed, as a link or a file, MyFeeds can usually read it: it recognizes the field structure most networks use, and for anything unusual there is a mapping editor. Rakuten Advertising can also be connected through its API, and Amazon products work by link or through Amazon's API.
 
 = Does it work with my network's feed: Awin, CJ, Impact, Tradedoubler, Rakuten? =
 
@@ -213,7 +213,7 @@ A Look photo comes from your media library, or from a web address you paste unde
 
 * **What is sent:** when you press "Check", your server sends an HTTP GET request to the address you pasted; if that is a web page (a Pinterest pin, a product page), it also requests the preview image the page names. The first request carries a `User-Agent` header that says "MyFeeds image check" and names your site's address; the others carry WordPress's standard one. No visitor data is sent.
 * **When it is sent:** only in the block editor, when you check an address and, if you choose "Copy into my media library", once more to copy the image. Showing a Look to a reader never makes your server fetch its photo.
-* **Where it is sent:** to the host of the address you pasted, and to the host of the preview image that page names. Addresses inside your own network are refused.
+* **Where it is sent:** to the host of the address you pasted, and of the preview image that page names. Addresses inside your own network are refused.
 * **A linked photo:** with "Link the image", your readers' browsers load the photo from that server, which receives their IP address and browser details; MyFeeds tells the browser to send no referrer with it. Name that server in your privacy policy.
 
 The terms and privacy policy of the site you take the photo from apply, and so do its rights: copy an image only if you may. A product address you paste into a point is looked up in your own database. With Rakuten Advertising as your product source, an address from one of your Rakuten advertisers that your database does not hold yet is also looked up at Rakuten, by the words in the address (see Rakuten Advertising above); with Amazon's API, an Amazon address at Amazon.
@@ -228,12 +228,11 @@ Apart from the above, the plugin sends nothing anywhere: no analytics, no tracki
 
 == Source Code ==
 
-The full source for this plugin is public: [github.com/mylookde/MyFeeds-Free](https://github.com/mylookde/MyFeeds-Free). The project homepage is [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=source).
+The full source is public: [github.com/mylookde/MyFeeds-Free](https://github.com/mylookde/MyFeeds-Free). The project homepage is [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=source).
 
 * Block editor source: `src/index.js`
-* Build tool: terser via `npm run build` (configuration in `package.json`)
 
-To rebuild the editor bundle from source, run `npm install && npm run build` inside the plugin folder. The other scripts in `assets/` are not built; they ship as they are written.
+To rebuild the editor bundle from source (terser, configured in `package.json`), run `npm install && npm run build` inside the plugin folder. The other scripts in `assets/` ship as written, without a build.
 
 = Credits =
 
