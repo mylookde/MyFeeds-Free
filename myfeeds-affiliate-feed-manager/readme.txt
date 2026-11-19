@@ -45,7 +45,7 @@ You use one product source at a time, and Amazon products by link work next to i
 * **Product grid.** Cards with picture, brand, price and merchant, easy to scan. For roundups, gift guides and best-of lists.
 * **Carousel.** The same products to swipe through, when your post is already long or full of pictures.
 * **Recommendation card.** One product you recommend most, shown large, with a label like "Our pick" and a short reason. MyFeeds suggests both, and you can write your own.
-* **Comparison table.** Your pick on top, the alternatives below, each with a label like "Budget pick" or "Premium pick", so readers can compare at a glance.
+* **Comparison table.** Your pick large, alternatives beside or below, each with a label like "Budget pick" or "Premium pick", so readers can compare at a glance.
 * **Look block.** Your own photo with numbered points, each linked to a product: an outfit, a room, a desk setup. A list under the photo shows the same products.
 
 Recommendation cards and comparison tables also work well with Amazon products you add by link, because your own text carries them.
@@ -244,12 +244,13 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 1. The Product Picker in the block editor. Search your whole catalog, narrow it with filters, pick what fits your post.
 2. Your picks published as a product grid: picture, brand, price, discount and merchant, from your merchant's latest update. Your affiliate link is built into every card.
 3. The same picks as a swipeable carousel, for long posts and picture-heavy roundups.
-4. The Look block: numbered points on your own photo, each linked to a product, with a list of the same products underneath.
-5. A recommendation card for the product you recommend most, with a label and a short reason. Below it, a comparison table with your pick on top and the alternatives underneath. Both work with Amazon products added by link.
-6. Design editor (MyFeeds Pro). Adjust colors, fonts and spacing of your product cards; one save updates every card on your site.
-7. Your own storefront (MyFeeds Pro, Shop plan), with categories, filters and sorting on your domain. Every product leads to the merchant through your affiliate link.
-8. Category manager (MyFeeds Pro, Shop plan). Build the category tree once, then choose the products for each category.
-9. Shop design editor (MyFeeds Pro, Shop plan), with phone, tablet and laptop previews.
+4. The Look block: numbered points on your own photo, each linked to a product. A list of the same products can show underneath.
+5. A recommendation card for the product you recommend most, with a label and a short reason. It also works with Amazon products added by link.
+6. A comparison table: your pick large, the alternatives beside it (below it on phones), each with a label like "Budget pick" or "Premium pick". It also works with Amazon products added by link.
+7. Design editor (MyFeeds Pro). Adjust colors, fonts and spacing of your product cards; one save updates every card on your site.
+8. Your own storefront (MyFeeds Pro, Shop plan), with categories, filters and sorting on your domain. Every product leads to the merchant through your affiliate link.
+9. Category manager (MyFeeds Pro, Shop plan). Build the category tree once, then choose the products for each category.
+10. Shop design editor (MyFeeds Pro, Shop plan), with phone, tablet and laptop previews.
 
 == Changelog ==
 
