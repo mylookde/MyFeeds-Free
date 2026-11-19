@@ -8,61 +8,75 @@ Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Make your blog shoppable. Import your merchants' affiliate product feed and place searchable product cards in any post. Prices and links stay current.
+Spend less time managing affiliate products. Import them from your affiliate networks, Rakuten or Amazon and show them right in your posts.
 
 == Description ==
 
-**Tired of hunting for products, pasting affiliate links, fixing the ones that quietly stopped working, and earning from ads alone? Make your blog shoppable!**
+**Make your blog shoppable. Spend more time creating, less time managing products.**
 
-Embedding affiliate links by hand eats the time you should spend writing: links that lead nowhere to replace, new products to find, prices to check. Most affiliates lose sales because a link went out of date without telling them, or because a plain text link just doesn't invite a click.
+Running an affiliate blog takes more than writing good content.
 
-MyFeeds does that for you. Instead of text links that quietly go out of date inside your posts, your readers see product cards that show the merchant, the brand, the title and the price. With a feed link or Rakuten, the cards refresh every night from your merchant's latest update.
+You search for products across different networks, add affiliate links to your posts and try to keep everything up to date. Prices change, products disappear and old links need attention. Before you know it, managing products has become a job of its own.
 
-All you do is choose where your products come from: paste the product feed link from your affiliate network (or upload its file), connect Rakuten Advertising, or connect Amazon's API. Once the products are in, the **Product Picker** block lets you search them right inside the block editor, by keyword, with filters when you need them.
+MyFeeds helps you bring that work together in WordPress.
 
-You get to stay where the value is. Writing. Instead of pasting URLs at midnight.
+Bring in products from your affiliate networks, Rakuten Advertising or Amazon, and find them right in the block editor while you write. Show them as product grids, carousels, recommendation cards, comparison tables or photos with clickable products. Your affiliate link is built into every card automatically.
 
-= Who is this for =
-
-Anyone who earns a commission by promoting other companies' products, from solo bloggers and niche sites to large publishers, magazines and deal sites. If there's an affiliate program for what you cover, there's a product feed somewhere, and MyFeeds can read it. The block editor stays your block editor; the plugin works in the background.
-
-= What changes for you =
-
-* **Your posts become shoppable.** A grid your readers can scan: image, brand, price, discount, shipping, and your link. You compose it in seconds inside the block editor.
-* **Your prices stop lying.** With a feed link or Rakuten, your merchant's latest prices reach your posts every night.
-* **Your posts stay current.** Discontinued products surface so you can replace them. Stock that comes back lights up again. Nothing changes behind your back.
-* **You publish faster.** Two letters in the editor, the product appears, you click, the card is in. You never leave the post you're writing.
-* **Your site stays yours.** Products from your feed live in your own WordPress database, and so do Rakuten's. With a product feed or Rakuten, visitors don't wait on a third-party server: your server asks no other service while a page loads.
-* **You never learn a file format.** Whatever your network sends, MyFeeds reads it and works out which column is the price, which is the image, which is the link.
+Your time should go into content that helps your readers, not into fixing product links. Spend less time maintaining products, and give your readers a better way to discover what you recommend.
 
 = How it works =
 
-1. Choose your product source: paste the **affiliate product feed URL** from your network (or upload its file), connect Rakuten Advertising, or connect Amazon's API.
-2. A feed or Rakuten is imported into your WordPress database; the plugin works out the columns on its own.
-3. In any post or page, add the **MyFeeds Product Picker** block. Search by name, brand, or category. Click to insert.
-4. The published page renders a responsive product card with the current price, image, brand, shipping, and your affiliate link. With a feed or Rakuten, the card is built from your own database and your server contacts no external service to render it. With Amazon's API, your server asks Amazon for data it may no longer keep (prices after an hour, everything else after a day). The pictures load from the merchant, or from Amazon.
+1. **Bring your products into WordPress.** Import a product feed from your affiliate network, connect Rakuten Advertising, or add Amazon products.
+2. **Choose the products you recommend.** Search them in the block editor while you write.
+3. **Show them in your content.** As a product grid, carousel, recommendation card, comparison table or a photo with clickable products.
 
-The next day the nightly sync refreshes what changed. The week after, a full import catches everything else. You don't think about it.
+= Where your products come from =
 
-= What's in the box =
+**Product feeds from your affiliate networks.** Most affiliate networks offer product feeds: a file or a link with all the products a merchant sells. Paste the link or upload the file. MyFeeds recognizes common fields like title, price, image and link on its own. If a feed names them differently, you match them yourself in the mapping editor. CSV, TSV, XML and JSON all work, compressed or not. The products are stored in your WordPress database. A feed link is updated every night; an uploaded file stays as it is until you upload a new one.
 
-* Universal feed import with Smart Mapping: almost any format your program hands you, detected automatically, and a manual editor for anything custom.
-* Smart Search in the block editor, with synonyms and several languages.
-* The **Product Picker** block with live in-editor search: a grid, a carousel, a recommendation card or a comparison table, and the **Look** block.
-* Prices and currencies straight from the feed, never converted.
+**Rakuten Advertising.** Connect your account and choose the advertisers you work with. Their products come in like a feed and are updated every night.
 
-= Good to know =
+**Amazon, with or without the API.** Add any Amazon product by its link or ASIN. You write the product text yourself, and MyFeeds creates the link with your Amazon tracking ID. No API is needed for this. If your Amazon Associates account meets Amazon's requirements for its API, you can use Amazon's API as your product source instead: search Amazon in the editor and show Amazon's title, picture and price.
 
-* Everything happens inside WordPress, from your product source to the published card.
-* Self-hosted. With a feed or Rakuten, your server contacts no external service to render a product; the pictures come from the merchant's image server. Amazon's API as your product source is the one exception (see External Services).
+You use one product source at a time, and Amazon products by link work next to it. You can change the source later on the Feeds screen.
+
+= How your readers see them =
+
+* **Product grid.** Cards with picture, brand, price and merchant, easy to scan. For roundups, gift guides and best-of lists.
+* **Carousel.** The same products to swipe through, when your post is already long or full of pictures.
+* **Recommendation card.** One product you recommend most, shown large, with a label like "Our pick" and a short reason. MyFeeds suggests both, and you can write your own.
+* **Comparison table.** Your pick on top, the alternatives below, each with a label like "Budget pick" or "Premium pick", so readers can compare at a glance.
+* **Look block.** Your own photo with numbered points, each linked to a product: an outfit, a room, a desk setup. A list under the photo shows the same products.
+
+Recommendation cards and comparison tables also work well with Amazon products you add by link, because your own text carries them.
+
+= How MyFeeds keeps your posts current =
+
+* With a feed link or Rakuten, the products in your posts are updated every night.
+* Once a week, a full import brings in new products and notices the ones that are gone.
+* When a product is no longer available, it is no longer shown in your posts. MyFeeds lists it under "Content health" together with the posts it appeared in, so you can replace it. If it comes back, it is shown again.
+* Your products are stored in your own WordPress database. With a feed or Rakuten, product cards are built from there, without contacting an outside service on each page view. Only the pictures load from the merchant's image server.
+* After each import, MyFeeds clears the cached copies of the posts that show products, for the common cache plugins.
+
+= What changes for you =
+
+* You find products where you already write, without switching between networks or copying links.
+* Your readers get clear product recommendations instead of a list of bare affiliate links.
+* You don't have to check every old post by hand. MyFeeds shows you which posts have a product that is gone.
+* You have more time for research, writing and your readers.
 
 = Get started =
 
-Install MyFeeds, choose your product source, and make your next post shoppable.
+Install MyFeeds, choose where your products come from and add your first products to a post.
+
+= Good to know =
+
+* Works with any theme that supports the block editor.
+* Prices and currencies come straight from your source and are never converted.
 
 = Related paid plugin =
 
-This plugin is fully functional on its own. A separate, independent paid plugin called **MyFeeds Pro** is available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins), in two plans: Pro and Shop. It adds things like a visual design editor with Google Fonts, auto-play and arrow colours for the carousel, click analytics per post and product, and, on the Shop plan, a full shop with its own categories and filters. It is not required to use this plugin.
+This plugin is fully functional on its own. A separate, independent paid plugin called **MyFeeds Pro** is available at [myfeeds.site](https://myfeeds.site/?utm_source=wporg&utm_medium=readme&utm_campaign=paid-plugins), in two plans: Pro and Shop. Pro adds several product sources side by side, a visual design editor with Google Fonts, more display options (comparison tables with equal rows, carousel auto-play and arrow colors) and click analytics per post and product. The Shop plan adds a full storefront on your own domain, with its own categories, filters and sorting. It is not required to use this plugin.
 
 == Installation ==
 
@@ -149,7 +163,7 @@ Yes. What your site contacts depends on your product source; **External Services
 
 == External Services ==
 
-MyFeeds keeps feed and Rakuten products in your own WordPress database. It contacts other servers in four cases: your site fetches the product feed you configured, or asks Rakuten Advertising or Amazon's API for product data when one of them is your product source; it measures the file size of a few product pictures; and it reads a photo you give a Look block by its web address.
+MyFeeds contacts other servers in four cases: your site fetches the product feed you configured, or asks Rakuten Advertising or Amazon's API for product data when one of them is your product source; it measures the file size of a few product pictures; and it reads a photo you give a Look block by its web address.
 
 = Configured product feed URL (your affiliate network) =
 
@@ -159,17 +173,17 @@ To import products, your site downloads the feed file (CSV, TSV, XML or JSON) fr
 * **When it is sent:** when you add, edit, test or reimport a feed in the WordPress admin, and on the plugin's schedule (a daily sync and a weekly full import). Showing a product card to a reader never calls the feed URL.
 * **Where it is sent:** to the host in the feed URL you saved, following any redirect. The plugin passes the URL on to no one.
 
-Your affiliate network's terms of service and privacy policy apply to the download.
+Your affiliate network's terms and privacy policy apply.
 
 = Rakuten Advertising (when it is your product source) =
 
-Rakuten Advertising hands out no feed link. As your product source, your site asks Rakuten's API for the products of the advertisers you choose and imports them like any feed, through a file in your upload folder.
+Rakuten Advertising hands out no feed link. As your product source, your site asks Rakuten's API for the products of the advertisers you choose and imports them like any feed.
 
 * **What is sent:** your Rakuten API details (client ID, secret and account SID) to get a sign-in token, then advertiser IDs and the categories or words of your Rakuten feeds. No visitor data is sent.
 * **When it is sent:** when you connect and test, list your advertisers, set up or edit a Rakuten feed, every night at 00:30 to refresh your Rakuten feeds, when you press "Refresh now" on a Rakuten feed or bring Rakuten back with "Change source", when you search in the product picker while the "Rakuten" switch under the search is on (it is on until you turn it off), and when you paste a shop's address into a Look point and one of your Rakuten advertisers sells it.
 * **Where it is sent:** `api.linksynergy.com` (`/token`, `/v1/partnerships`, `/productsearch/1.0`).
 
-The product pictures load from the merchant, as with any feed. Rakuten Advertising's Publisher Membership Agreement (https://rakutenadvertising.com/legal-notices/publisher-membership-agreement/) and Privacy Policy (https://rakutenadvertising.com/privacy-policy/) apply; its API is documented on the Developer Portal (https://developers.rakutenadvertising.com/).
+Rakuten Advertising's Publisher Membership Agreement (https://rakutenadvertising.com/legal-notices/publisher-membership-agreement/) and Privacy Policy (https://rakutenadvertising.com/privacy-policy/) apply; its API is documented on the Developer Portal (https://developers.rakutenadvertising.com/).
 
 = Amazon's Creators API (when it is your product source) =
 
@@ -185,22 +199,22 @@ MyFeeds keeps Amazon's data for at most a day and shows a price older than an ho
 
 = Product pictures (the merchant's image server) =
 
-A feed lists the web address of every product picture, on the merchant's own server or image CDN. MyFeeds shows the picture from that address and does not copy it to your site.
+MyFeeds shows each product picture from the address in your feed, on the merchant's server or image CDN, and does not copy it to your site.
 
-* **In your readers' browsers:** a reader's browser requests each picture from the merchant's image server, as for any picture embedded from another website; that server receives the reader's IP address, browser details and, usually, your site's address. The same happens in your own browser in the block editor.
+* **In your readers' browsers:** a reader's browser requests each picture from the merchant's image server, as for any picture embedded from another website; that server receives the reader's IP address, browser details and, usually, your site's address.
 * **From your server:** the plugin finds out whether an image server can deliver smaller pictures: your server asks for the first byte of a few sample pictures per image host and reads the file size from the reply, with WordPress's standard `User-Agent` header and no visitor data. The check starts after you have opened the WordPress admin, runs in the background, and asks a host that answered again after a month at the earliest.
-* **Where it is sent:** to the hosts named in the picture addresses of your feed. For Amazon products with Amazon's API, the pictures come from Amazon's image servers.
+* **Where it is sent:** to the hosts named in the picture addresses of your feed.
 
 Their terms and privacy policies apply. An image optimisation or CDN plugin that rewrites picture addresses may load them through its own service instead.
 
 = A Look photo from a web address (the site you name) =
 
-The Look block shows a photo with numbered points on it. The photo comes from your media library, or from a web address you paste under "Image from a URL".
+A Look photo comes from your media library, or from a web address you paste under "Image from a URL".
 
-* **What is sent:** when you press "Check", your server sends an HTTP GET request to the address you pasted; if that is a web page (a Pinterest pin, a product page), it also requests the preview image the page names. The first request carries a `User-Agent` header that says "MyFeeds image check" and names your site's address; the others carry WordPress's standard one (your WordPress version and site address). No visitor data is sent.
-* **When it is sent:** only in the block editor, when you check an address and, if you choose "Copy into my media library", once more to copy the image into your media library. Showing a Look to a reader never makes your server fetch its photo.
+* **What is sent:** when you press "Check", your server sends an HTTP GET request to the address you pasted; if that is a web page (a Pinterest pin, a product page), it also requests the preview image the page names. The first request carries a `User-Agent` header that says "MyFeeds image check" and names your site's address; the others carry WordPress's standard one. No visitor data is sent.
+* **When it is sent:** only in the block editor, when you check an address and, if you choose "Copy into my media library", once more to copy the image. Showing a Look to a reader never makes your server fetch its photo.
 * **Where it is sent:** to the host of the address you pasted, and to the host of the preview image that page names. Addresses inside your own network are refused.
-* **A linked photo:** with "Link the image", your readers' browsers load the photo from that server, which receives their IP address and browser details; MyFeeds tells the browser to send no referrer with it. Name that server in your privacy policy; the editor says so too.
+* **A linked photo:** with "Link the image", your readers' browsers load the photo from that server, which receives their IP address and browser details; MyFeeds tells the browser to send no referrer with it. Name that server in your privacy policy.
 
 The terms and privacy policy of the site you take the photo from apply, and so do its rights: copy an image only if you may. A product address you paste into a point is looked up in your own database. With Rakuten Advertising as your product source, an address from one of your Rakuten advertisers that your database does not hold yet is also looked up at Rakuten, by the words in the address (see Rakuten Advertising above); with Amazon's API, an Amazon address at Amazon.
 
@@ -208,7 +222,7 @@ The terms and privacy policy of the site you take the photo from apply, and so d
 
 Every product card, and every point of a Look, links to the affiliate link from your feed; your affiliate network or the merchant is asked only when a reader clicks it. Sample products, if you use them, link to a page on myfeeds.site.
 
-Without Amazon's API, an Amazon product you add by its link or ASIN links to its page on the Amazon site of your partner tag, with that tag; your site sends Amazon nothing, and the reader's browser goes to Amazon only on a click. The card shows the brand, name and note you typed, or the name taken from the link's own words, never anything Amazon sends, and the post keeps only the ASIN. With Amazon's API as your product source, the card shows Amazon's title, picture and price with the time it was read, and links with the address Amazon's API hands out, unchanged. The "Available at Amazon" badge, if you choose one, is an image from your own media library. Amazon's terms (https://affiliate-program.amazon.com/help/operating/policies/#Associates%20Program%20IP%20License) and privacy notice (https://www.amazon.com/gp/help/customer/display.html?nodeId=468496) apply on Amazon's site.
+Without Amazon's API, an Amazon product you add by its link or ASIN links to its page on the Amazon site of your partner tag, with that tag; your site sends Amazon nothing, and the reader's browser goes to Amazon only on a click. The card shows the brand, name and note you typed, or the name taken from the link's own words, never anything Amazon sends, and the post keeps only the ASIN. With Amazon's API as your product source, the card links with the address Amazon's API hands out, unchanged. The "Available at Amazon" badge, if you choose one, is an image from your own media library. Amazon's terms (https://affiliate-program.amazon.com/help/operating/policies/#Associates%20Program%20IP%20License) and privacy notice (https://www.amazon.com/gp/help/customer/display.html?nodeId=468496) apply on Amazon's site.
 
 Apart from the above, the plugin sends nothing anywhere: no analytics, no tracking, no usage reporting. Links in its admin screens open only when you click them.
 
@@ -227,14 +241,15 @@ To rebuild the editor bundle from source, run `npm install && npm run build` ins
 
 == Screenshots ==
 
-1. The product picker inside the block editor. Search your whole feed, narrow it with filters, click what you want. Here: 120 results for "shoes", filtered down to one brand, four products picked.
-2. Your picked products, saved in the block. They stay together until you place them, each with its own price and discount. The shop buttons on the cards belong to the Shop plan of MyFeeds Pro.
-3. Those four products published as a live product grid in a real blog post. Your readers see what the merchant is actually selling today, for as long as the post exists.
-4. The same four products as a swipeable carousel. A second way to present what you've curated, for image-heavy posts and roundups.
-5. Design editor (MyFeeds Pro). Cards that look like your blog wrote them. One save, every card across every post catches up. The live editor opens more than this screen lets on.
-6. Full storefront on your own domain (MyFeeds Pro, Shop plan). Visitors see your real online shop with categories, filters and sorting. The controls they already know from any modern shop, all on your domain. Every checkout goes through your affiliate link.
-7. Category manager (MyFeeds Pro, Shop plan). A shop organised the way your readers shop. Build the tree once, then curate products into each category by hand. Smart keyword search behind the scenes; you stay the editor.
-8. Shop design editor (MyFeeds Pro, Shop plan). Your storefront tracks your taste. A phone, tablet and laptop preview moves with you, so what you ship is exactly what your reader meets. The live editor carries plenty more.
+1. The Product Picker in the block editor. Search your whole catalog, narrow it with filters, pick what fits your post.
+2. Your picks published as a product grid: picture, brand, price, discount and merchant, from your merchant's latest update. Your affiliate link is built into every card.
+3. The same picks as a swipeable carousel, for long posts and picture-heavy roundups.
+4. The Look block: numbered points on your own photo, each linked to a product, with a list of the same products underneath.
+5. A recommendation card for the product you recommend most, with a label and a short reason. Below it, a comparison table with your pick on top and the alternatives underneath. Both work with Amazon products added by link.
+6. Design editor (MyFeeds Pro). Adjust colors, fonts and spacing of your product cards; one save updates every card on your site.
+7. Your own storefront (MyFeeds Pro, Shop plan), with categories, filters and sorting on your domain. Every product leads to the merchant through your affiliate link.
+8. Category manager (MyFeeds Pro, Shop plan). Build the category tree once, then choose the products for each category.
+9. Shop design editor (MyFeeds Pro, Shop plan), with phone, tablet and laptop previews.
 
 == Changelog ==
 
