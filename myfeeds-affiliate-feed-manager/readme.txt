@@ -3,7 +3,7 @@ Contributors: myfeeds
 Tags: affiliate, affiliate marketing, amazon affiliate, product feed, product import
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.1.4
+Stable tag: 1.1.5
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -257,6 +257,9 @@ To rebuild the editor bundle from source (terser, configured in `package.json`),
 
 == Changelog ==
 
+= 1.1.5 =
+* New: on WordPress 6.9 and later, an AI assistant you connect to your site (through the WordPress MCP Adapter, for example) can search your products and read a product preview through the WordPress Abilities API, so it can find a real product while it helps you write. It needs the same permission as the block editor and cannot change anything.
+
 = 1.1.4 =
 * New: a carousel can play by itself. In the block's Display Settings, turn on "Auto-play" and choose how long each slide stays, from 2 to 15 seconds (3 by default). It is off until you turn it on, and it pauses while a reader points at the carousel or moves through it with the keyboard.
 * Fixed: the plugin directory listed the Product Picker block as "MyFeeds u2013 Product Picker". The block's name now carries a real dash.
@@ -414,6 +417,9 @@ To rebuild the editor bundle from source (terser, configured in `package.json`),
 Older entries (1.0.28 and earlier) are in changelog.txt, which ships with the plugin.
 
 == Upgrade Notice ==
+
+= 1.1.5 =
+Lets an AI assistant you connect search your products (WordPress 6.9 and later). Coming from 1.0.x: one product source, now also Rakuten or Amazon's API; a site that ran MyFeeds Pro keeps its biggest source, the others are set aside, not deleted.
 
 = 1.1.4 =
 Adds auto-play for the carousel, off until you turn it on. Coming from 1.0.x: one product source, now also Rakuten or Amazon's API; a site that ran MyFeeds Pro keeps its biggest source, the others are set aside, not deleted.

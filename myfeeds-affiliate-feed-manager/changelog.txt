@@ -4,6 +4,9 @@ Full changelog
 The most recent releases are also listed on the plugin page on WordPress.org.
 That listing has a length limit, so the complete history lives here.
 
+= 1.1.5 =
+* New: on WordPress 6.9 and later, an AI assistant you connect to your site (through the WordPress MCP Adapter, for example) can search your products and read a product preview through the WordPress Abilities API, so it can find a real product while it helps you write. It needs the same permission as the block editor and cannot change anything.
+
 = 1.1.4 =
 * New: a carousel can play by itself. In the block's Display Settings, turn on "Auto-play" and choose how long each slide stays, from 2 to 15 seconds (3 by default). It is off until you turn it on, and it pauses while a reader points at the carousel or moves through it with the keyboard.
 * Fixed: the plugin directory listed the Product Picker block as "MyFeeds u2013 Product Picker". The block's name now carries a real dash.
