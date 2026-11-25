@@ -137,6 +137,10 @@ Not with a feed or Rakuten: the products are stored in your WordPress database, 
 
 Yes, it works with any WordPress theme that supports the Gutenberg block editor (WordPress 5.8+).
 
+= Does MyFeeds work with AI assistants? =
+
+Yes, on WordPress 6.9 and later. MyFeeds offers its product search and a product preview through the WordPress Abilities API, so an AI assistant you connect to your site (through the WordPress MCP Adapter, for example) can find a real product from your sources while it helps you write. It needs the same permission as the block editor and cannot change anything.
+
 = Can I use MyFeeds with the Classic Editor? =
 
 No. MyFeeds requires the block editor.

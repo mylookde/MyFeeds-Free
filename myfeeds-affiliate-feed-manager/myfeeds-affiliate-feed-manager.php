@@ -508,6 +508,7 @@ function myfeeds_load_includes() {
         'class-product-picker.php' => 'Product Picker Class',
         'class-product-resolver.php' => 'Product Resolver (Multi-Source Fallback)',
         'class-atomic-index-manager.php' => 'Atomic Index Manager',
+        'class-abilities.php' => 'Abilities (product search and preview for an AI assistant, through the WordPress Abilities API from 6.9)',
         'class-dead-products.php' => 'Dead-Product Detector (read-only report)',
     );
 
@@ -690,6 +691,12 @@ class MyFeeds_Affiliate_Product_Picker {
             // starts itself when its file loads.
             if (class_exists('MyFeeds_Picker_Displays')) {
                 MyFeeds_Picker_Displays::init();
+            }
+
+            // Read-only abilities for an AI assistant (WordPress 6.9 and
+            // up); silent where the Abilities API is missing.
+            if (class_exists('MyFeeds_Abilities')) {
+                MyFeeds_Abilities::init();
             }
 
             // Amazon by link or ASIN: the window on the Feeds screen, the
