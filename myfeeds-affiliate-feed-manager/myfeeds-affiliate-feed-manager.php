@@ -510,6 +510,7 @@ function myfeeds_load_includes() {
         'class-atomic-index-manager.php' => 'Atomic Index Manager',
         'class-abilities.php' => 'Abilities (product search and preview for an AI assistant, through the WordPress Abilities API from 6.9)',
         'class-dead-products.php' => 'Dead-Product Detector (read-only report)',
+        'class-robots.php' => 'robots.txt (the plugin\'s REST addresses are data for scripts, not pages)',
     );
 
     // Load standalone helper functions FIRST (no class dependencies)
@@ -697,6 +698,12 @@ class MyFeeds_Affiliate_Product_Picker {
             // up); silent where the Abilities API is missing.
             if (class_exists('MyFeeds_Abilities')) {
                 MyFeeds_Abilities::init();
+            }
+
+            // robots.txt keeps crawlers off the plugin's REST addresses,
+            // which a card's page script names (Amazon's live prices).
+            if (class_exists('MyFeeds_Robots')) {
+                MyFeeds_Robots::init();
             }
 
             // Amazon by link or ASIN: the window on the Feeds screen, the
